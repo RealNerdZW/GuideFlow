@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GuideFlow E2E Fixture</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 40px; }
+    .box { padding: 24px; border: 2px solid #e5e7eb; border-radius: 8px; margin: 16px 0; width: 200px; }
+    button { padding: 8px 20px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1 id="heading">GuideFlow Test Page</h1>
+  <button id="start-btn" onclick="window.startTour()">Start Tour</button>
+
+  <div id="step-one" class="box">Feature A</div>
+  <div id="step-two" class="box">Feature B</div>
+  <div id="step-three" class="box">Feature C</div>
+
+  <script type="module">
+    import { createGuideFlow } from '/node_modules/@guideflow/core/dist/index.js';
+    import '/node_modules/@guideflow/core/dist/styles/index.css';
+
+    const gf = createGuideFlow();
+    window.__guideflow = gf;
+
+    window.startTour = () => gf.start({
+      id: 'fixture-tour',
+      steps: [
+        { id: 's1', title: 'Step One', body: 'This is step one.', target: '#step-one', placement: 'bottom' },
+        { id: 's2', title: 'Step Two', body: 'This is step two.', target: '#step-two', placement: 'right' },
+        { id: 's3', title: 'Step Three', body: 'This is step three.', target: '#step-three', placement: 'top' },
+      ],
+    });
+  </script>
+</body>
+</html>

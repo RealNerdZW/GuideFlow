@@ -1,0 +1,37 @@
+{
+  "name": "@guideflow/svelte",
+  "version": "0.1.0",
+  "description": "GuideFlow Svelte adapter — stores and components",
+  "keywords": ["guided-tour", "svelte", "product-tour", "onboarding", "guideflow"],
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@guideflow/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "svelte": "^4.0.0 || ^5.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "svelte": "^4.2.12"
+  }
+}

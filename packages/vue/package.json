@@ -1,0 +1,41 @@
+{
+  "name": "@guideflow/vue",
+  "version": "0.1.0",
+  "description": "GuideFlow Vue 3 adapter — composables and components",
+  "keywords": ["guided-tour", "vue", "vue3", "product-tour", "onboarding", "guideflow"],
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --passWithNoTests",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@guideflow/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.4",
+    "@vue/test-utils": "^2.4.4",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.3.1",
+    "vue": "^3.4.19"
+  }
+}

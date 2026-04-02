@@ -1,0 +1,160 @@
+/* GuideFlow — Popover Base Styles */
+@import './tokens.css';
+
+.gf-popover {
+  position: fixed;
+  z-index: var(--gf-z-popover);
+  background: var(--gf-popover-bg);
+  color: var(--gf-popover-text);
+  border-radius: var(--gf-border-radius);
+  box-shadow: var(--gf-shadow);
+  border: 1px solid var(--gf-popover-border);
+  width: var(--gf-popover-width);
+  max-width: calc(100vw - 32px);
+  font-family: var(--gf-font-family);
+  font-size: var(--gf-font-size);
+  line-height: var(--gf-line-height);
+  padding: var(--gf-spacing);
+  box-sizing: border-box;
+}
+
+.gf-popover-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: var(--gf-spacing-sm);
+}
+
+.gf-popover-title {
+  font-weight: 600;
+  font-size: calc(var(--gf-font-size) + 1px);
+  margin: 0;
+  flex: 1;
+}
+
+.gf-popover-close {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--gf-popover-text);
+  opacity: 0.45;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--gf-border-radius-sm);
+  line-height: 1;
+  font-size: 18px;
+  transition: opacity 100ms;
+}
+.gf-popover-close:hover { opacity: 0.9; }
+.gf-popover-close:focus-visible {
+  outline: 2px solid var(--gf-accent-color);
+  outline-offset: 2px;
+  opacity: 0.9;
+}
+
+.gf-popover-body {
+  margin: 0 0 var(--gf-spacing-sm);
+  color: inherit;
+  opacity: 0.85;
+}
+
+.gf-popover-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: var(--gf-spacing);
+}
+
+.gf-popover-progress {
+  font-size: var(--gf-font-size-sm);
+  color: var(--gf-popover-text);
+  opacity: 0.5;
+}
+
+.gf-popover-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Progress bar */
+.gf-progress-bar {
+  height: 3px;
+  background: var(--gf-progress-bg);
+  border-radius: 99px;
+  margin-bottom: var(--gf-spacing);
+  overflow: hidden;
+}
+.gf-progress-bar-fill {
+  height: 100%;
+  background: var(--gf-progress-fill);
+  border-radius: 99px;
+  transition: width 300ms ease;
+}
+
+/* Buttons */
+.gf-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: var(--gf-btn-radius);
+  padding: var(--gf-btn-padding);
+  font-size: var(--gf-btn-font-size);
+  font-family: var(--gf-font-family);
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 120ms, transform 80ms;
+  line-height: 1;
+}
+.gf-btn:active { transform: translateY(1px); }
+.gf-btn:focus-visible {
+  outline: 2px solid var(--gf-accent-color);
+  outline-offset: 2px;
+}
+
+.gf-btn-primary {
+  background: var(--gf-accent-color);
+  color: var(--gf-accent-fg);
+}
+.gf-btn-primary:hover { opacity: 0.9; }
+
+.gf-btn-secondary {
+  background: transparent;
+  color: var(--gf-popover-text);
+  opacity: 0.7;
+}
+.gf-btn-secondary:hover { opacity: 1; }
+
+.gf-btn-ghost {
+  background: transparent;
+  color: var(--gf-popover-text);
+  opacity: 0.5;
+  font-size: var(--gf-font-size-sm);
+  padding: 6px 10px;
+}
+.gf-btn-ghost:hover { opacity: 0.8; }
+
+/* Arrow */
+.gf-popover-arrow {
+  position: absolute;
+  width: calc(var(--gf-arrow-size) * 2);
+  height: calc(var(--gf-arrow-size) * 2);
+  background: var(--gf-popover-bg);
+  border: 1px solid var(--gf-popover-border);
+  transform: rotate(45deg);
+  z-index: -1;
+}
+
+/* Animations */
+@keyframes gf-fade-in {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.gf-popover[data-enter] {
+  animation: gf-fade-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}

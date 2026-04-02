@@ -1,0 +1,53 @@
+/* GuideFlow — CSS Custom Property Tokens */
+
+:root {
+  /* Popover */
+  --gf-popover-bg: #ffffff;
+  --gf-popover-text: #111827;
+  --gf-popover-border: rgba(0, 0, 0, 0.08);
+  --gf-popover-width: 320px;
+
+  /* Accent */
+  --gf-accent-color: #6366f1;
+  --gf-accent-fg: #ffffff;
+
+  /* Overlay */
+  --gf-overlay-opacity: 0.5;
+  --gf-overlay-color: rgba(0, 0, 0, 0.5);
+
+  /* Shape */
+  --gf-border-radius: 10px;
+  --gf-border-radius-sm: 6px;
+
+  /* Shadow */
+  --gf-shadow: 0 8px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  /* Typography */
+  --gf-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --gf-font-size: 14px;
+  --gf-font-size-sm: 12px;
+  --gf-line-height: 1.6;
+
+  /* Spacing */
+  --gf-spacing: 16px;
+  --gf-spacing-sm: 10px;
+
+  /* Progress */
+  --gf-progress-bg: rgba(0, 0, 0, 0.1);
+  --gf-progress-fill: var(--gf-accent-color);
+
+  /* Button */
+  --gf-btn-radius: var(--gf-border-radius-sm);
+  --gf-btn-padding: 8px 18px;
+  --gf-btn-font-size: 13px;
+
+  /* Arrow */
+  --gf-arrow-size: 8px;
+
+  /* Hotspot */
+  --gf-hotspot-size: 12px;
+
+  /* Z-index base */
+  --gf-z-overlay: 999998;
+  --gf-z-popover: 999999;
+}

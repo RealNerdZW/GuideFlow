@@ -1,0 +1,31 @@
+{
+  "name": "@guideflow/cli",
+  "version": "0.1.0",
+  "description": "CLI for GuideFlow.js — init, studio, export, and push flows",
+  "type": "module",
+  "bin": {
+    "guideflow": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "inquirer": "^9.2.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.0",
+    "vite": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,64 @@
+/* Theme: Minimal — clean, no decoration */
+[data-gf-theme="minimal"] {
+  --gf-shadow: 0 2px 12px rgba(0, 0, 0, 0.10);
+  --gf-border-radius: 6px;
+  --gf-border-radius-sm: 4px;
+  --gf-popover-border: rgba(0, 0, 0, 0.12);
+  --gf-accent-color: #18181b;
+  --gf-accent-fg: #ffffff;
+  --gf-progress-fill: #18181b;
+}
+
+/* Theme: Bold — vibrant, high contrast accent */
+[data-gf-theme="bold"] {
+  --gf-popover-bg: #1e1b4b;
+  --gf-popover-text: #f1f5f9;
+  --gf-popover-border: rgba(255, 255, 255, 0.1);
+  --gf-accent-color: #a78bfa;
+  --gf-accent-fg: #1e1b4b;
+  --gf-shadow: 0 12px 40px rgba(99, 102, 241, 0.35);
+  --gf-border-radius: 12px;
+  --gf-progress-bg: rgba(255, 255, 255, 0.15);
+}
+
+/* Theme: Glass — frosted glass morphism */
+[data-gf-theme="glass"] {
+  --gf-popover-bg: rgba(255, 255, 255, 0.72);
+  --gf-popover-border: rgba(255, 255, 255, 0.5);
+  --gf-shadow: 0 8px 32px rgba(31, 38, 135, 0.18);
+  --gf-border-radius: 16px;
+}
+.gf-popover[data-gf-theme="glass"],
+[data-gf-theme="glass"] .gf-popover {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+/* Theme: Brutalist — raw, high-contrast, bold borders */
+[data-gf-theme="brutalist"] {
+  --gf-popover-bg: #ffffff;
+  --gf-popover-text: #000000;
+  --gf-popover-border: #000000;
+  --gf-accent-color: #000000;
+  --gf-accent-fg: #ffffff;
+  --gf-shadow: 4px 4px 0 #000000;
+  --gf-border-radius: 0px;
+  --gf-border-radius-sm: 0px;
+  --gf-btn-radius: 0px;
+}
+[data-gf-theme="brutalist"] .gf-popover {
+  border: 2px solid #000;
+}
+
+/* Theme: Enterprise — muted professional neutral */
+[data-gf-theme="enterprise"] {
+  --gf-popover-bg: #f8fafc;
+  --gf-popover-text: #1e293b;
+  --gf-popover-border: #e2e8f0;
+  --gf-accent-color: #2563eb;
+  --gf-accent-fg: #ffffff;
+  --gf-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+  --gf-border-radius: 8px;
+  --gf-border-radius-sm: 4px;
+  --gf-font-family: 'Inter', system-ui, sans-serif;
+}

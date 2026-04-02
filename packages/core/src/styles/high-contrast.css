@@ -1,0 +1,38 @@
+/* GuideFlow — High Contrast Mode */
+@media (forced-colors: active) {
+  .gf-popover {
+    border: 2px solid ButtonText;
+    forced-color-adjust: none;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .gf-btn-primary {
+    border: 2px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+  }
+  .gf-popover-close {
+    border: 1px solid ButtonText;
+  }
+  .gf-hotspot-beacon {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+}
+
+/* Explicit high-contrast class */
+[data-gf-high-contrast],
+.gf-high-contrast {
+  --gf-popover-bg: #000000;
+  --gf-popover-text: #ffffff;
+  --gf-popover-border: #ffffff;
+  --gf-accent-color: #ffff00;
+  --gf-accent-fg: #000000;
+  --gf-shadow: none;
+}
+[data-gf-high-contrast] .gf-popover,
+.gf-high-contrast .gf-popover {
+  border: 2px solid #ffffff;
+  outline: 2px solid #ffff00;
+  outline-offset: 2px;
+}

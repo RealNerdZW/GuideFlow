@@ -1,0 +1,44 @@
+{
+  "name": "guideflow",
+  "private": true,
+  "version": "0.1.0",
+  "description": "GuideFlow.js — AI-Powered Product Tour Library monorepo",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "size": "turbo run size",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "publish-packages": "turbo run build --filter=!@guideflow/docs --filter=!@guideflow/e2e --filter=!@guideflow/storybook && changeset publish",
+    "docs:dev": "pnpm --filter @guideflow/docs dev",
+    "docs:build": "pnpm --filter @guideflow/docs build",
+    "storybook": "pnpm --filter @guideflow/storybook dev",
+    "studio": "pnpm --filter @guideflow/cli exec guideflow studio"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@playwright/test": "^1.42.1",
+    "@types/node": "^20.11.20",
+    "axe-playwright": "^2.0.1",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.2.5",
+    "size-limit": "^11.0.2",
+    "@size-limit/preset-small-lib": "^11.0.2",
+    "turbo": "^1.13.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.4"
+}

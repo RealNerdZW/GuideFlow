@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head><meta charset="UTF-8" /></head>
+  <body>
+    <script>
+      // Register the GuideFlow panel in Chrome DevTools
+      chrome.devtools.panels.create(
+        'GuideFlow',
+        'assets/icon-16.png',
+        'src/panel/index.html',
+        function(panel) {
+          // Panel created
+        }
+      );
+    </script>
+  </body>
+</html>

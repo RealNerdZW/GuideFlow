@@ -1,0 +1,20 @@
+/* GuideFlow — RTL Support */
+[dir="rtl"] .gf-popover-footer,
+[dir="rtl"] .gf-popover-actions {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .gf-progress-bar-fill {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+[dir="rtl"] .gf-hotspot-tooltip {
+  right: 50%;
+  left: auto;
+  transform: translateX(50%);
+}
+
+[dir="rtl"] .gf-hint-badge {
+  right: auto;
+}
