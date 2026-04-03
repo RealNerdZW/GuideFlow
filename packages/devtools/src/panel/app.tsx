@@ -167,7 +167,7 @@ function BuilderTab() {
         id: `step-${Date.now()}`,
         title: stepTitle,
         body: stepBody,
-        target: selected?.selector,
+        ...(selected?.selector !== undefined ? { target: selected.selector } : {}),
         placement: stepPlacement,
       },
     ]);

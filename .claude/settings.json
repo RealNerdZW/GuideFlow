@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(pnpm --filter @guideflow/core type-check)",
+      "Bash(pnpm --filter @guideflow/analytics type-check)",
+      "Bash(pnpm --filter @guideflow/ai type-check)",
+      "Bash(pnpm --filter @guideflow/core test run)",
+      "Bash(pnpm --filter @guideflow/core build)",
+      "Bash(pnpm --filter @guideflow/react type-check)",
+      "Bash(pnpm --filter @guideflow/vue type-check)"
+    ]
+  }
+}

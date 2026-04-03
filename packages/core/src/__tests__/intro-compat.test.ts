@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { scanAttributeTour } from '../compat/intro-compat.js'
 
 describe('scanAttributeTour', () => {
@@ -33,7 +33,7 @@ describe('scanAttributeTour', () => {
     const stateKeys = Object.keys(flow?.states ?? {})
     expect(stateKeys).toEqual(['step-1', 'step-2', 'step-3'])
     // First state's step should have title "First"
-    const firstStep = flow?.states['step-1']?.steps[0]
+    const firstStep = flow?.states['step-1']?.steps?.[0]
     expect(firstStep?.content).toHaveProperty('title', 'First')
   })
 
@@ -46,21 +46,21 @@ describe('scanAttributeTour', () => {
   it('reads data-gf-placement attribute', () => {
     document.body.innerHTML = `<div data-gf-step="1" data-gf-title="Placed" data-gf-placement="left">A</div>`
     const flow = scanAttributeTour()
-    const step = flow?.states['step-1']?.steps[0]
+    const step = flow?.states['step-1']?.steps?.[0]
     expect(step?.placement).toBe('left')
   })
 
   it('defaults placement to bottom', () => {
     document.body.innerHTML = `<div data-gf-step="1" data-gf-title="Default">A</div>`
     const flow = scanAttributeTour()
-    const step = flow?.states['step-1']?.steps[0]
+    const step = flow?.states['step-1']?.steps?.[0]
     expect(step?.placement).toBe('bottom')
   })
 
   it('builds safe showIf from dot-notation data-gf-show-if', () => {
     document.body.innerHTML = `<div data-gf-step="1" data-gf-title="Conditional" data-gf-show-if="isAdmin">A</div>`
     const flow = scanAttributeTour()
-    const step = flow?.states['step-1']?.steps[0]
+    const step = flow?.states['step-1']?.steps?.[0]
     expect(step?.showIf).toBeDefined()
     // showIf should evaluate truthy property
     expect(step?.showIf?.({ isAdmin: true } as any)).toBe(true)
@@ -71,7 +71,7 @@ describe('scanAttributeTour', () => {
   it('supports nested dot-notation in data-gf-show-if', () => {
     document.body.innerHTML = `<div data-gf-step="1" data-gf-title="Nested" data-gf-show-if="featureFlags.showTour">A</div>`
     const flow = scanAttributeTour()
-    const step = flow?.states['step-1']?.steps[0]
+    const step = flow?.states['step-1']?.steps?.[0]
     expect(step?.showIf?.({ featureFlags: { showTour: true } } as any)).toBe(true)
     expect(step?.showIf?.({ featureFlags: { showTour: false } } as any)).toBe(false)
     expect(step?.showIf?.({} as any)).toBe(false)
@@ -82,7 +82,7 @@ describe('scanAttributeTour', () => {
     document.body.innerHTML = `<div data-gf-step="1" data-gf-title="Unsafe" data-gf-show-if="alert('xss')">A</div>`
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const flow = scanAttributeTour()
-    const step = flow?.states['step-1']?.steps[0]
+    const step = flow?.states['step-1']?.steps?.[0]
     expect(step?.showIf).toBeUndefined()
     expect(consoleSpy).toHaveBeenCalled()
     consoleSpy.mockRestore()
@@ -111,4 +111,3 @@ describe('scanAttributeTour', () => {
   })
 })
 
-import { afterEach, vi } from 'vitest'

@@ -1,17 +1,29 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import React, { useRef } from 'react';
+import type { FlowDefinition } from '@guideflow/core';
+import React from 'react';
 import { createGuideFlow } from '@guideflow/core';
 import { TourProvider, useTour } from '@guideflow/react';
 
-const gf = createGuideFlow({ theme: 'minimal' });
+const gf = createGuideFlow();
 
-const DEMO_FLOW = {
+const DEMO_FLOW: FlowDefinition = {
   id: 'storybook-demo',
-  steps: [
-    { id: 'step-1', title: 'Welcome!', body: 'This is step 1.', target: '#box-a', placement: 'right' as const },
-    { id: 'step-2', title: 'Step 2', body: 'You are doing great.', target: '#box-b', placement: 'bottom' as const },
-    { id: 'step-3', title: 'Done!', body: 'Tour complete.', target: '#box-c', placement: 'left' as const },
-  ],
+  initial: 'step-1',
+  states: {
+    'step-1': {
+      steps: [{ id: 'step-1', content: { title: 'Welcome!', body: 'This is step 1.' }, target: '#box-a', placement: 'right' }],
+      on: { NEXT: 'step-2' },
+    },
+    'step-2': {
+      steps: [{ id: 'step-2', content: { title: 'Step 2', body: 'You are doing great.' }, target: '#box-b', placement: 'bottom' }],
+      on: { NEXT: 'step-3', PREV: 'step-1' },
+    },
+    'step-3': {
+      steps: [{ id: 'step-3', content: { title: 'Done!', body: 'Tour complete.' }, target: '#box-c', placement: 'left' }],
+      on: {},
+      final: true,
+    },
+  },
 };
 
 function TourControls() {
@@ -61,7 +73,7 @@ export const Default: Story = {
 
 export const ThemeMinimal: Story = {
   render: () => {
-    const gfMinimal = createGuideFlow({ theme: 'minimal' });
+    const gfMinimal = createGuideFlow();
     return (
       <TourProvider instance={gfMinimal}>
         <DemoPage onStart={() => gfMinimal.start(DEMO_FLOW)} />
@@ -72,7 +84,7 @@ export const ThemeMinimal: Story = {
 
 export const ThemeBold: Story = {
   render: () => {
-    const gfBold = createGuideFlow({ theme: 'bold' });
+    const gfBold = createGuideFlow();
     return (
       <TourProvider instance={gfBold}>
         <DemoPage onStart={() => gfBold.start(DEMO_FLOW)} />
@@ -83,7 +95,7 @@ export const ThemeBold: Story = {
 
 export const ThemeGlass: Story = {
   render: () => {
-    const gfGlass = createGuideFlow({ theme: 'glass' });
+    const gfGlass = createGuideFlow();
     return (
       <TourProvider instance={gfGlass}>
         <DemoPage onStart={() => gfGlass.start(DEMO_FLOW)} />

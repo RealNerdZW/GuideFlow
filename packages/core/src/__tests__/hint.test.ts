@@ -12,7 +12,7 @@ describe('HintSystem', () => {
   it('registers hint steps', () => {
     hints = new HintSystem()
     hints.register([
-      { id: 'hint-1', target: '#el', content: { body: 'Help text' } },
+      { id: 'hint-1', target: '#el', hint: 'Help text' },
     ])
     expect(hints).toBeDefined()
   })
@@ -23,7 +23,7 @@ describe('HintSystem', () => {
     target.id = 'hint-target'
     document.body.appendChild(target)
     hints.register([
-      { id: 'hint-1', target: '#hint-target', content: { body: 'Help text' } },
+      { id: 'hint-1', target: '#hint-target', hint: 'Help text' },
     ])
     hints.show()
     expect(hints).toBeDefined()
@@ -36,7 +36,7 @@ describe('HintSystem', () => {
     target.id = 'hint-target-2'
     document.body.appendChild(target)
     hints.register([
-      { id: 'hint-2', target: '#hint-target-2', content: { body: 'Help' } },
+      { id: 'hint-2', target: '#hint-target-2', hint: 'Help' },
     ])
     hints.show()
     hints.hide()

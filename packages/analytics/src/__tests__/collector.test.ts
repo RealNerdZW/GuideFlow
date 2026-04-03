@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { AnalyticsCollector } from '../collector.js'
-import type { AnalyticsTransport, AnalyticsEvent } from '../transports/interface.js'
+import type { AnalyticsEvent } from '../transports/interface.js'
 
-function createMockTransport(): AnalyticsTransport & { events: AnalyticsEvent[]; flush: ReturnType<typeof vi.fn> } {
+function createMockTransport() {
   const events: AnalyticsEvent[] = []
   return {
     name: 'mock',
@@ -10,7 +10,7 @@ function createMockTransport(): AnalyticsTransport & { events: AnalyticsEvent[];
     track(event: AnalyticsEvent) {
       events.push(event)
     },
-    flush: vi.fn(),
+    flush: vi.fn<[], void | Promise<void>>(),
   }
 }
 
@@ -56,8 +56,8 @@ describe('AnalyticsCollector', () => {
     gf.emit('tour:start', { flowId: 'flow-1' })
     expect(transport.events).toHaveLength(1)
     expect(transport.events[0]!.event).toBe('guideflow.tour.started')
-    expect(transport.events[0]!.properties.flow_id).toBe('flow-1')
-    expect(transport.events[0]!.properties.user_id).toBe('user-123')
+    expect(transport.events[0]!.properties['flow_id']).toBe('flow-1')
+    expect(transport.events[0]!.properties['user_id']).toBe('user-123')
   })
 
   it('tracks tour:complete as guideflow.tour.completed', () => {
@@ -72,7 +72,7 @@ describe('AnalyticsCollector', () => {
     gf.emit('tour:abandon', { flowId: 'flow-1', stepId: 's1', stepIndex: 2 })
     expect(transport.events).toHaveLength(1)
     expect(transport.events[0]!.event).toBe('guideflow.tour.abandoned')
-    expect(transport.events[0]!.properties.step_id).toBe('s1')
+    expect(transport.events[0]!.properties['step_id']).toBe('s1')
   })
 
   it('tracks step:enter as guideflow.step.viewed', () => {
@@ -89,7 +89,7 @@ describe('AnalyticsCollector', () => {
     gf.emit('step:exit', { stepId: 's1', stepIndex: 0 })
     const exitEvent = transport.events.find((e) => e.event === 'guideflow.step.exited')
     expect(exitEvent).toBeDefined()
-    expect(exitEvent!.properties.dwell_ms).toBeDefined()
+    expect(exitEvent!.properties['dwell_ms']).toBeDefined()
   })
 
   it('tracks step:skip as guideflow.step.skipped', () => {
@@ -102,7 +102,7 @@ describe('AnalyticsCollector', () => {
   it('includes globalProperties in every event', () => {
     collector.attach(gf as any)
     gf.emit('tour:start', { flowId: 'flow-1' })
-    expect(transport.events[0]!.properties.env).toBe('test')
+    expect(transport.events[0]!.properties['env']).toBe('test')
   })
 
   it('includes timestamp in ISO format', () => {

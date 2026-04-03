@@ -282,5 +282,6 @@ export interface IntentSignal {
 export interface GuidedAnswer {
   text: string
   highlights: string[]
+  confidence?: number
   suggestedSteps?: Array<Step>
 }
