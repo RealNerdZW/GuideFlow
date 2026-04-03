@@ -214,11 +214,11 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         if (snapshot && !snapshot.completed) {
           await engine.start(flow, ctx)
           // Restore exact position
-          engine['_machine']?.restore({ state: snapshot.currentState, stepIndex: snapshot.stepIndex })
+          engine.machine?.restore({ state: snapshot.currentState, stepIndex: snapshot.stepIndex })
           // Sync broadcast
           _broadcastSync = new BroadcastSync(userId)
           _broadcastSync.on('progress:sync', ({ snapshot: snap }) => {
-            engine['_machine']?.restore({ state: snap.currentState, stepIndex: snap.stepIndex })
+            engine.machine?.restore({ state: snap.currentState, stepIndex: snap.stepIndex })
           })
           return
         }
@@ -288,7 +288,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     const flowId = engine.flowId
     if (!userId || !flowId) return
 
-    const machine = engine['_machine']
+    const machine = engine.machine
     if (!machine) return
 
     const snapshot: FlowSnapshot = {

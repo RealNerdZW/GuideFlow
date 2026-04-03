@@ -65,6 +65,11 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     return this._flow?.id ?? null
   }
 
+  /** Expose the internal FSM for snapshot/restore operations. */
+  get machine(): FlowMachine<TContext> | null {
+    return this._machine
+  }
+
   async start(flow: FlowDefinition<TContext>, context?: TContext): Promise<void> {
     if (this._active) this._doEnd(false)
 

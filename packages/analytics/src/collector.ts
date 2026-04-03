@@ -50,38 +50,29 @@ export class AnalyticsCollector {
    * Returns an unsubscribe function.
    */
   attach(gf: GuideFlowInstance): () => void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const on = <K extends string>(event: K, handler: (payload: any) => void) => {
-      const off = (gf as unknown as { on: (e: K, h: typeof handler) => () => void }).on(event, handler);
-      this.cleanups.push(off);
-    };
-
-    on('tour:start', (payload: { flowId: string }) => {
-      this.send('guideflow.tour.started', base(payload.flowId));
-    });
-
-    on('tour:complete', (payload: { flowId: string }) => {
-      this.send('guideflow.tour.completed', base(payload.flowId));
-    });
-
-    on('tour:abandon', (payload: { flowId: string; stepId: string; stepIndex: number }) => {
-      this.send('guideflow.tour.abandoned', base(payload.flowId, payload.stepId));
-    });
-
-    on('step:enter', (payload: { stepId: string; stepIndex: number; target: Element | null }) => {
-      this.stepStartTime = Date.now();
-      this.send('guideflow.step.viewed', base(undefined, payload.stepId));
-    });
-
-    on('step:exit', (payload: { stepId: string; stepIndex: number }) => {
-      const dwell = this.stepStartTime !== null ? Date.now() - this.stepStartTime : undefined;
-      this.stepStartTime = null;
-      this.send('guideflow.step.exited', { ...base(undefined, payload.stepId), dwell_ms: dwell });
-    });
-
-    on('step:skip', (payload: { stepId: string }) => {
-      this.send('guideflow.step.skipped', base(undefined, payload.stepId));
-    });
+    this.cleanups.push(
+      gf.on('tour:start', (payload) => {
+        this.send('guideflow.tour.started', base(payload.flowId));
+      }),
+      gf.on('tour:complete', (payload) => {
+        this.send('guideflow.tour.completed', base(payload.flowId));
+      }),
+      gf.on('tour:abandon', (payload) => {
+        this.send('guideflow.tour.abandoned', base(payload.flowId, payload.stepId));
+      }),
+      gf.on('step:enter', (payload) => {
+        this.stepStartTime = Date.now();
+        this.send('guideflow.step.viewed', base(undefined, payload.stepId));
+      }),
+      gf.on('step:exit', (payload) => {
+        const dwell = this.stepStartTime !== null ? Date.now() - this.stepStartTime : undefined;
+        this.stepStartTime = null;
+        this.send('guideflow.step.exited', { ...base(undefined, payload.stepId), dwell_ms: dwell });
+      }),
+      gf.on('step:skip', (payload) => {
+        this.send('guideflow.step.skipped', base(undefined, payload.stepId));
+      }),
+    );
 
     return () => this.detach();
   }

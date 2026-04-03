@@ -74,7 +74,7 @@ export function useTour(flowId?: string): UseTourReturn {
         console.warn('[GuideFlow] useTour: no flow provided to start()')
         return
       }
-      await gf.start(target as FlowDefinition, context)
+      await gf.start(target, context)
     },
     [gf, flowId],
   )
