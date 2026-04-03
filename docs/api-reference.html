@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference - Guideflow Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        nav { background-color: #f4f4f4; padding: 10px; }
+        nav a { margin: 0 10px; text-decoration: none; }
+        code { background-color: #f4f4f4; padding: 2px 4px; }
+        pre { background-color: #f4f4f4; padding: 10px; overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="installation.html">Installation</a>
+        <a href="usage.html">Usage</a>
+        <a href="api-reference.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="faq.html">FAQ</a>
+        <a href="changelog.html">Changelog</a>
+    </nav>
+    <h1>API Reference</h1>
+    <p>This reference details the Guideflow API endpoints, including parameters and responses for all scenarios.</p>
+    <h2>Endpoints</h2>
+    <table>
+        <tr>
+            <th>Endpoint</th>
+            <th>Method</th>
+            <th>Description</th>
+        </tr>
+        <tr>
+            <td><code>/api/guides</code></td>
+            <td>GET</td>
+            <td>Retrieve all guides</td>
+        </tr>
+        <tr>
+            <td><code>/api/guides/{id}</code></td>
+            <td>POST</td>
+            <td>Create or update a guide</td>
+        </tr>
+        <tr>
+            <td><code>/api/steps</code></td>
+            <td>GET</td>
+            <td>Get steps for a guide</td>
+        </tr>
+        <tr>
+            <td><code>/api/export</code></td>
+            <td>POST</td>
+            <td>Export guide in JSON/PDF</td>
+        </tr>
+    </table>
+    <h2>Example Request</h2>
+    <pre>
+fetch('/api/guides', {
+    method: 'GET',
+    headers: { 'Authorization': 'Bearer token' }
+})
+.then(response => response.json())
+.then(data => console.log(data));
+    </pre>
+    <p>All scenarios, such as conditional rendering and error handling, are covered in the API.</p>
+</body>
+</html>

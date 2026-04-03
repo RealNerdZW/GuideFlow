@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation - Guideflow Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        nav { background-color: #f4f4f4; padding: 10px; }
+        nav a { margin: 0 10px; text-decoration: none; }
+        code { background-color: #f4f4f4; padding: 2px 4px; }
+        pre { background-color: #f4f4f4; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="installation.html">Installation</a>
+        <a href="usage.html">Usage</a>
+        <a href="api-reference.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="faq.html">FAQ</a>
+        <a href="changelog.html">Changelog</a>
+    </nav>
+    <h1>Installation Guide</h1>
+    <p>This guide walks you through installing Guideflow on various platforms, including Windows, macOS, Linux, and web-based environments.</p>
+    <h2>Prerequisites</h2>
+    <ul>
+        <li>Node.js (version 14 or higher)</li>
+        <li>Git</li>
+        <li>A code editor (e.g., VS Code)</li>
+    </ul>
+    <h2>Installation Steps</h2>
+    <ol>
+        <li>Clone the repository: <code>git clone https://github.com/your-repo/guideflow.git</code></li>
+        <li>Navigate to the directory: <code>cd guideflow</code></li>
+        <li>Install dependencies: <code>npm install</code></li>
+        <li>Run the application: <code>npm start</code></li>
+    </ol>
+    <h2>Web Deployment</h2>
+    <p>For GitHub Pages deployment:</p>
+    <pre>
+npm run build
+git add dist/
+git commit -m "Deploy to GitHub Pages"
+git push origin main
+    </pre>
+    <p>All scenarios, including offline installations and cloud deployments, are supported.</p>
+</body>
+</html>
