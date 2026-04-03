@@ -1,6 +1,15 @@
 /**
  * @guideflow/analytics
  *
+ * @author  John Mugabe
+ * @email   jonesmugabe@263tickets.co.zw
+ * @country Zimbabwe
+ * @github  https://github.com/johnmugabe
+ * @license MIT
+ *
+ * Copyright (c) 2026 John Mugabe. All rights reserved.
+ * Licensed under the MIT License. See LICENSE file in the project root.
+ *
  * Analytics collection, A/B testing, and event transport for GuideFlow.js.
  *
  * Usage:

@@ -1,3 +1,16 @@
+/**
+ * @guideflow/svelte
+ *
+ * @author  John Mugabe
+ * @email   jonesmugabe@263tickets.co.zw
+ * @country Zimbabwe
+ * @github  https://github.com/johnmugabe
+ * @license MIT
+ *
+ * Copyright (c) 2026 John Mugabe. All rights reserved.
+ * Licensed under the MIT License. See LICENSE file in the project root.
+ */
+
 // ---------------------------------------------------------------------------
 // createTourStore — Svelte store-based tour API
 // ---------------------------------------------------------------------------
