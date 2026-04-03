@@ -58,9 +58,9 @@ chrome.runtime.onMessage.addListener(
 
     if (message.type === 'GF_LOAD_FLOWS') {
       void chrome.storage.local.get(null, (items) => {
-        const flows = Object.entries(items)
+        const flows: unknown[] = Object.entries(items)
           .filter(([k]) => k.startsWith('gf_flow_'))
-          .map(([, v]) => v);
+          .map(([, v]) => v as unknown);
         sendResponse({ flows });
       });
       return true;

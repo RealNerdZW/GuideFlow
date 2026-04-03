@@ -1,7 +1,8 @@
-import { Command } from 'commander';
-import chalk from 'chalk';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, extname } from 'node:path';
+
+import chalk from 'chalk';
+import { Command } from 'commander';
 
 /**
  * `guideflow export [flowFile]` — read a TypeScript/JSON flow definition and
@@ -18,7 +19,7 @@ export const exportCommand = new Command('export')
   .argument('[file]', 'Path to the flow file (.ts, .js, or .json)', 'my-tour.ts')
   .option('-o, --output <file>', 'Output JSON file path')
   .option('--pretty', 'Pretty-print output JSON', false)
-  .action(async (file: string, opts: { output?: string; pretty: boolean }) => {
+  .action((file: string, opts: { output?: string; pretty: boolean }) => {
     const src = resolve(file);
 
     if (!existsSync(src)) {

@@ -1,11 +1,9 @@
-import { Command } from 'commander';
+import { resolve } from 'node:path';
+
 import chalk from 'chalk';
+import { Command } from 'commander';
 import ora from 'ora';
 import { createServer } from 'vite';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 /**
  * `guideflow studio` — launch a local Vite dev server that loads the user's
@@ -45,7 +43,7 @@ export const studioCommand = new Command('studio')
       console.log(chalk.dim('\n  Press Ctrl+C to stop.\n'));
 
       process.on('SIGINT', () => {
-        server.close();
+        void server.close();
         process.exit(0);
       });
     } catch (err) {

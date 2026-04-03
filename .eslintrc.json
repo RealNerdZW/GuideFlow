@@ -12,6 +12,14 @@
   "parserOptions": {
     "project": true
   },
+  "settings": {
+    "import/resolver": {
+      "typescript": {
+        "alwaysTryTypes": true,
+        "project": ["packages/*/tsconfig.json", "apps/*/tsconfig.json"]
+      }
+    }
+  },
   "rules": {
     "@typescript-eslint/no-explicit-any": "error",
     "@typescript-eslint/explicit-function-return-type": "off",

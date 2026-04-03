@@ -1,4 +1,5 @@
 import type { GuideFlowInstance } from '@guideflow/core';
+
 import type { AnalyticsTransport, AnalyticsEvent } from './transports/interface.js';
 
 // ---------------------------------------------------------------------------

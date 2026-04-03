@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+import type { GuideFlowInstance } from '@guideflow/core'
+
 import { AnalyticsCollector } from '../collector.js'
 import type { AnalyticsEvent } from '../transports/interface.js'
 
@@ -14,19 +17,27 @@ function createMockTransport() {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyHandler = (payload: any) => void
+
 function createMockGuideFlow() {
-  const handlers = new Map<string, Set<(payload: any) => void>>()
+  const handlers = new Map<string, Set<AnyHandler>>()
   return {
-    on(event: string, handler: (payload: any) => void) {
+    on(event: string, handler: AnyHandler) {
       if (!handlers.has(event)) handlers.set(event, new Set())
       handlers.get(event)!.add(handler)
       return () => handlers.get(event)?.delete(handler)
     },
-    emit(event: string, payload: any) {
+    emit(event: string, payload: unknown) {
       handlers.get(event)?.forEach((fn) => fn(payload))
     },
     handlers,
   }
+}
+
+/** Cast the lightweight mock to the full instance type expected by `attach()`. */
+function asInstance(mock: ReturnType<typeof createMockGuideFlow>): GuideFlowInstance {
+  return mock as unknown as GuideFlowInstance
 }
 
 describe('AnalyticsCollector', () => {
@@ -46,13 +57,13 @@ describe('AnalyticsCollector', () => {
   })
 
   it('subscribes to GuideFlow events on attach()', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     // Should have registered handlers for tour:start, tour:complete, tour:abandon, step:enter, step:exit, step:skip
     expect(gf.handlers.size).toBeGreaterThanOrEqual(6)
   })
 
   it('tracks tour:start as guideflow.tour.started', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('tour:start', { flowId: 'flow-1' })
     expect(transport.events).toHaveLength(1)
     expect(transport.events[0]!.event).toBe('guideflow.tour.started')
@@ -61,14 +72,14 @@ describe('AnalyticsCollector', () => {
   })
 
   it('tracks tour:complete as guideflow.tour.completed', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('tour:complete', { flowId: 'flow-1' })
     expect(transport.events).toHaveLength(1)
     expect(transport.events[0]!.event).toBe('guideflow.tour.completed')
   })
 
   it('tracks tour:abandon as guideflow.tour.abandoned', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('tour:abandon', { flowId: 'flow-1', stepId: 's1', stepIndex: 2 })
     expect(transport.events).toHaveLength(1)
     expect(transport.events[0]!.event).toBe('guideflow.tour.abandoned')
@@ -76,14 +87,14 @@ describe('AnalyticsCollector', () => {
   })
 
   it('tracks step:enter as guideflow.step.viewed', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('step:enter', { stepId: 's1', stepIndex: 0, target: null })
     expect(transport.events).toHaveLength(1)
     expect(transport.events[0]!.event).toBe('guideflow.step.viewed')
   })
 
   it('tracks step:exit as guideflow.step.exited with dwell time', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('step:enter', { stepId: 's1', stepIndex: 0, target: null })
     // Simulate some time passing
     gf.emit('step:exit', { stepId: 's1', stepIndex: 0 })
@@ -93,20 +104,20 @@ describe('AnalyticsCollector', () => {
   })
 
   it('tracks step:skip as guideflow.step.skipped', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('step:skip', { stepId: 's2' })
     expect(transport.events).toHaveLength(1)
     expect(transport.events[0]!.event).toBe('guideflow.step.skipped')
   })
 
   it('includes globalProperties in every event', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('tour:start', { flowId: 'flow-1' })
     expect(transport.events[0]!.properties['env']).toBe('test')
   })
 
   it('includes timestamp in ISO format', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('tour:start', { flowId: 'flow-1' })
     expect(transport.events[0]!.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/)
   })
@@ -118,14 +129,14 @@ describe('AnalyticsCollector', () => {
   })
 
   it('detach() removes all event subscriptions', () => {
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     collector.detach()
     gf.emit('tour:start', { flowId: 'flow-1' })
     expect(transport.events).toHaveLength(0)
   })
 
   it('attach() returns an unsubscribe function', () => {
-    const detach = collector.attach(gf as any)
+    const detach = collector.attach(asInstance(gf))
     detach()
     gf.emit('tour:start', { flowId: 'flow-1' })
     expect(transport.events).toHaveLength(0)
@@ -140,7 +151,7 @@ describe('AnalyticsCollector', () => {
   it('forwards to multiple transports', () => {
     const transport2 = createMockTransport()
     collector.addTransport(transport2)
-    collector.attach(gf as any)
+    collector.attach(asInstance(gf))
     gf.emit('tour:start', { flowId: 'flow-1' })
     expect(transport.events).toHaveLength(1)
     expect(transport2.events).toHaveLength(1)

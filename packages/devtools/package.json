@@ -7,7 +7,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
     "@guideflow/core": "workspace:*",

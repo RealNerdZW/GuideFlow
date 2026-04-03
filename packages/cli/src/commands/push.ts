@@ -1,8 +1,9 @@
-import { Command } from 'commander';
-import chalk from 'chalk';
-import ora from 'ora';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+import chalk from 'chalk';
+import { Command } from 'commander';
+import ora from 'ora';
 
 export interface PushOptions {
   endpoint: string;

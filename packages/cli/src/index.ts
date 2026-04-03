@@ -19,16 +19,16 @@
  *   guideflow push    — publish a flow to GuideFlow Cloud or self-hosted API
  */
 
-import { Command } from 'commander';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { resolve, dirname } from 'node:path';
 import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { initCommand } from './commands/init.js';
-import { studioCommand } from './commands/studio.js';
+import { Command } from 'commander';
+
 import { exportCommand } from './commands/export.js';
+import { initCommand } from './commands/init.js';
 import { pushCommand } from './commands/push.js';
+import { studioCommand } from './commands/studio.js';
 
 // Resolve package version at runtime without import assertions (ESM-safe)
 const __filename = fileURLToPath(import.meta.url);

@@ -15,8 +15,8 @@
 // createTourStore — Svelte store-based tour API
 // ---------------------------------------------------------------------------
 
-import { writable, type Writable, type Readable } from 'svelte/store'
 import { createGuideFlow, type GuideFlowConfig, type GuideFlowInstance, type FlowDefinition, type GuidanceContext } from '@guideflow/core'
+import { writable, type Writable, type Readable } from 'svelte/store'
 
 export interface TourStore {
   /** Whether a tour is currently active */
@@ -62,8 +62,8 @@ export interface TourStore {
 export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowInstance): TourStore {
   const gf =
     configOrInstance && 'isActive' in configOrInstance
-      ? (configOrInstance as GuideFlowInstance)
-      : createGuideFlow((configOrInstance ?? {}) as GuideFlowConfig)
+      ? configOrInstance
+      : createGuideFlow(configOrInstance ?? {})
 
   const _isActive: Writable<boolean> = writable(gf.isActive)
   const _currentStepId: Writable<string | null> = writable(gf.currentStepId)

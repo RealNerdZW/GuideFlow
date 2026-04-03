@@ -346,8 +346,6 @@ export function getGuideFlow(): GuideFlowInstance {
 /**
  * @deprecated Use `getGuideFlow()` instead. This creates a singleton eagerly at import time.
  */
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore — lazy singleton, not configured until .configure() is called
 export const guideflow: GuideFlowInstance = new Proxy({} as GuideFlowInstance, {
   get(_target, prop, receiver) {
     return Reflect.get(getGuideFlow(), prop, receiver)

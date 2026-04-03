@@ -8,7 +8,9 @@
       "Bash(pnpm --filter @guideflow/core test run)",
       "Bash(pnpm --filter @guideflow/core build)",
       "Bash(pnpm --filter @guideflow/react type-check)",
-      "Bash(pnpm --filter @guideflow/vue type-check)"
+      "Bash(pnpm --filter @guideflow/vue type-check)",
+      "Bash(ls -d /home/realnerdzw/Team/GuideFlow/node_modules/.pnpm/happy-dom*/)",
+      "Bash(pnpm lint:*)"
     ]
   }
 }

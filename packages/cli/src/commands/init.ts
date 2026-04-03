@@ -1,8 +1,9 @@
-import { Command } from 'commander';
-import inquirer from 'inquirer';
-import chalk from 'chalk';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+
+import chalk from 'chalk';
+import { Command } from 'commander';
+import inquirer from 'inquirer';
 
 const CORE_TEMPLATE = `import { createGuideFlow } from '@guideflow/core';
 import '@guideflow/core/styles';
@@ -67,7 +68,7 @@ export const initCommand = new Command('init')
   .action(async (opts: { dir: string; framework?: string }) => {
     console.log(chalk.cyan('\n  GuideFlow — init\n'));
 
-    const answers = await inquirer.prompt([
+    const answers = await inquirer.prompt<{ framework?: string; outputDir: string }>([
       {
         type: 'list',
         name: 'framework',
@@ -84,7 +85,7 @@ export const initCommand = new Command('init')
       },
     ]);
 
-    const framework: string = opts.framework ?? answers.framework;
+    const framework: string = opts.framework ?? answers.framework ?? 'react';
     const outputDir: string = answers.outputDir;
 
     if (!existsSync(outputDir)) {

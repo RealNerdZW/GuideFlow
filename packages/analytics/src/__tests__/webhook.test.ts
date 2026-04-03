@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
 import { WebhookTransport } from '../transports/webhook.js'
 import type { AnalyticsEvent } from '../transports/interface.js'
 
@@ -11,10 +12,10 @@ function makeEvent(name = 'guideflow.tour.started'): AnalyticsEvent {
 }
 
 describe('WebhookTransport', () => {
-  let fetchSpy: ReturnType<typeof vi.fn>
+  let fetchSpy: ReturnType<typeof vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>>
 
   beforeEach(() => {
-    fetchSpy = vi.fn().mockResolvedValue({ ok: true })
+    fetchSpy = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>().mockResolvedValue({ ok: true } as Response)
     vi.stubGlobal('fetch', fetchSpy)
   })
 
@@ -39,7 +40,8 @@ describe('WebhookTransport', () => {
     transport.track(makeEvent())
     await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
     const call = fetchSpy.mock.calls[0]!
-    const headers = call[1]!.headers as Record<string, string>
+    const init = call[1] as RequestInit
+    const headers = init.headers as Record<string, string>
     expect(headers['Authorization']).toBe('Bearer secret')
     transport.destroy()
   })
@@ -48,7 +50,8 @@ describe('WebhookTransport', () => {
     const transport = new WebhookTransport({ url: 'https://example.com' })
     transport.track(makeEvent('event-1'))
     await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
-    const body = JSON.parse(fetchSpy.mock.calls[0]![1]!.body as string) as AnalyticsEvent[]
+    const init = fetchSpy.mock.calls[0]![1] as RequestInit
+    const body = JSON.parse(init.body as string) as AnalyticsEvent[]
     expect(Array.isArray(body)).toBe(true)
     expect(body[0]!.event).toBe('event-1')
     transport.destroy()
