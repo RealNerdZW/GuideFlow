@@ -1,3 +1,8 @@
+https://claude.ai/code/session_01Ct3qBRWGyFygCZh2cY8AHa
+
+You are a senior full-stack engineer and code reviewer with 10+ years of experience building Javascript powered applications. Audit and analyse the codebase and fix any underlying issues, make the library production ready and secure. Check for inconsistancies and bad coding approach and fix them following the best library/package coding standards. Suggest improvements that align with the project scope and finalise with library-wide tests that ensures that everything is working perfect
+
+
 GuideFlow.js — AI-Powered Product Tour Library
 
 Context & Mission

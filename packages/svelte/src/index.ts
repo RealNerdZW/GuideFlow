@@ -26,6 +26,8 @@ export interface TourStore {
   send: (event: string) => Promise<void>
   /** End / stop the tour */
   stop: () => void
+  /** Clean up all event listeners */
+  destroy: () => void
   /** The underlying GuideFlow instance */
   instance: GuideFlowInstance
 }
@@ -62,11 +64,12 @@ export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowIn
     _totalSteps.set(gf.totalSteps)
   }
 
-  gf.on('tour:start', sync)
-  gf.on('tour:complete', sync)
-  gf.on('tour:abandon', sync)
-  gf.on('step:enter', sync)
-  gf.on('step:exit', sync)
+  const cleanups: Array<() => void> = []
+  cleanups.push(gf.on('tour:start', sync))
+  cleanups.push(gf.on('tour:complete', sync))
+  cleanups.push(gf.on('tour:abandon', sync))
+  cleanups.push(gf.on('step:enter', sync))
+  cleanups.push(gf.on('step:exit', sync))
 
   return {
     isActive: { subscribe: _isActive.subscribe },
@@ -81,6 +84,10 @@ export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowIn
     goTo: (id: string) => gf.goTo(id),
     send: (event: string) => gf.send(event),
     stop: () => gf.stop(),
+    /** Clean up all event listeners. Call when the store is no longer needed. */
+    destroy: () => {
+      cleanups.forEach((fn) => fn())
+    },
     instance: gf,
   }
 }

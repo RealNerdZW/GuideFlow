@@ -173,6 +173,8 @@ export interface PersistenceDriver {
   get<T>(key: string): MaybePromise<T | null>
   set<T>(key: string, value: T): MaybePromise<void>
   remove(key: string): MaybePromise<void>
+  /** Optional: enumerate all keys (used by resetUser). */
+  keys?(): MaybePromise<string[]>
 }
 
 export interface PersistenceConfig {

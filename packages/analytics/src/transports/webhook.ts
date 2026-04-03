@@ -48,8 +48,11 @@ export class WebhookTransport implements AnalyticsTransport {
     }
   }
 
+  private _flushing = false;
+
   async flush(): Promise<void> {
-    if (this.queue.length === 0) return;
+    if (this.queue.length === 0 || this._flushing) return;
+    this._flushing = true;
     const batch = this.queue.splice(0);
 
     const body = JSON.stringify(batch);
@@ -59,7 +62,10 @@ export class WebhookTransport implements AnalyticsTransport {
     try {
       await fetch(this.opts.url, { method: 'POST', headers, body });
     } catch {
-      // Silently discard — don't break the user's tour over analytics
+      // Put events back at the front of the queue for next flush attempt
+      this.queue.unshift(...batch);
+    } finally {
+      this._flushing = false;
     }
   }
 

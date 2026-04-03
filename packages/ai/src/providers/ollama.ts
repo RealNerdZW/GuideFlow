@@ -5,6 +5,7 @@
  */
 import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@guideflow/core';
 import type { AIProvider, PageContext } from './interface.js';
+import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
 
 export interface OllamaProviderOptions {
   /** Base URL of the Ollama server. Default: http://localhost:11434 */
@@ -58,7 +59,7 @@ export class OllamaProvider implements AIProvider {
     );
     try {
       const parsed: unknown = JSON.parse(text);
-      return Array.isArray(parsed) ? (parsed as Step[]) : [];
+      return validateSteps(parsed);
     } catch {
       return [];
     }
@@ -69,7 +70,7 @@ export class OllamaProvider implements AIProvider {
       `Events: ${JSON.stringify(events.slice(-20))}. Detect intent. Return: { intent, confidence, suggestedFlowId? }`,
     );
     try {
-      return JSON.parse(text) as IntentSignal;
+      return validateIntentSignal(JSON.parse(text));
     } catch {
       return { type: 'exploring' as const, confidence: 0 };
     }
@@ -80,7 +81,7 @@ export class OllamaProvider implements AIProvider {
       `Question: "${question}". URL: ${context.url}. DOM: ${JSON.stringify(context.dom)}. Return: { answer, highlightSelector?, confidence }`,
     );
     try {
-      return JSON.parse(text) as GuidedAnswer;
+      return validateGuidedAnswer(JSON.parse(text));
     } catch {
       return { text: 'Unable to answer.', highlights: [] };
     }

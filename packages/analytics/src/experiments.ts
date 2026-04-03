@@ -96,9 +96,17 @@ export class ExperimentEngine {
 
   /** Check which variant a user is in without caching the result. */
   peek<T>(experiment: Experiment<T>): ExperimentResult<T> {
-    const existing = this.cache.delete(experiment.id);
-    void existing; // intentionally discards cache for this call
-    return this.assign(experiment);
+    // Temporarily remove any cached assignment so assign() recomputes
+    const existing = this.cache.get(experiment.id);
+    this.cache.delete(experiment.id);
+    const result = this.assign(experiment);
+    // Restore original cache entry (peek should not modify cache state)
+    if (existing) {
+      this.cache.set(experiment.id, existing);
+    } else {
+      this.cache.delete(experiment.id);
+    }
+    return result;
   }
 
   /** Clear all cached assignments (useful when userId changes). */

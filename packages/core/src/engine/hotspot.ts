@@ -60,6 +60,7 @@ let _hotspotCounter = 0
 
 export class HotspotManager extends EventEmitter<Pick<TourEvents, 'hotspot:open' | 'hotspot:close'>> {
   private _hotspots = new Map<string, RegisteredHotspot>()
+  private _cleanups = new Map<string, () => void>()
   private _nonce: string | undefined
 
   constructor(nonce?: string) {
@@ -114,12 +115,20 @@ export class HotspotManager extends EventEmitter<Pick<TourEvents, 'hotspot:open'
     window.addEventListener('scroll', update, { passive: true })
     window.addEventListener('resize', update, { passive: true })
 
+    this._cleanups.set(id, () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    })
+
     return id
   }
 
   remove(id: string): void {
     const hotspot = this._hotspots.get(id)
     if (!hotspot) return
+    // Clean up scroll/resize listeners before removing DOM
+    this._cleanups.get(id)?.()
+    this._cleanups.delete(id)
     hotspot.beaconEl.parentNode?.removeChild(hotspot.beaconEl)
     this._hotspots.delete(id)
   }

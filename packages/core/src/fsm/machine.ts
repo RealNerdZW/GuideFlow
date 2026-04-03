@@ -11,6 +11,12 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
   private _listeners = new Set<MachineListener<TContext>>()
 
   constructor(flow: FlowDefinition<TContext>, context?: TContext) {
+    // Validate that the initial state exists in the flow definition
+    if (!(flow.initial in flow.states)) {
+      throw new Error(
+        `[GuideFlow FSM] Initial state "${flow.initial}" does not exist in flow states: [${Object.keys(flow.states).join(', ')}]`,
+      )
+    }
     this._ctx = {
       flow,
       context: (context ?? flow.context ?? {}) as TContext,

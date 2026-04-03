@@ -4,6 +4,7 @@
  */
 import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@guideflow/core';
 import type { AIProvider, PageContext } from './interface.js';
+import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
 
 export interface AnthropicProviderOptions {
   apiKey?: string;
@@ -58,7 +59,7 @@ Return format: [{ id, title, body, target?, placement? }]`,
     );
     try {
       const parsed: unknown = JSON.parse(text);
-      return Array.isArray(parsed) ? (parsed as Step[]) : [];
+      return validateSteps(parsed);
     } catch {
       return [];
     }
@@ -71,7 +72,7 @@ Events: ${JSON.stringify(events.slice(-20))}
 Return format: { intent: string, confidence: number, suggestedFlowId?: string }`,
     );
     try {
-      return JSON.parse(text) as IntentSignal;
+      return validateIntentSignal(JSON.parse(text));
     } catch {
       return { type: 'exploring' as const, confidence: 0 };
     }
@@ -86,7 +87,7 @@ DOM: ${JSON.stringify(context.dom)}
 Return format: { answer: string, highlightSelector?: string, confidence: number }`,
     );
     try {
-      return JSON.parse(text) as GuidedAnswer;
+      return validateGuidedAnswer(JSON.parse(text));
     } catch {
       return { text: 'Sorry, I could not answer that.', highlights: [] };
     }

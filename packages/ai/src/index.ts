@@ -28,6 +28,7 @@ export type { OllamaProviderOptions } from './providers/ollama.js';
 export { GuideBrain } from './brain.js';
 export type { GuideBrainOptions, BrainEventMap } from './brain.js';
 export { serializeDOM } from './dom-context.js';
+export { validateSteps, validateIntentSignal, validateGuidedAnswer } from './validation.js';
 
 import type { GuideFlowInstance } from '@guideflow/core';
 import type { AIProvider } from './providers/interface.js';

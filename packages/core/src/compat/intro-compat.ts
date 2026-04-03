@@ -47,14 +47,28 @@ export function scanAttributeTour(
 
     let showIf: ((ctx: GuidanceContext) => boolean) | undefined
     if (conditionAttr) {
-      try {
-        // Safe: we're only evaluating a boolean expression from a data attribute
-        // In production, prefer explicit showIf conditions in code
-        // eslint-disable-next-line no-new-func
-        const fn = new Function('context', `return !!(${conditionAttr})`) as (ctx: unknown) => boolean
-        showIf = fn as (ctx: GuidanceContext) => boolean
-      } catch {
-        console.warn(`[GuideFlow] Invalid data-gf-show-if expression on step ${idx + 1}`)
+      const path = conditionAttr.trim()
+      // Validate: only allow safe dot-notation property paths (e.g. "context.userId", "featureFlags.showTour")
+      if (/^[a-zA-Z_$][a-zA-Z0-9_$.]*$/.test(path)) {
+        showIf = (ctx: GuidanceContext): boolean => {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let current: any = ctx
+            for (const segment of path.split('.')) {
+              if (current == null) return false
+              current = current[segment]
+            }
+            return !!current
+          } catch {
+            return false
+          }
+        }
+      } else {
+        console.warn(
+          `[GuideFlow] Invalid data-gf-show-if expression on step ${idx + 1}: ` +
+          `only dot-notation property paths are allowed (e.g. "featureFlags.showTour"). ` +
+          `Received: "${path}"`,
+        )
       }
     }
 

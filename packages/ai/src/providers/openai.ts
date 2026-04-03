@@ -8,6 +8,7 @@
  */
 import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@guideflow/core';
 import type { AIProvider, PageContext } from './interface.js';
+import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
 
 export interface OpenAIProviderOptions {
   /** OpenAI API key. Defaults to `process.env.OPENAI_API_KEY`. */
@@ -70,7 +71,7 @@ Return format: [{ id, title, body, target?, placement? }]`,
     );
     try {
       const parsed: unknown = JSON.parse(content);
-      return Array.isArray(parsed) ? (parsed as Step[]) : [];
+      return validateSteps(parsed);
     } catch {
       return [];
     }
@@ -83,7 +84,7 @@ Events: ${JSON.stringify(events.slice(-20))}
 Return format: { intent: string, confidence: number, suggestedFlowId?: string }`,
     );
     try {
-      return JSON.parse(content) as IntentSignal;
+      return validateIntentSignal(JSON.parse(content));
     } catch {
       return { type: 'exploring' as const, confidence: 0 };
     }
@@ -99,7 +100,7 @@ DOM (compact): ${JSON.stringify(context.dom)}
 Return format: { answer: string, highlightSelector?: string, confidence: number }`,
     );
     try {
-      return JSON.parse(content) as GuidedAnswer;
+      return validateGuidedAnswer(JSON.parse(content));
     } catch {
       return { text: 'Sorry, I could not answer that.', highlights: [], };
     }

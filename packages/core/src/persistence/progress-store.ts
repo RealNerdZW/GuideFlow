@@ -108,9 +108,13 @@ export class ProgressStore {
   // ── Full reset ────────────────────────────────────────────────────────────
 
   async resetUser(userId: string): Promise<void> {
-    // Best-effort: only localStorage supports enumerable keys
-    if (this._driver instanceof LocalStorageDriver && typeof localStorage !== 'undefined') {
-      const prefix = this._keyFn(userId)
+    const prefix = this._keyFn(userId)
+    if (this._driver.keys) {
+      const allKeys = await this._driver.keys()
+      const keysToRemove = allKeys.filter((k) => k.startsWith(prefix))
+      await Promise.all(keysToRemove.map((k) => this._driver.remove(k)))
+    } else if (this._driver instanceof LocalStorageDriver && typeof localStorage !== 'undefined') {
+      // Fallback for drivers without keys()
       const keysToRemove = Object.keys(localStorage).filter((k) => k.startsWith(prefix))
       keysToRemove.forEach((k) => localStorage.removeItem(k))
     }

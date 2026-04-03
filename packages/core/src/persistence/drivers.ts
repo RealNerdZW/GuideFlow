@@ -33,6 +33,11 @@ export class LocalStorageDriver implements PersistenceDriver {
     if (!isBrowser()) return
     localStorage.removeItem(key)
   }
+
+  keys(): string[] {
+    if (!isBrowser()) return []
+    return Object.keys(localStorage)
+  }
 }
 
 // ── IndexedDB Driver ──────────────────────────────────────────────────────────
@@ -104,6 +109,21 @@ export class IndexedDBDriver implements PersistenceDriver {
       })
     } catch {
       // silent
+    }
+  }
+
+  async keys(): Promise<string[]> {
+    if (!isBrowser()) return []
+    try {
+      const db = await this._db()
+      return await new Promise<string[]>((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE_NAME, 'readonly')
+        const req = tx.objectStore(IDB_STORE_NAME).getAllKeys()
+        req.onsuccess = () => resolve((req.result as string[]) ?? [])
+        req.onerror = () => reject(req.error)
+      })
+    } catch {
+      return []
     }
   }
 }

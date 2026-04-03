@@ -141,15 +141,29 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   private async _renderCurrentStep(): Promise<void> {
     if (!this._machine) return
 
-    const step = this._machine.currentStep
+    let step = this._machine.currentStep
     if (!step) return
 
-    // Evaluate showIf
-    if (step.showIf && !step.showIf(this._machine.context)) {
+    // Evaluate showIf — bounded loop to prevent infinite recursion
+    const maxSkips = this._machine.totalSteps
+    let skipped = 0
+    while (step && step.showIf && !step.showIf(this._machine.context)) {
       this.emit('step:skip', { stepId: step.id })
-      await this.next()
-      return
+      skipped++
+      if (skipped >= maxSkips) {
+        // All remaining steps skipped — end tour
+        this._doEnd(true)
+        return
+      }
+      const advanced = this._machine.nextStep()
+      if (!advanced || this._machine.isFinal) {
+        this._doEnd(true)
+        return
+      }
+      step = this._machine.currentStep
     }
+
+    if (!step) return
 
     // Resolve async content
     const content = await this._resolveContent(step)

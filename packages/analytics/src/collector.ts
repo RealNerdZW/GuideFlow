@@ -50,47 +50,37 @@ export class AnalyticsCollector {
    * Returns an unsubscribe function.
    */
   attach(gf: GuideFlowInstance): () => void {
-    const on = <K extends string>(event: K, handler: (...args: unknown[]) => void) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const on = <K extends string>(event: K, handler: (payload: any) => void) => {
       const off = (gf as unknown as { on: (e: K, h: typeof handler) => () => void }).on(event, handler);
       this.cleanups.push(off);
     };
 
-    on('tour:start', (...args) => {
-      const [flowId] = args as [string];
-      this.send('guideflow.tour.started', base(flowId));
+    on('tour:start', (payload: { flowId: string }) => {
+      this.send('guideflow.tour.started', base(payload.flowId));
     });
 
-    on('tour:end', (...args) => {
-      const [flowId] = args as [string];
-      this.send('guideflow.tour.completed', base(flowId));
+    on('tour:complete', (payload: { flowId: string }) => {
+      this.send('guideflow.tour.completed', base(payload.flowId));
     });
 
-    on('tour:skip', (...args) => {
-      const [flowId, stepId] = args as [string, string];
-      this.send('guideflow.tour.skipped', base(flowId, stepId));
+    on('tour:abandon', (payload: { flowId: string; stepId: string; stepIndex: number }) => {
+      this.send('guideflow.tour.abandoned', base(payload.flowId, payload.stepId));
     });
 
-    on('step:enter', (...args) => {
-      const [flowId, stepId] = args as [string, string];
+    on('step:enter', (payload: { stepId: string; stepIndex: number; target: Element | null }) => {
       this.stepStartTime = Date.now();
-      this.send('guideflow.step.viewed', base(flowId, stepId));
+      this.send('guideflow.step.viewed', base(undefined, payload.stepId));
     });
 
-    on('step:exit', (...args) => {
-      const [flowId, stepId] = args as [string, string];
+    on('step:exit', (payload: { stepId: string; stepIndex: number }) => {
       const dwell = this.stepStartTime !== null ? Date.now() - this.stepStartTime : undefined;
       this.stepStartTime = null;
-      this.send('guideflow.step.exited', { ...base(flowId, stepId), dwell_ms: dwell });
+      this.send('guideflow.step.exited', { ...base(undefined, payload.stepId), dwell_ms: dwell });
     });
 
-    on('step:complete', (...args) => {
-      const [flowId, stepId] = args as [string, string];
-      this.send('guideflow.step.completed', base(flowId, stepId));
-    });
-
-    on('step:abandon', (...args) => {
-      const [flowId, stepId] = args as [string, string];
-      this.send('guideflow.step.abandoned', base(flowId, stepId));
+    on('step:skip', (payload: { stepId: string }) => {
+      this.send('guideflow.step.skipped', base(undefined, payload.stepId));
     });
 
     return () => this.detach();

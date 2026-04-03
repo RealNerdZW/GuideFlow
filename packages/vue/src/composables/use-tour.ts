@@ -2,7 +2,7 @@
 // useTour — Vue 3 composable for controlling a GuideFlow tour
 // ---------------------------------------------------------------------------
 
-import { ref, readonly, type Ref } from 'vue'
+import { ref, readonly, onUnmounted, type Ref } from 'vue'
 import { useGuideFlow } from '../plugin.js'
 import type { FlowDefinition, GuidanceContext } from '@guideflow/core'
 
@@ -48,11 +48,16 @@ export function useTour(flowId?: string): UseTourReturn {
     totalSteps.value = gf.totalSteps
   }
 
-  gf.on('tour:start', syncState)
-  gf.on('tour:complete', syncState)
-  gf.on('tour:abandon', syncState)
-  gf.on('step:enter', syncState)
-  gf.on('step:exit', syncState)
+  const cleanups: Array<() => void> = []
+  cleanups.push(gf.on('tour:start', syncState))
+  cleanups.push(gf.on('tour:complete', syncState))
+  cleanups.push(gf.on('tour:abandon', syncState))
+  cleanups.push(gf.on('step:enter', syncState))
+  cleanups.push(gf.on('step:exit', syncState))
+
+  onUnmounted(() => {
+    cleanups.forEach((fn) => fn())
+  })
 
   return {
     isActive: readonly(isActive),

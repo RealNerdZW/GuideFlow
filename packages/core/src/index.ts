@@ -267,9 +267,10 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     hideHints(): void { hints.hide() },
 
     destroy(): void {
-      engine.end()
+      engine.destroy()
       hotspots.removeAll()
-      hints.hide()
+      hints.destroy()
+      _broadcastSync?.destroy()
       _broadcastSync = null
     },
 
@@ -306,11 +307,27 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
 /**
  * Default singleton — for script-tag / CDN usage.
- * Initialize with guideflow.configure() before use.
+ * Lazily created on first access to avoid side effects at import time.
+ */
+let _singleton: GuideFlowInstance | null = null
+export function getGuideFlow(): GuideFlowInstance {
+  if (!_singleton) _singleton = createGuideFlow()
+  return _singleton
+}
+
+/**
+ * @deprecated Use `getGuideFlow()` instead. This creates a singleton eagerly at import time.
  */
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — lazy singleton, not configured until .configure() is called
-export const guideflow: GuideFlowInstance = createGuideFlow()
+export const guideflow: GuideFlowInstance = new Proxy({} as GuideFlowInstance, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getGuideFlow(), prop, receiver)
+  },
+  set(_target, prop, value, receiver) {
+    return Reflect.set(getGuideFlow(), prop, value, receiver)
+  },
+})
 
 /** Convenience re-export */
 export { createMachine as createFlow }
