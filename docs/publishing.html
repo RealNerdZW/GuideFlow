@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Publishing to npm &amp; jsDelivr - Guideflow Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        nav { background-color: #f4f4f4; padding: 10px; }
+        nav a { margin: 0 10px; text-decoration: none; }
+        h1, h2, h3 { color: #333; }
+        code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
+        pre { background-color: #f4f4f4; padding: 14px; overflow-x: auto; border-radius: 4px; }
+        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f9f9f9; }
+        .note { background-color: #fff8e1; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 16px 0; border-radius: 0 4px 4px 0; }
+        .warning { background-color: #fce4ec; border-left: 4px solid #e53935; padding: 12px 16px; margin: 16px 0; border-radius: 0 4px 4px 0; }
+        .success { background-color: #e8f5e9; border-left: 4px solid #43a047; padding: 12px 16px; margin: 16px 0; border-radius: 0 4px 4px 0; }
+        details { margin: 12px 0; }
+        summary { cursor: pointer; font-weight: bold; padding: 8px 0; }
+        hr { border: none; border-top: 1px solid #e0e0e0; margin: 32px 0; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="installation.html">Installation</a>
+        <a href="usage.html">Usage</a>
+        <a href="api-reference.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="faq.html">FAQ</a>
+        <a href="changelog.html">Changelog</a>
+        <a href="publishing.html">Publishing</a>
+    </nav>
+
+    <h1>Publishing to npm &amp; jsDelivr</h1>
+    <p>This guide covers everything you need to publish GuideFlow packages to <strong>npm</strong> and serve them via <strong>jsDelivr</strong>&apos;s global CDN. It is written for the GuideFlow monorepo which uses <strong>pnpm workspaces</strong>, <strong>Turborepo</strong>, and <strong>Changesets</strong>.</p>
+
+    <!-- ============================== -->
+    <h2>Table of Contents</h2>
+    <ol>
+        <li><a href="#overview">Overview &amp; Architecture</a></li>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#npm-account">Setting Up Your npm Account</a></li>
+        <li><a href="#local-auth">Authenticating Locally</a></li>
+        <li><a href="#changesets">Creating a Changeset</a></li>
+        <li><a href="#versioning">Versioning Packages</a></li>
+        <li><a href="#publishing">Publishing to npm</a></li>
+        <li><a href="#scoped-access">Scoped Package Access (<code>@guideflow/*</code>)</a></li>
+        <li><a href="#jsdelivr">Using jsDelivr CDN</a></li>
+        <li><a href="#ci-cd">CI/CD Automation (GitHub Actions)</a></li>
+        <li><a href="#verify">Verifying a Release</a></li>
+        <li><a href="#rollback">Rolling Back a Bad Release</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#reference">Quick Reference</a></li>
+    </ol>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="overview">1. Overview &amp; Architecture</h2>
+    <p>GuideFlow ships as a set of scoped npm packages under the <code>@guideflow</code> organisation:</p>
+    <table>
+        <tr><th>Package</th><th>Description</th></tr>
+        <tr><td><code>@guideflow/core</code></td><td>Framework-agnostic engine (zero deps)</td></tr>
+        <tr><td><code>@guideflow/react</code></td><td>React bindings &amp; hooks</td></tr>
+        <tr><td><code>@guideflow/vue</code></td><td>Vue 3 plugin &amp; composables</td></tr>
+        <tr><td><code>@guideflow/svelte</code></td><td>Svelte integration</td></tr>
+        <tr><td><code>@guideflow/ai</code></td><td>AI-powered guide brain</td></tr>
+        <tr><td><code>@guideflow/analytics</code></td><td>Analytics collector &amp; transports</td></tr>
+        <tr><td><code>@guideflow/cli</code></td><td>CLI tooling &amp; studio</td></tr>
+        <tr><td><code>@guideflow/devtools</code></td><td>Browser DevTools extension</td></tr>
+    </table>
+    <p>Internal-only packages (<code>@guideflow/docs</code>, <code>@guideflow/e2e</code>, <code>@guideflow/storybook</code>) are excluded from publishing via the Changesets <code>ignore</code> list.</p>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="prerequisites">2. Prerequisites</h2>
+    <ul>
+        <li><strong>Node.js</strong> &ge; 18.0.0</li>
+        <li><strong>pnpm</strong> &ge; 8.0.0 (<code>corepack enable</code> to activate)</li>
+        <li><strong>Git</strong> installed and configured</li>
+        <li>An <strong>npm account</strong> (free or paid) at <a href="https://www.npmjs.com/signup" target="_blank">npmjs.com/signup</a></li>
+        <li>Access to the <strong>@guideflow</strong> npm organisation (ask a maintainer to invite you)</li>
+    </ul>
+    <pre># Verify your local environment
+node --version    # must be &ge; 18
+pnpm --version    # must be &ge; 8
+git --version</pre>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="npm-account">3. Setting Up Your npm Account</h2>
+
+    <h3>3.1 Create an Account</h3>
+    <ol>
+        <li>Go to <a href="https://www.npmjs.com/signup" target="_blank">https://www.npmjs.com/signup</a></li>
+        <li>Fill in username, email, and password.</li>
+        <li>Verify your email address.</li>
+    </ol>
+
+    <h3>3.2 Enable Two-Factor Authentication (Recommended)</h3>
+    <ol>
+        <li>Go to <strong>Account &rarr; Security</strong> on npmjs.com.</li>
+        <li>Enable 2FA for <strong>authorization and publishing</strong>.</li>
+        <li>Scan the QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.).</li>
+    </ol>
+    <div class="note">
+        <strong>Note:</strong> If you enable 2FA for publishing, you will need to supply an OTP code when publishing from the command line. CI/CD tokens can bypass this — see <a href="#ci-cd">Section 10</a>.
+    </div>
+
+    <h3>3.3 Create / Join the <code>@guideflow</code> Organisation</h3>
+    <p><strong>If the org does not exist yet:</strong></p>
+    <ol>
+        <li>Go to <a href="https://www.npmjs.com/org/create" target="_blank">npmjs.com/org/create</a>.</li>
+        <li>Enter <code>guideflow</code> as the org name.</li>
+        <li>Choose the <strong>free/open-source</strong> plan (unlimited public packages).</li>
+    </ol>
+    <p><strong>If the org already exists:</strong> ask a current owner to invite your npm username under <strong>Organisation &rarr; Members &rarr; Invite</strong>.</p>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="local-auth">4. Authenticating Locally</h2>
+    <pre># Log in to the npm registry
+npm login
+
+# Verify the logged-in user
+npm whoami
+
+# Confirm org membership
+npm org ls guideflow</pre>
+    <p>This writes a token to <code>~/.npmrc</code>. <strong>Never commit this file to version control.</strong></p>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="changesets">5. Creating a Changeset</h2>
+    <p>GuideFlow uses <a href="https://github.com/changesets/changesets" target="_blank">Changesets</a> to manage versioning and changelogs. Every publishable change must have a changeset.</p>
+
+    <h3>5.1 Add a Changeset</h3>
+    <pre># From the monorepo root:
+pnpm changeset</pre>
+    <p>You will be prompted to:</p>
+    <ol>
+        <li><strong>Select packages</strong> that changed (use Space to toggle, Enter to confirm).</li>
+        <li><strong>Choose bump type</strong> for each: <code>patch</code>, <code>minor</code>, or <code>major</code>.</li>
+        <li><strong>Write a summary</strong> of the change.</li>
+    </ol>
+    <p>This creates a markdown file in <code>.changeset/</code>:</p>
+    <pre># Example: .changeset/happy-tiger-42.md
+---
+"@guideflow/core": minor
+"@guideflow/react": patch
+---
+
+Added spotlight animation options and updated React hook signatures.</pre>
+
+    <h3>5.2 Commit the Changeset</h3>
+    <pre>git add .changeset/
+git commit -m "chore: add changeset for spotlight animation"</pre>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="versioning">6. Versioning Packages</h2>
+    <p>When you are ready to cut a release, consume all pending changesets:</p>
+    <pre># Bump versions and update CHANGELOGs
+pnpm version-packages</pre>
+    <p>This runs <code>changeset version</code> under the hood and will:</p>
+    <ul>
+        <li>Update <code>version</code> in each affected <code>package.json</code>.</li>
+        <li>Update internal workspace dependency ranges (the <code>updateInternalDependencies: "patch"</code> policy).</li>
+        <li>Append entries to each package&apos;s <code>CHANGELOG.md</code>.</li>
+        <li>Delete consumed changeset files from <code>.changeset/</code>.</li>
+    </ul>
+    <pre># Review the changes, then commit
+git add -A
+git commit -m "chore: version packages"
+git push</pre>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="publishing">7. Publishing to npm</h2>
+
+    <h3>7.1 One-Command Publish</h3>
+    <pre># Build everything and publish changed packages
+pnpm publish-packages</pre>
+    <p>This single command runs the root&apos;s <code>publish-packages</code> script, which:</p>
+    <ol>
+        <li>Builds all publishable packages via Turborepo (<code>turbo run build</code>, excluding docs/e2e/storybook).</li>
+        <li>Runs <code>changeset publish</code> to publish every package with a bumped version to the npm registry.</li>
+        <li>Creates git tags like <code>@guideflow/core@0.2.0</code> for each published version.</li>
+    </ol>
+
+    <h3>7.2 Step-by-Step (Manual)</h3>
+    <p>If you prefer fine-grained control:</p>
+    <pre># 1. Build all packages
+pnpm build
+
+# 2. Publish a single package (from its directory)
+cd packages/core
+npm publish --access public
+
+# 3. Or publish all changed packages
+cd ../..   # back to root
+pnpm changeset publish</pre>
+
+    <h3>7.3 With 2FA / OTP</h3>
+    <pre># Supply an OTP from your authenticator app
+npm publish --access public --otp 123456</pre>
+
+    <div class="warning">
+        <strong>Important:</strong> Each <code>@guideflow/*</code> package must be published with <code>--access public</code> the <strong>first time</strong>. Subsequent publishes inherit this setting. The Changesets config already sets <code>"access": "public"</code>, so <code>changeset publish</code> handles this automatically.
+    </div>
+
+    <h3>7.4 Push Git Tags</h3>
+    <pre># Push the version commit and tags to remote
+git push --follow-tags</pre>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="scoped-access">8. Scoped Package Access (<code>@guideflow/*</code>)</h2>
+    <p>By default, scoped packages on npm are <strong>private</strong>. GuideFlow packages are open-source and must be published as <strong>public</strong>.</p>
+    <table>
+        <tr><th>Method</th><th>How</th></tr>
+        <tr>
+            <td>Changesets config (automatic)</td>
+            <td>Already set: <code>"access": "public"</code> in <code>.changeset/config.json</code></td>
+        </tr>
+        <tr>
+            <td>CLI flag</td>
+            <td><code>npm publish --access public</code></td>
+        </tr>
+        <tr>
+            <td>Per-package <code>package.json</code></td>
+            <td>Add <code>"publishConfig": { "access": "public" }</code></td>
+        </tr>
+    </table>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="jsdelivr">9. Using jsDelivr CDN</h2>
+    <p><a href="https://www.jsdelivr.com/" target="_blank">jsDelivr</a> is a free, public CDN that <strong>automatically mirrors every package on npm</strong>. Once a package is published to npm, it is available on jsDelivr within minutes &mdash; <strong>no extra configuration required</strong>.</p>
+
+    <h3>9.1 URL Format</h3>
+    <pre>https://cdn.jsdelivr.net/npm/&lt;package&gt;@&lt;version&gt;/&lt;file&gt;</pre>
+
+    <h3>9.2 GuideFlow CDN URLs</h3>
+    <table>
+        <tr><th>Asset</th><th>URL</th></tr>
+        <tr>
+            <td>Core ESM (latest)</td>
+            <td><code>https://cdn.jsdelivr.net/npm/@guideflow/core/dist/index.js</code></td>
+        </tr>
+        <tr>
+            <td>Core ESM (pinned)</td>
+            <td><code>https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/index.js</code></td>
+        </tr>
+        <tr>
+            <td>Core CJS</td>
+            <td><code>https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/index.cjs</code></td>
+        </tr>
+        <tr>
+            <td>Core CSS</td>
+            <td><code>https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/styles/index.css</code></td>
+        </tr>
+        <tr>
+            <td>React bindings</td>
+            <td><code>https://cdn.jsdelivr.net/npm/@guideflow/react@0.1.0/dist/index.js</code></td>
+        </tr>
+        <tr>
+            <td>AI package</td>
+            <td><code>https://cdn.jsdelivr.net/npm/@guideflow/ai@0.1.0/dist/index.js</code></td>
+        </tr>
+    </table>
+
+    <h3>9.3 Version Ranges on jsDelivr</h3>
+    <table>
+        <tr><th>Specifier</th><th>Example</th><th>Behaviour</th></tr>
+        <tr>
+            <td>Exact</td>
+            <td><code>@guideflow/core@0.2.1</code></td>
+            <td>Always this exact version (recommended for production)</td>
+        </tr>
+        <tr>
+            <td>Semver range</td>
+            <td><code>@guideflow/core@^0.2.0</code></td>
+            <td>Latest compatible version (auto-updates patches &amp; minors)</td>
+        </tr>
+        <tr>
+            <td>Latest</td>
+            <td><code>@guideflow/core</code> (no version)</td>
+            <td>Always the latest published version</td>
+        </tr>
+        <tr>
+            <td>Dist tag</td>
+            <td><code>@guideflow/core@next</code></td>
+            <td>Follows the <code>next</code> npm dist-tag</td>
+        </tr>
+    </table>
+
+    <h3>9.4 Using GuideFlow via CDN in HTML</h3>
+    <pre>&lt;!-- Load the stylesheet --&gt;
+&lt;link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/styles/index.css"&gt;
+
+&lt;!-- Load the ES module --&gt;
+&lt;script type="module"&gt;
+  import { createGuideFlow } from
+    'https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/index.js';
+
+  const tour = createGuideFlow({
+    steps: [
+      { target: '#welcome', title: 'Welcome!', content: 'Let\u2019s get started.' },
+      { target: '#feature', title: 'Key Feature', content: 'Check this out.' }
+    ]
+  });
+  tour.start();
+&lt;/script&gt;</pre>
+
+    <h3>9.5 Using the jsDelivr &ldquo;Combine&rdquo; Feature</h3>
+    <p>Load multiple files in a single HTTP request:</p>
+    <pre>&lt;script type="module"
+  src="https://cdn.jsdelivr.net/combine/npm/@guideflow/core@0.1.0/dist/index.js,npm/@guideflow/ai@0.1.0/dist/index.js"&gt;
+&lt;/script&gt;</pre>
+
+    <h3>9.6 Minified Versions</h3>
+    <p>Append <code>.min</code> before the extension for on-the-fly minification:</p>
+    <pre>https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/index.min.js
+https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/styles/index.min.css</pre>
+
+    <h3>9.7 Browsing Package Files</h3>
+    <p>View all files in a published package:</p>
+    <pre>https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.0/</pre>
+
+    <h3>9.8 Purging the jsDelivr Cache</h3>
+    <p>jsDelivr caches files for up to 7 days. To force-refresh after a new publish:</p>
+    <pre>curl -X POST "https://purge.jsdelivr.net/npm/@guideflow/core@0.1.0/dist/index.js"</pre>
+    <p>Or use their <a href="https://www.jsdelivr.com/tools/purge" target="_blank">Purge Tool</a>.</p>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="ci-cd">10. CI/CD Automation (GitHub Actions)</h2>
+    <p>Automate the entire publish pipeline with GitHub Actions.</p>
+
+    <h3>10.1 Add the npm Token to GitHub Secrets</h3>
+    <ol>
+        <li>On npmjs.com, go to <strong>Access Tokens &rarr; Generate New Token</strong>.</li>
+        <li>Choose <strong>Automation</strong> (bypasses 2FA, intended for CI).</li>
+        <li>Copy the token.</li>
+        <li>In your GitHub repo, go to <strong>Settings &rarr; Secrets &rarr; Actions &rarr; New repository secret</strong>.</li>
+        <li>Name: <code>NPM_TOKEN</code>, Value: <em>paste token</em>.</li>
+    </ol>
+
+    <h3>10.2 Workflow File</h3>
+    <p>Create <code>.github/workflows/publish.yml</code>:</p>
+    <pre>name: Publish Packages
+
+on:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # push tags
+      id-token:  write     # npm provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for changesets
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Create Release Pull Request or Publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm publish-packages
+          version: pnpm version-packages
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}</pre>
+
+    <h3>10.3 How the Workflow Works</h3>
+    <ol>
+        <li><strong>No pending changesets:</strong> The action runs <code>changeset publish</code>, publishing any packages whose version was bumped but not yet published.</li>
+        <li><strong>Pending changesets exist:</strong> The action opens (or updates) a <em>Release PR</em> that runs <code>changeset version</code>. Merging this PR triggers a re-run that publishes.</li>
+    </ol>
+
+    <div class="success">
+        <strong>Result:</strong> Once merged, every <code>@guideflow/*</code> package with a version bump is automatically published to npm <em>and</em> immediately available on jsDelivr.
+    </div>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="verify">11. Verifying a Release</h2>
+
+    <h3>11.1 Check npm</h3>
+    <pre># View published versions
+npm view @guideflow/core versions --json
+
+# View details of a specific version
+npm info @guideflow/core@0.2.0
+
+# Check all packages in the org
+npm search @guideflow</pre>
+
+    <h3>11.2 Check jsDelivr</h3>
+    <pre># Should return the JS file contents
+curl -I "https://cdn.jsdelivr.net/npm/@guideflow/core@0.2.0/dist/index.js"
+
+# View package file listing in your browser:
+# https://cdn.jsdelivr.net/npm/@guideflow/core@0.2.0/</pre>
+
+    <h3>11.3 Install &amp; Smoke-Test</h3>
+    <pre># In a fresh temp project
+mkdir /tmp/gf-test && cd /tmp/gf-test
+npm init -y
+npm install @guideflow/core@latest
+node -e "const gf = require('@guideflow/core'); console.log(Object.keys(gf));"</pre>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="rollback">12. Rolling Back a Bad Release</h2>
+
+    <h3>12.1 Deprecate a Version</h3>
+    <pre># Mark a version as deprecated (users see a warning on install)
+npm deprecate @guideflow/core@0.2.0 "Known bug in spotlight — use 0.2.1 instead"</pre>
+
+    <h3>12.2 Unpublish (within 72 hours)</h3>
+    <pre># npm allows unpublishing within 72 hours
+npm unpublish @guideflow/core@0.2.0</pre>
+    <div class="warning">
+        <strong>Warning:</strong> Unpublishing can break other people&apos;s builds. Prefer deprecation + a patch release instead.
+    </div>
+
+    <h3>12.3 Publish a Fix</h3>
+    <pre># Create a fix changeset, version, and publish
+pnpm changeset          # select patch for affected packages
+pnpm version-packages
+pnpm publish-packages
+git push --follow-tags</pre>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="troubleshooting">13. Troubleshooting</h2>
+
+    <details>
+        <summary>Error: <code>402 Payment Required</code></summary>
+        <p>Scoped packages default to private on npm. Ensure <code>"access": "public"</code> is set in <code>.changeset/config.json</code> (already done for GuideFlow) or pass <code>--access public</code> on the command line.</p>
+    </details>
+
+    <details>
+        <summary>Error: <code>403 Forbidden — you must be a member of the org</code></summary>
+        <p>Ask an organisation owner to add your npm username to the <code>@guideflow</code> org with <strong>developer</strong> (publish) permissions.</p>
+    </details>
+
+    <details>
+        <summary>Error: <code>ENEEDAUTH</code> / <code>need auth</code></summary>
+        <p>Run <code>npm login</code> and verify with <code>npm whoami</code>. Check that <code>~/.npmrc</code> has a valid token.</p>
+    </details>
+
+    <details>
+        <summary>jsDelivr returns a 404 after publishing</summary>
+        <p>jsDelivr indexes new npm package versions within a few minutes. Wait 5-10 minutes and try again. If the issue persists, verify the file path is correct by checking <code>https://cdn.jsdelivr.net/npm/@guideflow/core@VERSION/</code> for the file listing.</p>
+    </details>
+
+    <details>
+        <summary>jsDelivr returns stale / cached file</summary>
+        <p>Purge the cache: <code>curl -X POST "https://purge.jsdelivr.net/npm/@guideflow/core@VERSION/dist/index.js"</code></p>
+    </details>
+
+    <details>
+        <summary><code>changeset publish</code> skips packages</summary>
+        <p>Changesets only publishes packages whose <code>version</code> in <code>package.json</code> is greater than what is on the registry. Make sure you ran <code>pnpm version-packages</code> first.</p>
+    </details>
+
+    <details>
+        <summary>CI workflow does not publish</summary>
+        <p>Double-check: (1) the <code>NPM_TOKEN</code> secret is set, (2) the token type is <strong>Automation</strong>, and (3) the workflow has <code>NODE_AUTH_TOKEN</code> in the environment.</p>
+    </details>
+
+    <hr>
+
+    <!-- ============================== -->
+    <h2 id="reference">14. Quick Reference</h2>
+    <table>
+        <tr><th>Task</th><th>Command</th></tr>
+        <tr><td>Log in to npm</td><td><code>npm login</code></td></tr>
+        <tr><td>Create a changeset</td><td><code>pnpm changeset</code></td></tr>
+        <tr><td>Bump versions</td><td><code>pnpm version-packages</code></td></tr>
+        <tr><td>Build + publish all</td><td><code>pnpm publish-packages</code></td></tr>
+        <tr><td>Publish one package</td><td><code>cd packages/core && npm publish --access public</code></td></tr>
+        <tr><td>Check published versions</td><td><code>npm view @guideflow/core versions --json</code></td></tr>
+        <tr><td>CDN URL</td><td><code>https://cdn.jsdelivr.net/npm/@guideflow/core@VERSION/dist/index.js</code></td></tr>
+        <tr><td>Purge CDN cache</td><td><code>curl -X POST "https://purge.jsdelivr.net/npm/@guideflow/core@VERSION/..."</code></td></tr>
+        <tr><td>Deprecate a version</td><td><code>npm deprecate @guideflow/core@VERSION "reason"</code></td></tr>
+    </table>
+
+    <hr>
+
+    <p>&larr; <a href="index.html">Back to Home</a></p>
+</body>
+</html>
