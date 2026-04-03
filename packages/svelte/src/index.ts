@@ -15,7 +15,7 @@
 // createTourStore — Svelte store-based tour API
 // ---------------------------------------------------------------------------
 
-import { writable, readable, derived, type Writable, type Readable } from 'svelte/store'
+import { writable, type Writable, type Readable } from 'svelte/store'
 import { createGuideFlow, type GuideFlowConfig, type GuideFlowInstance, type FlowDefinition, type GuidanceContext } from '@guideflow/core'
 
 export interface TourStore {
@@ -91,15 +91,16 @@ export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowIn
     totalSteps: { subscribe: _totalSteps.subscribe },
 
     start: (flow: FlowDefinition | string, context?: GuidanceContext) =>
-      gf.start(flow as FlowDefinition, context),
+      gf.start(flow, context),
     next: () => gf.next(),
     prev: () => gf.prev(),
     goTo: (id: string) => gf.goTo(id),
     send: (event: string) => gf.send(event),
     stop: () => gf.stop(),
-    /** Clean up all event listeners. Call when the store is no longer needed. */
+    /** Clean up all event listeners and destroy the GuideFlow instance. */
     destroy: () => {
       cleanups.forEach((fn) => fn())
+      gf.destroy()
     },
     instance: gf,
   }

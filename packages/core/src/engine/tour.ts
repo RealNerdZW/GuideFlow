@@ -35,6 +35,11 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   private _active = false
   private _flow: FlowDefinition<TContext> | null = null
   private _keyboardHandler: ((e: KeyboardEvent) => void) | null = null
+  private _currentStep: Step<TContext> | null = null
+  private _currentContent: StepContent | null = null
+  /** True when step:exit has already been emitted for the active step (prevents double-emission). */
+  private _stepExitEmitted = true
+  private _paused = false
 
   constructor(options: TourEngineOptions<TContext>) {
     super()
@@ -70,6 +75,16 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     return this._machine
   }
 
+  /** The step that is currently being displayed (set after step:enter, cleared on step:exit). */
+  get currentStep(): Step<TContext> | null {
+    return this._currentStep
+  }
+
+  /** The resolved content for the step that is currently being displayed. */
+  get currentContent(): StepContent | null {
+    return this._currentContent
+  }
+
   async start(flow: FlowDefinition<TContext>, context?: TContext): Promise<void> {
     if (this._active) this._doEnd(false)
 
@@ -86,8 +101,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   async next(): Promise<void> {
     if (!this._machine || !this._active) return
-    const step = this._machine.currentStep
-    if (step) this.emit('step:exit', { stepId: step.id, stepIndex: this._machine.stepIndex })
+    this._emitStepExit()
 
     const advanced = this._machine.nextStep()
 
@@ -101,8 +115,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   async prev(): Promise<void> {
     if (!this._machine || !this._active) return
-    const step = this._machine.currentStep
-    if (step) this.emit('step:exit', { stepId: step.id, stepIndex: this._machine.stepIndex })
+    this._emitStepExit()
     this._machine.prevStep()
     await this._renderCurrentStep()
   }
@@ -118,6 +131,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     const moved = this._machine.send(event)
     if (!moved) return
     if (this._machine.isFinal) {
+      this._emitStepExit()
       this._doEnd(true)
       return
     }
@@ -126,6 +140,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   skip(): void {
     if (!this._machine || !this._active) return
+    this._emitStepExit()
     const step = this._machine.currentStep
     if (step) this.emit('step:skip', { stepId: step.id })
     this._doEnd(false)
@@ -133,6 +148,30 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   end(): void {
     this._doEnd(false)
+  }
+
+  /**
+   * Pause the current tour — hides the UI without abandoning the flow.
+   * Resume with `resume()`.
+   */
+  pause(): void {
+    if (!this._active || this._paused) return
+    this._paused = true
+    this._spotlight.hide()
+    this._renderer.hideStep()
+    const flowId = this._flow?.id ?? 'unknown'
+    const stepId = this._machine?.currentStep?.id ?? ''
+    this.emit('tour:pause', { flowId, stepId })
+  }
+
+  /** Resume a previously paused tour. */
+  resume(): void {
+    if (!this._active || !this._paused) return
+    this._paused = false
+    const flowId = this._flow?.id ?? 'unknown'
+    const stepId = this._machine?.currentStep?.id ?? ''
+    this.emit('tour:resume', { flowId, stepId })
+    void this._renderCurrentStep()
   }
 
   destroy(): void {
@@ -183,11 +222,19 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       await this._sleep(150)
     }
 
-    // Update spotlight
+    // Update spotlight — honour per-step padding override
     if (isBrowser()) {
-      this._spotlight.show(target, this._options.spotlight)
+      this._spotlight.show(target, {
+        ...this._options.spotlight,
+        ...(step.padding !== undefined && { padding: step.padding }),
+      })
       this._spotlight.setClickThrough(step.clickThrough ?? false)
     }
+
+    // Store current step/content so external consumers (e.g. React GuidePopover) can read them
+    this._currentStep = step
+    this._currentContent = content
+    this._stepExitEmitted = false
 
     // Emit event
     this.emit('step:enter', {
@@ -220,6 +267,9 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     if (!this._active) return
     this._active = false
 
+    // Always emit step:exit before ending — guards against double-emission via _stepExitEmitted flag
+    this._emitStepExit()
+
     this._spotlight.hide()
     this._renderer.hideStep()
     this._detachKeyboard()
@@ -233,6 +283,9 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       this.emit('tour:abandon', { flowId, stepId, stepIndex })
     }
 
+    this._currentStep = null
+    this._currentContent = null
+    this._paused = false
     this._machine = null
     this._flow = null
   }
@@ -267,6 +320,16 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       document.removeEventListener('keydown', this._keyboardHandler)
       this._keyboardHandler = null
     }
+  }
+
+  /** Emit step:exit exactly once per step:enter (idempotent via _stepExitEmitted flag). */
+  private _emitStepExit(): void {
+    if (this._stepExitEmitted) return
+    const step = this._machine?.currentStep
+    if (step) {
+      this.emit('step:exit', { stepId: step.id, stepIndex: this._machine?.stepIndex ?? 0 })
+    }
+    this._stepExitEmitted = true
   }
 
   private _sleep(ms: number): Promise<void> {

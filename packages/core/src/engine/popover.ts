@@ -138,15 +138,19 @@ export function scrollTargetIntoView(element: Element): void {
  */
 export function getAbsoluteRect(element: Element): DOMRect {
   const rect = element.getBoundingClientRect()
-  const scrollX = window.scrollX
-  const scrollY = window.scrollY
+  const scrollX = typeof window !== 'undefined' ? window.scrollX : 0
+  const scrollY = typeof window !== 'undefined' ? window.scrollY : 0
   return new DOMRect(rect.left + scrollX, rect.top + scrollY, rect.width, rect.height)
 }
 
 /**
  * Get the current viewport rectangle in page coordinates.
+ * Returns a safe fallback in SSR environments.
  */
 export function getViewportRect(): { x: number; y: number; width: number; height: number } {
+  if (typeof window === 'undefined') {
+    return { x: 0, y: 0, width: 1280, height: 800 }
+  }
   return {
     x: window.scrollX,
     y: window.scrollY,

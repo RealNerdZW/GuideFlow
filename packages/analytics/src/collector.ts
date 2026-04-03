@@ -58,6 +58,8 @@ export class AnalyticsCollector {
         this.send('guideflow.tour.completed', base(payload.flowId));
       }),
       gf.on('tour:abandon', (payload) => {
+        // Reset step timer so the next tour's first step doesn't inherit stale dwell time
+        this.stepStartTime = null;
         this.send('guideflow.tour.abandoned', base(payload.flowId, payload.stepId));
       }),
       gf.on('step:enter', (payload) => {

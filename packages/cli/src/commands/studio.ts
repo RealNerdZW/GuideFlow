@@ -44,8 +44,8 @@ export const studioCommand = new Command('studio')
       spinner.succeed(`Studio running at ${chalk.bold(`http://localhost:${port}`)}`);
       console.log(chalk.dim('\n  Press Ctrl+C to stop.\n'));
 
-      process.on('SIGINT', async () => {
-        await server.close();
+      process.on('SIGINT', () => {
+        server.close();
         process.exit(0);
       });
     } catch (err) {

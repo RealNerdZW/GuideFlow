@@ -3,9 +3,9 @@
 // Provides $guideflow global and injection key
 // ---------------------------------------------------------------------------
 
+import { createGuideFlow, type GuideFlowConfig, type GuideFlowInstance } from '@guideflow/core'
 import type { App, InjectionKey } from 'vue'
 import { inject } from 'vue'
-import { createGuideFlow, type GuideFlowConfig, type GuideFlowInstance } from '@guideflow/core'
 
 export const GUIDEFLOW_KEY: InjectionKey<GuideFlowInstance> = Symbol('guideflow')
 

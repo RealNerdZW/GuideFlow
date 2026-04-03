@@ -47,8 +47,9 @@ test.describe('Accessibility', () => {
     await page.click('#start-btn');
     await page.locator('.gf-popover').waitFor({ state: 'visible' });
 
+    // The renderer focuses the close button (gf-popover-close) when the popover opens
     const focusedEl = await page.evaluate(() => document.activeElement?.className ?? '');
-    expect(focusedEl).toContain('gf-popover');
+    expect(focusedEl).toContain('gf-popover-close');
   });
 
   test('close button is focusable', async ({ page }) => {

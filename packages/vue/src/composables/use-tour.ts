@@ -68,7 +68,7 @@ export function useTour(flowId?: string): UseTourReturn {
     start: async (flow?: FlowDefinition | string, context?: GuidanceContext): Promise<void> => {
       const target = flow ?? flowId
       if (!target) return
-      await gf.start(target as FlowDefinition, context)
+      await gf.start(target, context)
     },
 
     next: () => gf.next(),

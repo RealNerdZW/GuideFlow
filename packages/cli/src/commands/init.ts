@@ -22,19 +22,42 @@ export function App({ children }: { children: React.ReactNode }) {
 `;
 
 const FLOW_TEMPLATE = `import { gf } from './guideflow';
+import type { FlowDefinition } from '@guideflow/core';
 
-gf.start({
+// FlowDefinition uses a finite-state machine shape.
+// Each key in 'states' is a state node that can hold one or more steps.
+const welcomeTour: FlowDefinition = {
   id: 'welcome-tour',
-  steps: [
-    {
-      id: 'step-1',
-      title: 'Welcome!',
-      body: 'This is your first step.',
-      target: '#app',
-      placement: 'bottom',
+  initial: 'step-1',
+  states: {
+    'step-1': {
+      steps: [
+        {
+          id: 'step-1',
+          content: { title: 'Welcome!', body: 'This is your first step.' },
+          target: '#app',
+          placement: 'bottom',
+        },
+      ],
+      on: { NEXT: 'step-2' },
     },
-  ],
-});
+    'step-2': {
+      steps: [
+        {
+          id: 'step-2',
+          content: { title: 'Next up', body: 'Here is another feature to explore.' },
+          target: '#feature',
+          placement: 'right',
+        },
+      ],
+      on: {},
+      final: true,
+    },
+  },
+};
+
+// Launch the tour
+void gf.start(welcomeTour);
 `;
 
 export const initCommand = new Command('init')

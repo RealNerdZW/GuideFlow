@@ -33,12 +33,13 @@ export const exportCommand = new Command('export')
       const raw = readFileSync(src, 'utf-8');
       flowJson = JSON.parse(raw) as unknown;
     } else if (ext === '.ts' || ext === '.js') {
-      // Static extraction: look for the first object literal with an `id` and `steps` key
+      // Static extraction: look for an object literal with 'id' and 'states' (FlowDefinition shape)
       const raw = readFileSync(src, 'utf-8');
-      const match = raw.match(/\{[\s\S]*?id\s*:\s*['"]([^'"]+)['"][\s\S]*?steps\s*:\s*\[[\s\S]*?\]/);
+      const match = raw.match(/\{[\s\S]*?id\s*:\s*['"]([^'"]+)['"][\s\S]*?states\s*:\s*\{/);
       if (!match) {
         console.error(chalk.red('\n  Could not statically extract a FlowDefinition from the file.'));
-        console.error(chalk.dim('  Tip: use a plain JSON file or export a pure-object flow.\n'));
+        console.error(chalk.dim('  Tip: ensure the file exports a FlowDefinition object with { id, initial, states }.'));
+        console.error(chalk.dim('  For complex flows, write the definition to a JSON file directly.\n'));
         process.exit(1);
       }
       // For now emit a helpful stub and warn

@@ -25,6 +25,8 @@ import type {
   SpotlightOptions,
   TourEvents,
   FlowSnapshot,
+  Step,
+  StepContent,
 } from './types/index.js'
 import { TourEngine } from './engine/tour.js'
 import { HotspotManager } from './engine/hotspot.js'
@@ -127,6 +129,16 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   readonly currentStepIndex: number
   /** Total steps in the current flow state */
   readonly totalSteps: number
+  /** The step currently being displayed (null when no tour is active). */
+  readonly currentStep: Step<TContext> | null
+  /** Resolved display content for the current step (null when no tour is active). */
+  readonly currentContent: StepContent | null
+  /** Return all flows registered with createFlow(). */
+  listFlows(): FlowDefinition<TContext>[]
+  /** Pause the active tour — hides UI without abandoning the flow. */
+  pause(): void
+  /** Resume a paused tour. */
+  resume(): void
 }
 
 type DeepPartialConfig = Partial<GuideFlowConfig>
@@ -175,18 +187,15 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     renderer.onInit(_config)
   }
 
-  // Proxy tour events onto instance
-  engine.on('tour:start', (e) => instance.emit('tour:start', e))
-  engine.on('tour:complete', (e) => {
-    instance.emit('tour:complete', e)
+  // Forward events from independent subsystems (hotspots, hints) to the instance.
+  // NOTE: engine === instance (Object.assign target), so self-referential proxies
+  // would cause infinite recursion. Only cross-subsystem forwarding is needed here.
+  // The tour:complete handler is the exception — it has a persistence side-effect.
+  engine.on('tour:complete', ({ flowId }) => {
     if (_config.context?.userId) {
-      void progress.markCompleted(_config.context.userId as string, e.flowId)
+      void progress.markCompleted(_config.context.userId as string, flowId)
     }
   })
-  engine.on('tour:abandon', (e) => instance.emit('tour:abandon', e))
-  engine.on('step:enter', (e) => instance.emit('step:enter', e))
-  engine.on('step:exit', (e) => instance.emit('step:exit', e))
-  engine.on('step:skip', (e) => instance.emit('step:skip', e))
 
   hotspots.on('hotspot:open', (e) => instance.emit('hotspot:open', e))
   hotspots.on('hotspot:close', (e) => instance.emit('hotspot:close', e))
@@ -279,6 +288,10 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     showHints(): void { hints.show() },
     hideHints(): void { hints.hide() },
 
+    listFlows(): FlowDefinition<TContext>[] {
+      return Array.from(_registeredFlows.values())
+    },
+
     destroy(): void {
       engine.destroy()
       hotspots.removeAll()
@@ -294,6 +307,8 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     get currentStepId(): string | null { return engine.currentStepId },
     get currentStepIndex(): number { return engine.currentStepIndex },
     get totalSteps(): number { return engine.totalSteps },
+    get currentStep() { return engine.currentStep },
+    get currentContent() { return engine.currentContent },
   })
 
   async function _saveProgress(): Promise<void> {

@@ -21,6 +21,7 @@ export class WebhookTransport implements AnalyticsTransport {
   private opts: Required<WebhookTransportOptions>;
   private queue: AnalyticsEvent[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private _beforeUnloadHandler: (() => void) | null = null;
 
   constructor(opts: WebhookTransportOptions) {
     this.opts = {
@@ -37,7 +38,8 @@ export class WebhookTransport implements AnalyticsTransport {
     }
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', () => void this.flush());
+      this._beforeUnloadHandler = () => void this.flush();
+      window.addEventListener('beforeunload', this._beforeUnloadHandler);
     }
   }
 
@@ -71,6 +73,10 @@ export class WebhookTransport implements AnalyticsTransport {
 
   destroy(): void {
     if (this.timer !== null) clearInterval(this.timer);
+    if (this._beforeUnloadHandler && typeof window !== 'undefined') {
+      window.removeEventListener('beforeunload', this._beforeUnloadHandler);
+      this._beforeUnloadHandler = null;
+    }
     void this.flush();
   }
 }

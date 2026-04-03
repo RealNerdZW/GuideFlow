@@ -31,12 +31,12 @@ test.describe('Tour flow', () => {
       await expect(popover).toBeVisible();
 
       if (i < 3) {
-        await page.click('.gf-btn-next');
+        await page.click('[data-gf-action="next"]');
       }
     }
 
     // After last step next click ends tour
-    await page.click('.gf-btn-next');
+    await page.click('[data-gf-action="next"]');
     const popover = page.locator('.gf-popover');
     await expect(popover).toBeHidden({ timeout: 3000 });
   });
@@ -45,11 +45,11 @@ test.describe('Tour flow', () => {
     await page.click('#start-btn');
 
     // Go to step 2
-    await page.click('.gf-btn-next');
+    await page.click('[data-gf-action="next"]');
     await expect(page.locator('.gf-popover')).toContainText('Step Two');
 
     // Go back to step 1
-    await page.click('.gf-btn-prev');
+    await page.click('[data-gf-action="prev"]');
     await expect(page.locator('.gf-popover')).toContainText('Step One');
   });
 

@@ -21,7 +21,8 @@ interface WindowWithGF extends Window {
   __guideflow?: {
     on: (event: string, handler: (...args: unknown[]) => void) => () => void;
     start: (flow: unknown) => void;
-    _flows?: unknown[];
+    /** Returns all registered flows (added in @guideflow/core 0.x+). */
+    listFlows?: () => unknown[];
   };
 }
 
@@ -125,8 +126,9 @@ function relayGuideFlowEvents(): void {
   });
 
   // Send initial flow list if available
-  if (gf._flows) {
-    send({ type: 'GF_FLOWS_LIST', payload: gf._flows });
+  const flows = gf.listFlows?.();
+  if (flows && flows.length > 0) {
+    send({ type: 'GF_FLOWS_LIST', payload: flows });
   }
 }
 

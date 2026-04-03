@@ -46,16 +46,18 @@ export function GuidePopover({ width = 320, className }: GuidePopoverProps): Rea
 
   useEffect(() => {
     const offEnter = gf.on('step:enter', ({ stepId, target }) => {
-      // For React popover, we read the step from the machine via the engine's currentStep
-      // This is a simplification — in a real setup you'd pass the full step/content
-      const step: Step = {
+      // currentStep and currentContent are set by TourEngine before step:enter fires
+      const step: Step = (gf.currentStep as Step) ?? {
         id: stepId,
         content: { title: '', body: '' },
         target: (target as HTMLElement) ?? null,
       }
+      const content: StepContent = gf.currentContent ?? (
+        typeof step.content !== 'function' ? step.content : { title: '', body: '' }
+      )
       setActiveStep({
         step,
-        content: { title: stepId, body: '' },
+        content,
         index: gf.currentStepIndex,
         total: gf.totalSteps,
         target: target as HTMLElement | null,

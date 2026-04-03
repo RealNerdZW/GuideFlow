@@ -174,8 +174,11 @@ export class DefaultRenderer implements RendererContract {
         ${content.title ? `<h2 class="gf-popover-title" id="${this._popoverId}-title">${this._esc(content.title)}</h2>` : '<span></span>'}
         <button class="gf-popover-close" data-gf-action="end" aria-label="${i18n.t('close')}" type="button">×</button>
       </div>
-      ${content.body ? `<p class="gf-popover-body" id="${this._popoverId}-body">${this._esc(content.body)}</p>` : ''}
-      ${content.html && !content.body ? `<div class="gf-popover-body" id="${this._popoverId}-body">${this._sanitizeHTML(content.html)}</div>` : content.html ? `<div class="gf-popover-body">${this._sanitizeHTML(content.html)}</div>` : ''}
+      ${content.body
+        ? `<p class="gf-popover-body" id="${this._popoverId}-body">${this._esc(content.body)}</p>`
+        : content.html
+          ? `<div class="gf-popover-body" id="${this._popoverId}-body">${this._sanitizeHTML(content.html)}</div>`
+          : ''}
       <div class="gf-popover-footer">
         ${total > 1 ? `<span class="gf-popover-step-info">${i18n.t('stepOf', { current: index + 1, total })}</span>` : '<span></span>'}
         <div class="gf-popover-actions">

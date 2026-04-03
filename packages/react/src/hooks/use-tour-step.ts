@@ -4,10 +4,11 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useCallback, useState } from 'react'
+import type { RefObject } from 'react'
 import { useGuideFlow } from '../context.js'
 
 export interface UseTourStepReturn<T extends HTMLElement = HTMLElement> {
-  ref: React.RefObject<T>
+  ref: RefObject<T>
   isActive: boolean
 }
 
@@ -69,7 +70,7 @@ export interface UseHotspotReturn {
  * ```
  */
 export function useHotspot(
-  targetRef: React.RefObject<HTMLElement>,
+  targetRef: RefObject<HTMLElement>,
   options: HotspotOptions,
 ): UseHotspotReturn {
   const gf = useGuideFlow()

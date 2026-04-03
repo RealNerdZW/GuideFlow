@@ -7,8 +7,8 @@ test.describe('Spotlight overlay', () => {
 
   test('spotlight overlay appears when tour starts', async ({ page }) => {
     await page.click('#start-btn');
-    // The spotlight uses a fixed div with box-shadow
-    const spotlight = page.locator('.gf-spotlight');
+    // The spotlight uses a fixed div with box-shadow identified by data-gf-spotlight-cutout
+    const spotlight = page.locator('[data-gf-spotlight-cutout]');
     await expect(spotlight).toBeVisible({ timeout: 5000 });
   });
 
@@ -19,7 +19,7 @@ test.describe('Spotlight overlay', () => {
     const targetBox = await target.boundingBox();
     expect(targetBox).not.toBeNull();
 
-    const spotlight = page.locator('.gf-spotlight');
+    const spotlight = page.locator('[data-gf-spotlight-cutout]');
     const spotlightBox = await spotlight.boundingBox();
     expect(spotlightBox).not.toBeNull();
 
@@ -32,10 +32,10 @@ test.describe('Spotlight overlay', () => {
 
   test('spotlight disappears when tour ends', async ({ page }) => {
     await page.click('#start-btn');
-    await expect(page.locator('.gf-spotlight')).toBeVisible();
+    await expect(page.locator('[data-gf-spotlight-cutout]')).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(page.locator('.gf-spotlight')).toBeHidden({ timeout: 3000 });
+    await expect(page.locator('[data-gf-spotlight-cutout]')).toBeHidden({ timeout: 3000 });
   });
 });
 
@@ -45,9 +45,9 @@ test.describe('Persistence', () => {
     await page.click('#start-btn');
 
     // Complete the tour
-    await page.click('.gf-btn-next');
-    await page.click('.gf-btn-next');
-    await page.click('.gf-btn-next');
+    await page.click('[data-gf-action="next"]');
+    await page.click('[data-gf-action="next"]');
+    await page.click('[data-gf-action="next"]');
 
     // Check localStorage
     const stored = await page.evaluate(() => {

@@ -46,6 +46,8 @@ export class GuideBrain {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private cleanups: Array<() => void> = [];
   private listeners = new Map<string, Set<BrainListener<keyof BrainEventMap>>>();
+  /** Prevents duplicate DOM event listeners when watch() is called multiple times. */
+  private _watching = false;
 
   constructor(provider: AIProvider, opts: GuideBrainOptions = {}) {
     this.provider = provider;
@@ -120,6 +122,12 @@ export class GuideBrain {
    */
   watch(): () => void {
     if (!isBrowser()) return () => {};
+    // Guard against duplicate listener accumulation on repeated calls
+    if (this._watching) {
+      // Return a no-op cleanup; caller that originally called watch() still holds the real cleanup
+      return () => {};
+    }
+    this._watching = true;
 
     const push = (type: UserEvent['type'], target: string) => {
       const event: UserEvent = {
@@ -157,6 +165,7 @@ export class GuideBrain {
       document.removeEventListener('input', onInput);
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('keydown', onKeydown);
+      this._watching = false;
     };
 
     this.cleanups.push(cleanup);

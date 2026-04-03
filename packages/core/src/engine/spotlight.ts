@@ -165,7 +165,7 @@ export class SpotlightOverlay {
     this._cutoutEl.style.width = `${rect.width + pad * 2}px`
     this._cutoutEl.style.height = `${rect.height + pad * 2}px`
     this._cutoutEl.style.borderRadius = `${br}px`
-    this._cutoutEl.style.boxShadow = `0 0 0 9999px rgba(0,0,0,${opacity})`
+    this._cutoutEl.style.boxShadow = `0 0 0 100vmax rgba(0,0,0,${opacity})`
 
     if (this._overlayEl) {
       this._overlayEl.style.background = 'transparent'

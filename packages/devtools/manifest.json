@@ -26,7 +26,7 @@
       "run_at": "document_idle"
     }
   ],
-  "devtools_page": "src/panel/devtools.html",
+  "devtools_page": "panel.html",
   "action": {
     "default_title": "GuideFlow DevTools",
     "default_icon": {

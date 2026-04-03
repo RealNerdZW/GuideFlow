@@ -33,40 +33,22 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 // ---------------------------------------------------------------------------
-// Message routing: content → panel
+// Message routing: content → panel and storage helpers
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener(
-  (message: unknown, sender, sendResponse) => {
+  (message: { type: string; payload?: unknown }, sender, sendResponse) => {
     const tabId = sender.tab?.id;
-    if (tabId === undefined) return false;
 
-    const panel = devtoolsPorts.get(tabId);
-    if (panel) {
-      panel.postMessage(message);
+    // Route content-script messages to the connected DevTools panel
+    if (tabId !== undefined) {
+      const panel = devtoolsPorts.get(tabId);
+      if (panel) {
+        panel.postMessage(message);
+      }
     }
 
-    sendResponse({ ok: true });
-    return true;
-  },
-);
-
-// ---------------------------------------------------------------------------
-// Action button
-// ---------------------------------------------------------------------------
-
-chrome.action.onClicked.addListener((tab) => {
-  if (!tab.id) return;
-  // Open DevTools panel (requires user to open DevTools manually in Chrome)
-  chrome.tabs.sendMessage(tab.id, { type: 'GF_DEVTOOLS_OPEN' }).catch(() => {});
-});
-
-// ---------------------------------------------------------------------------
-// Storage helpers exposed to panel via messaging
-// ---------------------------------------------------------------------------
-
-chrome.runtime.onMessage.addListener(
-  (message: { type: string; payload?: unknown }, _sender, sendResponse) => {
+    // Handle storage operations requested by the panel
     if (message.type === 'GF_SAVE_FLOW') {
       void chrome.storage.local.set({ [`gf_flow_${Date.now()}`]: message.payload }, () => {
         sendResponse({ ok: true });
@@ -84,6 +66,17 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
-    return false;
+    sendResponse({ ok: true });
+    return true;
   },
 );
+
+// ---------------------------------------------------------------------------
+// Action button
+// ---------------------------------------------------------------------------
+
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab.id) return;
+  // Open DevTools panel (requires user to open DevTools manually in Chrome)
+  chrome.tabs.sendMessage(tab.id, { type: 'GF_DEVTOOLS_OPEN' }).catch(() => {});
+});

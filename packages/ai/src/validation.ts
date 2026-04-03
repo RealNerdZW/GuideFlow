@@ -42,7 +42,7 @@ export function validateSteps(parsed: unknown): Step[] {
         'bottom', 'bottom-start', 'bottom-end',
         'left', 'left-start', 'left-end',
         'right', 'right-start', 'right-end',
-        'center', 'auto',
+        'center',
       ] as const;
       if (typeof item['placement'] === 'string' && validPlacements.includes(item['placement'])) {
         step.placement = item['placement'] as PopoverPlacement;
