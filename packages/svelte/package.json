@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/svelte",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GuideFlow Svelte adapter — stores and components",
   "keywords": ["guided-tour", "svelte", "product-tour", "onboarding", "guideflow"],
   "license": "MIT",

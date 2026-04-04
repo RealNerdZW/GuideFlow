@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GuideFlow core engine — framework-agnostic, zero dependencies",
   "keywords": ["guided-tour", "product-tour", "onboarding", "spotlight", "guideflow"],
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GuideFlow React adapter — hooks and components",
   "keywords": ["guided-tour", "react", "product-tour", "onboarding", "guideflow"],
   "license": "MIT",
