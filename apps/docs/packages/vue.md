@@ -26,5 +26,5 @@ npm install @guideflow/core @guideflow/vue
 ## Links
 
 - [npm](https://www.npmjs.com/package/@guideflow/vue)
-- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/vue)
+- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/vue)
 - [Vue Guide](/guide/vue)

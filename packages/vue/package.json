@@ -15,15 +15,15 @@
     "composable",
     "vue-plugin"
   ],
-  "author": "John Mugabe (https://github.com/RealNerdZW)",
+  "author": "John Mugabe (https://github.com/johnmugabe)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RealNerdZW/GuideFlow.git",
+    "url": "https://github.com/johnmugabe/GuideFlow.git",
     "directory": "packages/vue"
   },
-  "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
-  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
+  "homepage": "https://github.com/johnmugabe/GuideFlow#readme",
+  "bugs": "https://github.com/johnmugabe/GuideFlow/issues",
   "sideEffects": false,
   "engines": {
     "node": ">=18.0.0"

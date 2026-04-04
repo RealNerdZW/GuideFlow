@@ -3,9 +3,9 @@
 **AI-powered tour generation, intent detection, and conversational help for GuideFlow.**
 
 [![npm version](https://img.shields.io/npm/v/@guideflow/ai.svg)](https://www.npmjs.com/package/@guideflow/ai)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
 
-AI module for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). Generate tours from natural language, detect user intent, and provide conversational help. All providers are lazy-loaded.
+AI module for [GuideFlow](https://github.com/johnmugabe/GuideFlow). Generate tours from natural language, detect user intent, and provide conversational help. All providers are lazy-loaded.
 
 ## Installation
 
@@ -105,4 +105,4 @@ createAI(new OllamaProvider({ model: 'llama3', baseUrl: 'http://localhost:11434'
 
 ## License
 
-[MIT](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
+[MIT](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)

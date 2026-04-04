@@ -36,5 +36,5 @@ npm install @guideflow/core @guideflow/svelte
 ## Links
 
 - [npm](https://www.npmjs.com/package/@guideflow/svelte)
-- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/svelte)
+- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/svelte)
 - [Svelte Guide](/guide/svelte)
