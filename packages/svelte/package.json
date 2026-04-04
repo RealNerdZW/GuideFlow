@@ -1,8 +1,9 @@
 {
   "name": "@guideflow/svelte",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "GuideFlow Svelte adapter — stores and components",
-  "keywords": ["guided-tour", "svelte", "product-tour", "onboarding", "guideflow"],
+  "keywords": ["guided-tour", "svelte", "product-tour", "onboarding", "guideflow", "walkthrough", "tooltip", "user-onboarding", "svelte-store", "tour-component"],
+  "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,6 +12,13 @@
   },
   "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
   "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "exports": {
     ".": {

@@ -1,8 +1,9 @@
 {
   "name": "@guideflow/ai",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "GuideFlow AI module — natural language tours, behavioral intent, conversational help",
-  "keywords": ["guided-tour", "ai", "openai", "anthropic", "product-tour", "guideflow"],
+  "keywords": ["guided-tour", "ai", "openai", "anthropic", "product-tour", "guideflow", "llm", "tour-generation", "intent-detection", "ollama", "conversational-ai"],
+  "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,6 +12,13 @@
   },
   "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
   "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "exports": {
     ".": {
