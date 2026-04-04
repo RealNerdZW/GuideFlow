@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/react",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "GuideFlow React adapter — hooks and components",
   "keywords": ["guided-tour", "react", "product-tour", "onboarding", "guideflow"],
   "license": "MIT",
@@ -22,7 +22,7 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src"],
+  "files": ["dist", "src", "README.md"],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

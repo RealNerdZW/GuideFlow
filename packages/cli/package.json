@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI for GuideFlow.js — init, studio, export, and push flows",
   "keywords": ["guided-tour", "cli", "product-tour", "guideflow"],
   "license": "MIT",
@@ -20,7 +20,7 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "src", "README.md"],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

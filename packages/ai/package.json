@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/ai",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "GuideFlow AI module — natural language tours, behavioral intent, conversational help",
   "keywords": ["guided-tour", "ai", "openai", "anthropic", "product-tour", "guideflow"],
   "license": "MIT",
@@ -22,7 +22,7 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src"],
+  "files": ["dist", "src", "README.md"],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
