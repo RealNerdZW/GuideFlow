@@ -2,6 +2,15 @@
   "name": "@guideflow/cli",
   "version": "0.1.0",
   "description": "CLI for GuideFlow.js — init, studio, export, and push flows",
+  "keywords": ["guided-tour", "cli", "product-tour", "guideflow"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RealNerdZW/GuideFlow.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
+  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
   "type": "module",
   "bin": {
     "guideflow": "./dist/index.js"

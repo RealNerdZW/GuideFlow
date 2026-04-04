@@ -4,6 +4,13 @@
   "description": "GuideFlow core engine — framework-agnostic, zero dependencies",
   "keywords": ["guided-tour", "product-tour", "onboarding", "spotlight", "guideflow"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RealNerdZW/GuideFlow.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
+  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
   "type": "module",
   "exports": {
     ".": {
