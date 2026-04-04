@@ -4,6 +4,7 @@ export default defineConfig({
   lang: 'en-US',
   title: 'GuideFlow.js',
   description: 'AI-powered product tours. Guide users like you know them.',
+  base: '/GuideFlow/',
   cleanUrls: true,
   lastUpdated: true,
 
@@ -130,7 +131,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/guideflow/guideflow' },
+      { icon: 'github', link: 'https://github.com/RealNerdZW/GuideFlow' },
     ],
 
     footer: {

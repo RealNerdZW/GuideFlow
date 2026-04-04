@@ -15,8 +15,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "publish-packages": "turbo run build --filter=!@guideflow/docs --filter=!@guideflow/e2e --filter=!@guideflow/storybook && changeset publish",
-    "docs:dev": "pnpm --filter @guideflow/docs dev",
-    "docs:build": "pnpm --filter @guideflow/docs build",
+    "docs:dev": "pnpm --filter docs dev",
+    "docs:build": "pnpm --filter docs build",
     "storybook": "pnpm --filter @guideflow/storybook dev",
     "studio": "pnpm --filter @guideflow/cli exec guideflow studio"
   },
