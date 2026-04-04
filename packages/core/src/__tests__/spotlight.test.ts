@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+
 import { SpotlightOverlay } from '../engine/spotlight.js'
 
 describe('SpotlightOverlay', () => {
@@ -14,7 +15,7 @@ describe('SpotlightOverlay', () => {
     const el = document.createElement('div')
     document.body.appendChild(el)
     spotlight.show(el)
-    const overlay = document.querySelector('.gf-spotlight-overlay, [data-gf-spotlight]')
+    document.querySelector('.gf-spotlight-overlay, [data-gf-spotlight]')
     // The overlay should exist in some form
     expect(spotlight).toBeDefined()
     el.remove()

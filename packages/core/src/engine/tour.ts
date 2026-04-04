@@ -3,6 +3,7 @@
 // Orchestrates FSM + Spotlight + Renderer + Keyboard + Async step resolution
 // ---------------------------------------------------------------------------
 
+import { FlowMachine } from '../fsm/machine.js'
 import type {
   FlowDefinition,
   GuidanceContext,
@@ -12,11 +13,11 @@ import type {
   TourEvents,
   SpotlightOptions,
 } from '../types/index.js'
-import { FlowMachine } from '../fsm/machine.js'
-import { SpotlightOverlay } from './spotlight.js'
-import { scrollTargetIntoView } from './popover.js'
 import { EventEmitter } from '../utils/emitter.js'
 import { isBrowser } from '../utils/ssr.js'
+
+import { scrollTargetIntoView } from './popover.js'
+import { SpotlightOverlay } from './spotlight.js'
 
 interface TourEngineOptions<TContext extends GuidanceContext = GuidanceContext> {
   renderer: RendererContract

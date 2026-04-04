@@ -40,9 +40,10 @@ export { serializeDOM } from './dom-context.js';
 export { validateSteps, validateIntentSignal, validateGuidedAnswer } from './validation.js';
 
 import type { GuideFlowInstance } from '@guideflow/core';
-import type { AIProvider } from './providers/interface.js';
+
 import { GuideBrain } from './brain.js';
 import type { GuideBrainOptions } from './brain.js';
+import type { AIProvider } from './providers/interface.js';
 
 /**
  * Attach AI capabilities to an existing GuideFlow instance.

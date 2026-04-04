@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+
 import { injectStyles, removeStyles, gfId } from '../utils/styles.js'
 
 describe('styles utilities', () => {

@@ -4,6 +4,8 @@
 // Used when no custom renderer is provided
 // ---------------------------------------------------------------------------
 
+import { computePosition, getViewportRect } from '../engine/popover.js'
+import { defaultI18n } from '../i18n/index.js'
 import type {
   RendererContract,
   Step,
@@ -13,10 +15,8 @@ import type {
   GuideFlowConfig,
   PopoverPlacement,
 } from '../types/index.js'
-import { computePosition, getViewportRect } from '../engine/popover.js'
-import { injectStyles, gfId } from '../utils/styles.js'
 import { isBrowser } from '../utils/ssr.js'
-import { defaultI18n } from '../i18n/index.js'
+import { injectStyles, gfId } from '../utils/styles.js'
 
 const POPOVER_CSS_ID = 'gf-popover-renderer'
 

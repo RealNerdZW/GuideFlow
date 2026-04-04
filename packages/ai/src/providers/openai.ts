@@ -7,8 +7,10 @@
  * peer dep is absent.
  */
 import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@guideflow/core';
-import type { AIProvider, PageContext } from './interface.js';
+
 import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
+
+import type { AIProvider, PageContext } from './interface.js';
 
 export interface OpenAIProviderOptions {
   /** OpenAI API key. Defaults to `process.env.OPENAI_API_KEY`. */

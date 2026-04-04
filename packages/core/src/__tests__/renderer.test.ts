@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+
 import { DefaultRenderer } from '../renderer/default-renderer.js'
 import type { Step, StepContent, GuideFlowConfig } from '../types/index.js'
 

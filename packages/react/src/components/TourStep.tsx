@@ -3,9 +3,10 @@
 // Register a DOM element as a tour target and optionally render custom content
 // ---------------------------------------------------------------------------
 
-import React, { useRef, useEffect, type ReactNode } from 'react'
+import type { PopoverPlacement } from '@guideflow/core'
+import React, { useEffect, type ReactNode } from 'react'
+
 import { useGuideFlow } from '../context.js'
-import type { Step, StepContent, PopoverPlacement } from '@guideflow/core'
 
 export interface TourStepProps {
   /** Unique step identifier — must match the id in your FlowDefinition */

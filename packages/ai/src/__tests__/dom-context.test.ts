@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { serializeDOM } from '../dom-context.js'
 
 describe('serializeDOM', () => {

@@ -2,8 +2,9 @@
 // useTour — primary hook for controlling a flow from React
 // ---------------------------------------------------------------------------
 
-import { useState, useEffect, useCallback } from 'react'
 import type { FlowDefinition, GuidanceContext, TourEvents } from '@guideflow/core'
+import { useState, useEffect, useCallback } from 'react'
+
 import { useGuideFlow } from '../context.js'
 
 export interface TourState {
@@ -62,7 +63,7 @@ export function useTour(flowId?: string): UseTourReturn {
       'step:exit',
     ]
     const cleanups = events.map((ev) =>
-      gf.on(ev as keyof TourEventMap, () => syncState()),
+      gf.on(ev, () => syncState()),
     )
     return () => cleanups.forEach((fn) => fn())
   }, [gf])

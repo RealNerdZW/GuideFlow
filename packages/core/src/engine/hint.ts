@@ -6,8 +6,8 @@
 
 import type { HintStep, TourEvents } from '../types/index.js'
 import { EventEmitter } from '../utils/emitter.js'
-import { injectStyles } from '../utils/styles.js'
 import { isBrowser } from '../utils/ssr.js'
+import { injectStyles } from '../utils/styles.js'
 
 const HINT_CSS_ID = 'gf-hint'
 const HINT_CSS = `

@@ -1,11 +1,13 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import React from 'react'
-import { render, screen, cleanup, act } from '@testing-library/react'
-import { TourProvider, useGuideFlow } from '../context.js'
-import { useTour } from '../hooks/use-tour.js'
-import { useTourStep } from '../hooks/use-tour-step.js'
-import { TourStep } from '../components/TourStep.js'
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/ban-types, @typescript-eslint/unbound-method, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
 import type { FlowDefinition, GuideFlowInstance, TourEvents } from '@guideflow/core'
+import { render, screen, cleanup, act } from '@testing-library/react'
+import React from 'react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+
+import { TourStep } from '../components/TourStep.js'
+import { TourProvider, useGuideFlow } from '../context.js'
+import { useTourStep } from '../hooks/use-tour-step.js'
+import { useTour } from '../hooks/use-tour.js'
 
 // -- Mock GuideFlowInstance --------------------------------------------------
 

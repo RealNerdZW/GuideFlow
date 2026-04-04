@@ -46,6 +46,7 @@ export interface StepMediaOptions {
 export interface StepAction {
   label: string
   variant?: 'primary' | 'secondary' | 'ghost'
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- intentional: string & object preserves autocomplete for known values
   action: 'next' | 'prev' | 'skip' | 'end' | (string & object)
 }
 

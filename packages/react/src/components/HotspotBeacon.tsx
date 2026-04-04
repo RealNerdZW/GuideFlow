@@ -2,9 +2,10 @@
 // <HotspotBeacon> — renders a pulsing beacon attached to a ref or selector 
 // ---------------------------------------------------------------------------
 
-import React, { useRef, useEffect } from 'react'
-import { useGuideFlow } from '../context.js'
 import type { HotspotOptions } from '@guideflow/core'
+import { useRef, useEffect } from 'react'
+
+import { useGuideFlow } from '../context.js'
 
 export interface HotspotBeaconProps extends HotspotOptions {
   /** CSS selector for the target element */
@@ -31,7 +32,7 @@ export function HotspotBeacon({ target, ...options }: HotspotBeaconProps): null 
         idRef.current = null
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [gf, target])
 
   return null

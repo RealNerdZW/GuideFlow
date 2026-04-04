@@ -3,7 +3,8 @@
 // XState-compatible API surface for optional adapter compatibility
 // ---------------------------------------------------------------------------
 
-import type { GuidanceContext, FlowDefinition, FlowTransition } from '../types/index.js'
+import type { GuidanceContext, FlowDefinition } from '../types/index.js'
+
 import type { MachineContext, MachineListener } from './types.js'
 
 export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
@@ -71,7 +72,7 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     if (!transition) return false
 
     const target = typeof transition === 'string' ? transition : transition.target
-    const guard = typeof transition === 'object' ? (transition as FlowTransition<TContext>).guard : undefined
+    const guard = typeof transition === 'object' ? (transition).guard : undefined
 
     if (guard && !guard(this._ctx.context)) return false
 

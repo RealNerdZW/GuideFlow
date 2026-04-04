@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
+
 import { ProgressStore } from '../persistence/progress-store.js'
 import type { PersistenceDriver, FlowSnapshot } from '../types/index.js'
 

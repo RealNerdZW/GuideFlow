@@ -3,8 +3,10 @@
 // Useful in headless mode to register refs as tour targets
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import type { HotspotOptions } from '@guideflow/core'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
+
 import { useGuideFlow } from '../context.js'
 
 export interface UseTourStepReturn<T extends HTMLElement = HTMLElement> {
@@ -54,8 +56,6 @@ export function useTourStep<T extends HTMLElement = HTMLElement>(
 // useHotspot — attach a persistent hotspot beacon to a ref
 // ---------------------------------------------------------------------------
 
-import type { HotspotOptions } from '@guideflow/core'
-
 export interface UseHotspotReturn {
   id: string | null
 }
@@ -88,7 +88,7 @@ export function useHotspot(
         idRef.current = null
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [gf, targetRef])
 
   return { id: idRef.current }

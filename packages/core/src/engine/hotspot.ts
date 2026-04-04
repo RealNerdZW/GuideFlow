@@ -6,8 +6,8 @@
 
 import type { HotspotOptions, RegisteredHotspot, TourEvents } from '../types/index.js'
 import { EventEmitter } from '../utils/emitter.js'
-import { injectStyles } from '../utils/styles.js'
 import { isBrowser } from '../utils/ssr.js'
+import { injectStyles } from '../utils/styles.js'
 
 const HOTSPOT_CSS_ID = 'gf-hotspot'
 const HOTSPOT_CSS = `

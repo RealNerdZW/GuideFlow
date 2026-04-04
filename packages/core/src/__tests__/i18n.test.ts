@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+
 import { I18nRegistry } from '../i18n/index.js'
 
 describe('I18nRegistry', () => {

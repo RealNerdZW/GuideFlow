@@ -3,8 +3,10 @@
  * Requires `@anthropic-ai/sdk` peer dependency.
  */
 import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@guideflow/core';
-import type { AIProvider, PageContext } from './interface.js';
+
 import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
+
+import type { AIProvider, PageContext } from './interface.js';
 
 export interface AnthropicProviderOptions {
   apiKey?: string;

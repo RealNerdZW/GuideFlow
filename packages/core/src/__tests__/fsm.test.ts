@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { FlowMachine, createMachine } from '../fsm/machine.js'
 import type { FlowDefinition } from '../types/index.js'
 

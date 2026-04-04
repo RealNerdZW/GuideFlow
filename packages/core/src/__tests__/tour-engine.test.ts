@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/require-await */
 import { describe, it, expect, vi, afterEach } from 'vitest'
+
 import { TourEngine } from '../engine/tour.js'
 import type { FlowDefinition, RendererContract } from '../types/index.js'
 

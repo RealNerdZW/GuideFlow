@@ -2,9 +2,10 @@
 // useTour — Vue 3 composable for controlling a GuideFlow tour
 // ---------------------------------------------------------------------------
 
-import { ref, readonly, onUnmounted, type Ref } from 'vue'
-import { useGuideFlow } from '../plugin.js'
 import type { FlowDefinition, GuidanceContext } from '@guideflow/core'
+import { ref, readonly, onUnmounted, type Ref } from 'vue'
+
+import { useGuideFlow } from '../plugin.js'
 
 export interface UseTourReturn {
   isActive: Readonly<Ref<boolean>>

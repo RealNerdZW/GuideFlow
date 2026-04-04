@@ -16,28 +16,27 @@
 // "Guide users like you know them."
 // ---------------------------------------------------------------------------
 
+import { scanAttributeTour } from './compat/intro-compat.js'
+import { HintSystem } from './engine/hint.js'
+import { HotspotManager } from './engine/hotspot.js'
+import { TourEngine } from './engine/tour.js'
+import { createMachine } from './fsm/machine.js'
+import { I18nRegistry } from './i18n/index.js'
+import { BroadcastSync } from './persistence/broadcast-sync.js'
+import { ProgressStore } from './persistence/progress-store.js'
+import { DefaultRenderer } from './renderer/default-renderer.js'
 import type {
   GuideFlowConfig,
   FlowDefinition,
   GuidanceContext,
   HotspotOptions,
   HintStep,
-  SpotlightOptions,
   TourEvents,
   FlowSnapshot,
   Step,
   StepContent,
 } from './types/index.js'
-import { TourEngine } from './engine/tour.js'
-import { HotspotManager } from './engine/hotspot.js'
-import { HintSystem } from './engine/hint.js'
-import { ProgressStore } from './persistence/progress-store.js'
-import { BroadcastSync } from './persistence/broadcast-sync.js'
-import { I18nRegistry } from './i18n/index.js'
-import { DefaultRenderer } from './renderer/default-renderer.js'
 import type { EventEmitter } from './utils/emitter.js'
-import { createMachine } from './fsm/machine.js'
-import { scanAttributeTour } from './compat/intro-compat.js'
 
 // ── Re-exports ─────────────────────────────────────────────────────────────
 
@@ -193,7 +192,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   // The tour:complete handler is the exception — it has a persistence side-effect.
   engine.on('tour:complete', ({ flowId }) => {
     if (_config.context?.userId) {
-      void progress.markCompleted(_config.context.userId as string, flowId)
+      void progress.markCompleted(_config.context.userId, flowId)
     }
   })
 
@@ -201,7 +200,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   hotspots.on('hotspot:close', (e) => instance.emit('hotspot:close', e))
   hints.on('hint:click', (e) => instance.emit('hint:click', e))
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
   const instance: GuideFlowInstance<TContext> = Object.assign(engine as any, {
     configure(patch: DeepPartialConfig): void {
       _config = { ..._config, ...patch }
@@ -227,7 +226,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       }
 
       // Check persistence — resume or skip if completed
-      const userId = _config.context?.userId as string | undefined
+      const userId = _config.context?.userId
       if (userId) {
         const dismissed = await progress.isDismissed(userId, flow.id)
         if (dismissed) return
@@ -312,7 +311,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   })
 
   async function _saveProgress(): Promise<void> {
-    const userId = _config.context?.userId as string | undefined
+    const userId = _config.context?.userId
     const flowId = engine.flowId
     if (!userId || !flowId) return
 
@@ -348,6 +347,7 @@ export function getGuideFlow(): GuideFlowInstance {
  */
 export const guideflow: GuideFlowInstance = new Proxy({} as GuideFlowInstance, {
   get(_target, prop, receiver) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return Reflect.get(getGuideFlow(), prop, receiver)
   },
   set(_target, prop, value, receiver) {
@@ -363,7 +363,7 @@ export function autoInit(config?: GuideFlowConfig): void {
   const flow = scanAttributeTour()
   if (!flow) return
   const instance = config ? createGuideFlow(config) : guideflow
-  void (instance as GuideFlowInstance).start(flow as FlowDefinition<GuidanceContext>)
+  void (instance).start(flow)
 }
 
 export default createGuideFlow

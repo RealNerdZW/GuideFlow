@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { EventEmitter } from '../utils/emitter.js'
 
 describe('EventEmitter', () => {

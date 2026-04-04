@@ -1,7 +1,8 @@
 import type { Step, UserEvent, IntentSignal, GuidedAnswer, GuideFlowInstance } from '@guideflow/core';
 import { isBrowser } from '@guideflow/core';
-import type { AIProvider, PageContext } from './providers/interface.js';
+
 import { serializeDOM } from './dom-context.js';
+import type { AIProvider, PageContext } from './providers/interface.js';
 
 export interface GuideBrainOptions {
   /**
@@ -215,7 +216,7 @@ export class GuideBrain {
         // Skip steps whose flow was already completed (persistence check)
         // Use the public progress API instead of accessing private internals
         const userId = instance.progress
-          ? await this._getUserIdFromProgress(instance)
+          ? this._getUserIdFromProgress(instance)
           : undefined;
         if (userId) {
           const completed = await instance.progress.isCompleted(userId, `step:${step.id}`);
@@ -235,7 +236,7 @@ export class GuideBrain {
    * Attempt to extract the userId from an instance via its public config.
    * Uses duck-typing to avoid accessing private fields.
    */
-  private async _getUserIdFromProgress(_instance: GuideFlowInstance): Promise<string | undefined> {
+  private _getUserIdFromProgress(_instance: GuideFlowInstance): string | undefined {
     // The GuideFlowInstance exposes `progress` publicly but not config/userId.
     // In compress(), the caller should pass userId explicitly if needed.
     // For now, return undefined — compress() degrades gracefully (skips persistence check).

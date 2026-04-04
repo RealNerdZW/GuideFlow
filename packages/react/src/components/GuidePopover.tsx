@@ -3,11 +3,12 @@
 // Uses CSS custom properties from @guideflow/core tokens
 // ---------------------------------------------------------------------------
 
-import React, { useEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { useGuideFlow } from '../context.js'
 import { computePosition, getViewportRect, defaultI18n } from '@guideflow/core'
 import type { StepContent, Step, PopoverPlacement } from '@guideflow/core'
+import React, { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+
+import { useGuideFlow } from '../context.js'
 
 export interface GuidePopoverProps {
   /** Override popover width */
@@ -84,7 +85,7 @@ export function GuidePopover({ width = 320, className }: GuidePopoverProps): Rea
     const pos = computePosition(
       { x: tr.left, y: tr.top, width: tr.width, height: tr.height },
       popoverRect,
-      (activeStep.step.placement ?? 'bottom') as PopoverPlacement,
+      (activeStep.step.placement ?? 'bottom'),
       viewport,
     )
     setPosition(pos)

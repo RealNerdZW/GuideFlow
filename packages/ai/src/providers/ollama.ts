@@ -4,8 +4,10 @@
  * Zero additional dependencies — uses the built-in Fetch API.
  */
 import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@guideflow/core';
-import type { AIProvider, PageContext } from './interface.js';
+
 import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
+
+import type { AIProvider, PageContext } from './interface.js';
 
 export interface OllamaProviderOptions {
   /** Base URL of the Ollama server. Default: http://localhost:11434 */

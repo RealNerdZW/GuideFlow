@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+
 import { HintSystem } from '../engine/hint.js'
 
 describe('HintSystem', () => {

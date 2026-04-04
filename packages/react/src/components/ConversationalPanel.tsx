@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import React, { useState, useRef, useEffect, type FormEvent } from 'react'
+
 import { useGuideFlow } from '../context.js'
 
 export interface Message {
@@ -62,10 +63,11 @@ export function ConversationalPanel({
 
     try {
       // @guideflow/ai exposes a .ai property on the instance when configured
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ai = (gf as unknown as Record<string, unknown>)['ai'] as any
-      if (ai?.chat) {
-        const answer = await ai.chat(question) as { text: string; highlights?: string[] }
+      const aiProp = (gf as unknown as Record<string, unknown>)['ai'] as
+        | { chat: (q: string) => Promise<{ text: string; highlights?: string[] }> }
+        | undefined
+      if (aiProp?.chat) {
+        const answer = await aiProp.chat(question)
         setMessages((prev) => [
           ...prev,
           { role: 'assistant' as const, content: answer.text, highlights: answer.highlights ?? [] },

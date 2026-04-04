@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument */
 import { describe, it, expect, afterEach, vi } from 'vitest'
+
 import { scanAttributeTour } from '../compat/intro-compat.js'
 
 describe('scanAttributeTour', () => {

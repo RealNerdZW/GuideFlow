@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { computePosition } from '../engine/popover.js'
 
 const target = { x: 400, y: 300, width: 100, height: 40 }

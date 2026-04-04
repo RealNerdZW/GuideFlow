@@ -10,7 +10,8 @@
       "Bash(pnpm --filter @guideflow/react type-check)",
       "Bash(pnpm --filter @guideflow/vue type-check)",
       "Bash(ls -d /home/realnerdzw/Team/GuideFlow/node_modules/.pnpm/happy-dom*/)",
-      "Bash(pnpm lint:*)"
+      "Bash(pnpm lint:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

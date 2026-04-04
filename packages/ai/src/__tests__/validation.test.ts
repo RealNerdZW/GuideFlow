@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js'
 
 describe('validateSteps', () => {

@@ -53,10 +53,10 @@ export function scanAttributeTour(
         showIf = (ctx: GuidanceContext): boolean => {
           try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let current: any = ctx
+            let current: any = ctx // eslint-disable-line @typescript-eslint/no-unsafe-assignment
             for (const segment of path.split('.')) {
               if (current == null) return false
-              current = current[segment]
+              current = current[segment] // eslint-disable-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
             }
             return !!current
           } catch {

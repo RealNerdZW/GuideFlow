@@ -34,7 +34,9 @@
       }
     ],
     "import/no-duplicates": "error",
+    "import/default": "off",
+    "import/no-named-as-default-member": "off",
     "no-console": ["warn", { "allow": ["warn", "error"] }]
   },
-  "ignorePatterns": ["dist", "node_modules", "coverage", "*.js", "*.cjs", "*.mjs"]
+  "ignorePatterns": ["dist", "node_modules", "coverage", "*.js", "*.cjs", "*.mjs", "vitest.config.ts", "tsup.config.ts", "vite.config.ts"]
 }

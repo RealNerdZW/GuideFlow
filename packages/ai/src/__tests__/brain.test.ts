@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access */
+import type { Step } from '@guideflow/core'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
 import { GuideBrain } from '../brain.js'
-import { MockProvider } from '../providers/mock.js'
 import type { AIProvider } from '../providers/interface.js'
-import type { Step, IntentSignal, GuidedAnswer } from '@guideflow/core'
+import { MockProvider } from '../providers/mock.js'
 
 // Minimal mock for GuideFlowInstance used by compress()
 function createMockInstance() {

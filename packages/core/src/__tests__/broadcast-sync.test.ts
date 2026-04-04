@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+
 import { BroadcastSync } from '../persistence/broadcast-sync.js'
 
 // happy-dom may not support BroadcastChannel, so we mock it

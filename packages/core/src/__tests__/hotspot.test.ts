@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
+
 import { HotspotManager } from '../engine/hotspot.js'
 
 describe('HotspotManager', () => {
