@@ -4,6 +4,13 @@
   "description": "GuideFlow Vue 3 adapter — composables and components",
   "keywords": ["guided-tour", "vue", "vue3", "product-tour", "onboarding", "guideflow"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RealNerdZW/GuideFlow.git",
+    "directory": "packages/vue"
+  },
+  "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
+  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
   "type": "module",
   "exports": {
     ".": {

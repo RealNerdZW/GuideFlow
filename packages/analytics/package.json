@@ -2,6 +2,15 @@
   "name": "@guideflow/analytics",
   "version": "0.1.0",
   "description": "Analytics, A/B testing, and event transport for GuideFlow.js",
+  "keywords": ["guided-tour", "analytics", "product-tour", "guideflow"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RealNerdZW/GuideFlow.git",
+    "directory": "packages/analytics"
+  },
+  "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
+  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
