@@ -2,7 +2,19 @@
   "name": "@guideflow/vue",
   "version": "0.1.3",
   "description": "GuideFlow Vue 3 adapter — composables and components",
-  "keywords": ["guided-tour", "vue", "vue3", "product-tour", "onboarding", "guideflow", "walkthrough", "tooltip", "user-onboarding", "composable", "vue-plugin"],
+  "keywords": [
+    "guided-tour",
+    "vue",
+    "vue3",
+    "product-tour",
+    "onboarding",
+    "guideflow",
+    "walkthrough",
+    "tooltip",
+    "user-onboarding",
+    "composable",
+    "vue-plugin"
+  ],
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
@@ -30,7 +42,11 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

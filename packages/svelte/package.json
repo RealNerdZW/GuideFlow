@@ -2,7 +2,18 @@
   "name": "@guideflow/svelte",
   "version": "0.1.3",
   "description": "GuideFlow Svelte adapter — stores and components",
-  "keywords": ["guided-tour", "svelte", "product-tour", "onboarding", "guideflow", "walkthrough", "tooltip", "user-onboarding", "svelte-store", "tour-component"],
+  "keywords": [
+    "guided-tour",
+    "svelte",
+    "product-tour",
+    "onboarding",
+    "guideflow",
+    "walkthrough",
+    "tooltip",
+    "user-onboarding",
+    "svelte-store",
+    "tour-component"
+  ],
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
@@ -30,7 +41,11 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

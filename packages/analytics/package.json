@@ -2,7 +2,19 @@
   "name": "@guideflow/analytics",
   "version": "0.1.3",
   "description": "Analytics, A/B testing, and event transport for GuideFlow.js",
-  "keywords": ["guided-tour", "analytics", "product-tour", "guideflow", "ab-testing", "posthog", "mixpanel", "amplitude", "segment", "event-tracking", "experiment"],
+  "keywords": [
+    "guided-tour",
+    "analytics",
+    "product-tour",
+    "guideflow",
+    "ab-testing",
+    "posthog",
+    "mixpanel",
+    "amplitude",
+    "segment",
+    "event-tracking",
+    "experiment"
+  ],
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {

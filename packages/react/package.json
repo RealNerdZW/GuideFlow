@@ -2,7 +2,18 @@
   "name": "@guideflow/react",
   "version": "0.1.3",
   "description": "GuideFlow React adapter — hooks and components",
-  "keywords": ["guided-tour", "react", "product-tour", "onboarding", "guideflow", "walkthrough", "tooltip", "user-onboarding", "react-hooks", "tour-component"],
+  "keywords": [
+    "guided-tour",
+    "react",
+    "product-tour",
+    "onboarding",
+    "guideflow",
+    "walkthrough",
+    "tooltip",
+    "user-onboarding",
+    "react-hooks",
+    "tour-component"
+  ],
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
@@ -30,7 +41,11 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

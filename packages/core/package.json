@@ -2,7 +2,19 @@
   "name": "@guideflow/core",
   "version": "0.1.3",
   "description": "GuideFlow core engine — framework-agnostic, zero dependencies",
-  "keywords": ["guided-tour", "product-tour", "onboarding", "spotlight", "guideflow", "walkthrough", "tooltip", "user-onboarding", "step-by-step", "fsm", "state-machine"],
+  "keywords": [
+    "guided-tour",
+    "product-tour",
+    "onboarding",
+    "spotlight",
+    "guideflow",
+    "walkthrough",
+    "tooltip",
+    "user-onboarding",
+    "step-by-step",
+    "fsm",
+    "state-machine"
+  ],
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
@@ -36,7 +48,11 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup && cp -r src/styles dist/styles",
     "dev": "tsup --watch",

@@ -18,7 +18,8 @@
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm --filter docs build",
     "storybook": "pnpm --filter @guideflow/storybook dev",
-    "studio": "pnpm --filter @guideflow/cli exec guideflow studio"
+    "studio": "pnpm --filter @guideflow/cli exec guideflow studio",
+    "sync-repo": "node scripts/sync-repo-meta.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

@@ -2,7 +2,16 @@
   "name": "@guideflow/cli",
   "version": "0.1.3",
   "description": "CLI for GuideFlow.js — init, studio, export, and push flows",
-  "keywords": ["guided-tour", "cli", "product-tour", "guideflow", "tour-builder", "visual-editor", "scaffolding", "code-generator"],
+  "keywords": [
+    "guided-tour",
+    "cli",
+    "product-tour",
+    "guideflow",
+    "tour-builder",
+    "visual-editor",
+    "scaffolding",
+    "code-generator"
+  ],
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
@@ -27,7 +36,11 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "src", "README.md"],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
