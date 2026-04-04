@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI for GuideFlow.js — init, studio, export, and push flows",
   "keywords": ["guided-tour", "cli", "product-tour", "guideflow"],
   "license": "MIT",

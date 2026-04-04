@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/vue",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GuideFlow Vue 3 adapter — composables and components",
   "keywords": ["guided-tour", "vue", "vue3", "product-tour", "onboarding", "guideflow"],
   "license": "MIT",

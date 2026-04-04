@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/analytics",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Analytics, A/B testing, and event transport for GuideFlow.js",
   "keywords": ["guided-tour", "analytics", "product-tour", "guideflow"],
   "license": "MIT",
