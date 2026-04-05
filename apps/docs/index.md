@@ -14,7 +14,7 @@ hero:
       link: /guide/
     - theme: alt
       text: View on GitHub
-      link: https://github.com/johnmugabe/GuideFlow
+      link: https://github.com/RealNerdZW/GuideFlow
 
 features:
   - icon: 🤖

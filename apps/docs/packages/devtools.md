@@ -35,4 +35,4 @@ pnpm --filter @guideflow/devtools build
 
 ## Links
 
-- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/devtools)
+- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/devtools)

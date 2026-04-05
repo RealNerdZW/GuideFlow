@@ -131,7 +131,7 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/johnmugabe/GuideFlow' },
+      { icon: 'github', link: 'https://github.com/RealNerdZW/GuideFlow' },
     ],
 
     footer: {

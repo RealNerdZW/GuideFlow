@@ -3,9 +3,9 @@
 **CLI for GuideFlow — scaffold, build, export, and publish product tours.**
 
 [![npm version](https://img.shields.io/npm/v/@guideflow/cli.svg)](https://www.npmjs.com/package/@guideflow/cli)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
 
-Command-line tool for [GuideFlow](https://github.com/johnmugabe/GuideFlow). Scaffold configurations, launch the visual tour editor, export flow definitions, and publish to GuideFlow Cloud.
+Command-line tool for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). Scaffold configurations, launch the visual tour editor, export flow definitions, and publish to GuideFlow Cloud.
 
 ## Installation
 
@@ -69,4 +69,4 @@ Publishes your flow definitions to GuideFlow Cloud for remote management.
 
 ## License
 
-[MIT](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[MIT](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)

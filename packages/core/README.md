@@ -4,9 +4,9 @@
 
 [![npm version](https://img.shields.io/npm/v/@guideflow/core.svg)](https://www.npmjs.com/package/@guideflow/core)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/@guideflow/core?label=gzip)](https://bundlephobia.com/package/@guideflow/core)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
 
-The core engine behind [GuideFlow](https://github.com/johnmugabe/GuideFlow). Framework-agnostic — use it with vanilla JS or pair it with `@guideflow/react`, `@guideflow/vue`, or `@guideflow/svelte`.
+The core engine behind [GuideFlow](https://github.com/RealNerdZW/GuideFlow). Framework-agnostic — use it with vanilla JS or pair it with `@guideflow/react`, `@guideflow/vue`, or `@guideflow/svelte`.
 
 ## Installation
 
@@ -115,4 +115,4 @@ const gf = createGuideFlow({
 
 ## License
 
-[MIT](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[MIT](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)

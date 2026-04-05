@@ -3,9 +3,9 @@
 **Analytics, event collection, and A/B testing for GuideFlow.**
 
 [![npm version](https://img.shields.io/npm/v/@guideflow/analytics.svg)](https://www.npmjs.com/package/@guideflow/analytics)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
 
-Analytics module for [GuideFlow](https://github.com/johnmugabe/GuideFlow). Collect tour events, forward them to popular analytics platforms, and run A/B tests with deterministic variant assignment.
+Analytics module for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). Collect tour events, forward them to popular analytics platforms, and run A/B tests with deterministic variant assignment.
 
 ## Installation
 
@@ -98,4 +98,4 @@ const { value: theme } = engine.assign({
 
 ## License
 
-[MIT](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[MIT](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)

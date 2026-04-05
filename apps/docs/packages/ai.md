@@ -30,7 +30,7 @@ npm install @guideflow/core @guideflow/ai openai  # or @anthropic-ai/sdk
 ## Links
 
 - [npm](https://www.npmjs.com/package/@guideflow/ai)
-- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/ai)
+- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/ai)
 - [AI Overview](/guide/ai)
 - [Auto-Generate Tours](/guide/ai-generate)
 - [Intent Detection](/guide/ai-intent)

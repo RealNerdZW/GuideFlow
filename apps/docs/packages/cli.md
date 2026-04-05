@@ -22,4 +22,4 @@ npm install -g @guideflow/cli
 ## Links
 
 - [npm](https://www.npmjs.com/package/@guideflow/cli)
-- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/cli)
+- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/cli)

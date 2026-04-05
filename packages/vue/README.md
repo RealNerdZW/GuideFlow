@@ -3,9 +3,9 @@
 **Vue 3 composables and plugin for GuideFlow product tours.**
 
 [![npm version](https://img.shields.io/npm/v/@guideflow/vue.svg)](https://www.npmjs.com/package/@guideflow/vue)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
 
-Vue 3 adapter for [GuideFlow](https://github.com/johnmugabe/GuideFlow). Provides a Vue plugin and composables for building product tours.
+Vue 3 adapter for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). Provides a Vue plugin and composables for building product tours.
 
 ## Installation
 
@@ -85,4 +85,4 @@ const flow = {
 
 ## License
 
-[MIT](https://github.com/johnmugabe/GuideFlow/blob/master/LICENSE)
+[MIT](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)

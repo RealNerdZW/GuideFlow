@@ -15,15 +15,15 @@
     "event-tracking",
     "experiment"
   ],
-  "author": "John Mugabe (https://github.com/johnmugabe)",
+  "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/johnmugabe/GuideFlow.git",
+    "url": "https://github.com/RealNerdZW/GuideFlow.git",
     "directory": "packages/analytics"
   },
-  "homepage": "https://github.com/johnmugabe/GuideFlow#readme",
-  "bugs": "https://github.com/johnmugabe/GuideFlow/issues",
+  "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
+  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
   "sideEffects": false,
   "engines": {
     "node": ">=18.0.0"

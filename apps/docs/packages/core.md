@@ -31,6 +31,6 @@ npm install @guideflow/core
 ## Links
 
 - [npm](https://www.npmjs.com/package/@guideflow/core)
-- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/core)
+- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/core)
 - [Quick Start](/guide/quick-start)
 - [API Reference](/api/create-guide-flow)

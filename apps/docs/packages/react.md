@@ -32,6 +32,6 @@ npm install @guideflow/core @guideflow/react
 ## Links
 
 - [npm](https://www.npmjs.com/package/@guideflow/react)
-- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/react)
+- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/react)
 - [React Guide](/guide/react)
 - [API Reference](/api/react/tour-provider)

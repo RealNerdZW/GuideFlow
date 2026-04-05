@@ -25,6 +25,6 @@ npm install @guideflow/core @guideflow/analytics
 ## Links
 
 - [npm](https://www.npmjs.com/package/@guideflow/analytics)
-- [Source](https://github.com/johnmugabe/GuideFlow/tree/master/packages/analytics)
+- [Source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/analytics)
 - [Analytics Guide](/guide/analytics)
 - [A/B Testing Guide](/guide/ab-testing)
