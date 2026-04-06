@@ -202,8 +202,13 @@ export class GuideBrain {
    * Given a list of tour steps and a GuideFlow instance (for checking
    * persistence state), remove steps the user has already demonstrated
    * proficiency with.
+   *
+   * @param steps    - full list of steps to potentially compress
+   * @param instance - the active GuideFlow instance
+   * @param userId   - optional userId for persistence lookup (supply this to
+   *                   enable per-user completion checks via ProgressStore)
    */
-  async compress(steps: Step[], instance: GuideFlowInstance): Promise<Step[]> {
+  async compress(steps: Step[], instance: GuideFlowInstance, userId?: string): Promise<Step[]> {
     // Strategy: ask AI which steps can be skipped given current intent signals
     // and the user's past interactions. Falls back to returning all steps if AI fails.
     const events = [...this.eventBuffer];
@@ -214,10 +219,6 @@ export class GuideBrain {
       const filtered: Step[] = [];
       for (const step of steps) {
         // Skip steps whose flow was already completed (persistence check)
-        // Use the public progress API instead of accessing private internals
-        const userId = instance.progress
-          ? this._getUserIdFromProgress(instance)
-          : undefined;
         if (userId) {
           const completed = await instance.progress.isCompleted(userId, `step:${step.id}`);
           if (completed) continue;
@@ -230,17 +231,6 @@ export class GuideBrain {
     } catch {
       return steps;
     }
-  }
-
-  /**
-   * Attempt to extract the userId from an instance via its public config.
-   * Uses duck-typing to avoid accessing private fields.
-   */
-  private _getUserIdFromProgress(_instance: GuideFlowInstance): string | undefined {
-    // The GuideFlowInstance exposes `progress` publicly but not config/userId.
-    // In compress(), the caller should pass userId explicitly if needed.
-    // For now, return undefined — compress() degrades gracefully (skips persistence check).
-    return undefined;
   }
 
   // ---------------------------------------------------------------------------

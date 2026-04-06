@@ -3,19 +3,16 @@
 // Register a DOM element as a tour target and optionally render custom content
 // ---------------------------------------------------------------------------
 
-import type { PopoverPlacement } from '@guideflow/core'
 import React, { useEffect, type ReactNode } from 'react'
 
 import { useGuideFlow } from '../context.js'
 
 export interface TourStepProps {
-  /** Unique step identifier — must match the id in your FlowDefinition */
+  /**
+   * Unique step identifier — must match the `id` of a step in your FlowDefinition.
+   * This is the only prop used to activate/deactivate the component.
+   */
   id: string
-  /** CSS selector or React ref forwarded as the spotlight target */
-  target?: string
-  title?: string
-  body?: string
-  placement?: PopoverPlacement
   children?: ReactNode | ((props: { next: () => void; prev: () => void; isActive: boolean }) => ReactNode)
 }
 
@@ -30,9 +27,7 @@ export interface TourStepProps {
  * </TourStep>
  * ```
  */
-export function TourStep({ id, target, title, body, placement, children }: TourStepProps): React.JSX.Element | null {
-  // These props are intentionally destructured for use by flow-definition builders
-  void target; void title; void body; void placement;
+export function TourStep({ id, children }: TourStepProps): React.JSX.Element | null {
 
   const gf = useGuideFlow()
   const [isActive, setIsActive] = React.useState(false)

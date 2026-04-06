@@ -140,6 +140,8 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   resume(): void
 }
 
+// Shallow partial is intentional here — nested config objects (e.g. renderer,
+// spotlight) are replaced wholesale, not merged field-by-field.
 type DeepPartialConfig = Partial<GuideFlowConfig>
 
 /**
@@ -205,7 +207,10 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     configure(patch: DeepPartialConfig): void {
       _config = { ..._config, ...patch }
       if (patch.nonce !== undefined) {
-        // Rebuild sub-systems with new nonce
+        // Propagate the new nonce to sub-systems so future style injections
+        // (hotspots, hints) use the updated value.
+        hotspots.setNonce(patch.nonce)
+        hints.setNonce(patch.nonce)
       }
     },
 
@@ -343,7 +348,10 @@ export function getGuideFlow(): GuideFlowInstance {
 }
 
 /**
- * @deprecated Use `getGuideFlow()` instead. This creates a singleton eagerly at import time.
+ * @deprecated Use `getGuideFlow()` instead.
+ * Note: despite the deprecation message, this does NOT create a singleton at
+ * import time — it is backed by a lazy Proxy that calls `getGuideFlow()` on
+ * first property access.
  */
 export const guideflow: GuideFlowInstance = new Proxy({} as GuideFlowInstance, {
   get(_target, prop, receiver) {
@@ -355,7 +363,15 @@ export const guideflow: GuideFlowInstance = new Proxy({} as GuideFlowInstance, {
   },
 })
 
-/** Convenience re-export */
+/**
+ * Re-export of createMachine under an alias.
+ * NOTE: This is a low-level factory that returns a FlowMachine.
+ * It is intentionally named differently to `GuideFlowInstance.createFlow()`
+ * which registers a FlowDefinition on an instance.
+ * @deprecated Prefer `createMachine` or `createFlowMachine` directly.
+ */
+export { createMachine as createFlowMachine }
+// Keep the original `createFlow` alias for backward-compatibility.
 export { createMachine as createFlow }
 
 // Attribute-tour auto-init helper

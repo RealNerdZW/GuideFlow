@@ -69,6 +69,11 @@ export class HintSystem extends EventEmitter<Pick<TourEvents, 'hint:click'>> {
     this._nonce = nonce
   }
 
+  /** Update the CSP nonce used for future style injections. */
+  setNonce(nonce: string | undefined): void {
+    this._nonce = nonce
+  }
+
   // ── Public API ────────────────────────────────────────────────────────────
 
   register(steps: HintStep[]): void {

@@ -23,16 +23,20 @@ export interface HotspotBeaconProps extends HotspotOptions {
 export function HotspotBeacon({ target, ...options }: HotspotBeaconProps): null {
   const gf = useGuideFlow()
   const idRef = useRef<string | null>(null)
+  // Keep a stable ref to options so the hotspot is recreated only when
+  // `target` or `gf` changes, but still picks up option prop updates.
+  const optionsRef = useRef<HotspotOptions>(options)
+  useEffect(() => { optionsRef.current = options })
 
   useEffect(() => {
-    idRef.current = gf.hotspot(target, options)
+    idRef.current = gf.hotspot(target, optionsRef.current)
     return () => {
       if (idRef.current) {
         gf.removeHotspot(idRef.current)
         idRef.current = null
       }
     }
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gf, target])
 
   return null

@@ -116,7 +116,8 @@ export function watchAttributeTour(
 
   const target = root ?? document.body
   const obs = new MutationObserver(() => {
-    const flow = scanAttributeTour()
+    // Pass `root` so only the scoped subtree is scanned, not the whole document
+    const flow = scanAttributeTour(root)
     if (flow) callback(flow)
   })
   obs.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: [ATTR_STEP] })

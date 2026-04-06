@@ -5,7 +5,7 @@
 
 import { computePosition, getViewportRect, defaultI18n } from '@guideflow/core'
 import type { StepContent, Step, PopoverPlacement } from '@guideflow/core'
-import React, { useEffect, useRef, useState, type ReactNode } from 'react'
+import React, { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 import { useGuideFlow } from '../context.js'
@@ -13,8 +13,11 @@ import { useGuideFlow } from '../context.js'
 export interface GuidePopoverProps {
   /** Override popover width */
   width?: number
-  /** Render prop for full custom content */
-  children?: ReactNode
+  /**
+   * Optional custom content to render inside the popover instead of the
+   * default title/body layout. Receives the active step context.
+   */
+  children?: ReactNode | ((props: { step: Step; content: StepContent; index: number; total: number }) => ReactNode)
   className?: string
 }
 
@@ -38,12 +41,15 @@ interface ActiveStep {
  * </TourProvider>
  * ```
  */
-export function GuidePopover({ width = 320, className }: GuidePopoverProps): React.JSX.Element | null {
+export function GuidePopover({ width = 320, className, children }: GuidePopoverProps): React.JSX.Element | null {
   const gf = useGuideFlow()
   const popoverRef = useRef<HTMLDivElement>(null)
   const [activeStep, setActiveStep] = useState<ActiveStep | null>(null)
   const [position, setPosition] = useState({ x: 0, y: 0, placement: 'bottom' as PopoverPlacement })
   const i18n = defaultI18n
+  // Generate stable unique IDs for ARIA references (avoids duplicate IDs in concurrent renders)
+  const titleId = useId()
+  const bodyId = useId()
 
   useEffect(() => {
     const offEnter = gf.on('step:enter', ({ stepId, target }) => {
@@ -70,8 +76,8 @@ export function GuidePopover({ width = 320, className }: GuidePopoverProps): Rea
     return () => { offEnter(); offExit(); offAbort(); offDone() }
   }, [gf])
 
-  // Position after render
-  useEffect(() => {
+  // Compute and update popover position
+  const updatePosition = React.useCallback(() => {
     if (!activeStep || !popoverRef.current) return
     const el = popoverRef.current
     const popoverRect = { x: 0, y: 0, width: el.offsetWidth, height: el.offsetHeight }
@@ -91,18 +97,33 @@ export function GuidePopover({ width = 320, className }: GuidePopoverProps): Rea
     setPosition(pos)
   }, [activeStep])
 
+  // Position after render and on window resize
+  useEffect(() => {
+    updatePosition()
+  }, [updatePosition])
+
+  useEffect(() => {
+    window.addEventListener('resize', updatePosition)
+    return () => window.removeEventListener('resize', updatePosition)
+  }, [updatePosition])
+
   if (!activeStep) return null
 
   const { content, index, total } = activeStep
   const progressPct = total > 1 ? Math.round(((index + 1) / total) * 100) : 100
+
+  // Allow fully custom content via children prop
+  const customContent = typeof children === 'function'
+    ? children({ step: activeStep.step, content, index, total })
+    : children
 
   return createPortal(
     <div
       ref={popoverRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="gf-popover-title"
-      aria-describedby="gf-popover-body"
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
       className={`gf-popover${className ? ` ${className}` : ''}`}
       data-enter=""
       data-placement={position.placement}
@@ -114,39 +135,43 @@ export function GuidePopover({ width = 320, className }: GuidePopoverProps): Rea
         zIndex: 999999,
       }}
     >
-      {total > 1 && (
-        <div className="gf-progress-bar" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100}>
-          <div className="gf-progress-bar-fill" style={{ width: `${progressPct}%` }} />
-        </div>
-      )}
-      <div className="gf-popover-header">
-        {content.title && <h2 className="gf-popover-title" id="gf-popover-title">{content.title}</h2>}
-        <button
-          className="gf-popover-close"
-          onClick={() => gf.stop()}
-          aria-label={i18n.t('close')}
-          type="button"
-        >×</button>
-      </div>
-      {content.body && <p className="gf-popover-body" id="gf-popover-body">{content.body}</p>}
-      <div className="gf-popover-footer">
-        <span className="gf-popover-step-info">
-          {total > 1 && i18n.t('stepOf', { current: index + 1, total })}
-        </span>
-        <div className="gf-popover-actions">
-          <button className="gf-btn gf-btn-ghost" onClick={() => gf.stop()} type="button">
-            {i18n.t('skip')}
-          </button>
-          {index > 0 && (
-            <button className="gf-btn gf-btn-secondary" onClick={() => void gf.prev()} type="button">
-              {i18n.t('prev')}
-            </button>
+      {customContent ?? (
+        <>
+          {total > 1 && (
+            <div className="gf-progress-bar" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="gf-progress-bar-fill" style={{ width: `${progressPct}%` }} />
+            </div>
           )}
-          <button className="gf-btn gf-btn-primary" onClick={() => void gf.next()} type="button">
-            {index === total - 1 ? i18n.t('done') : i18n.t('next')}
-          </button>
-        </div>
-      </div>
+          <div className="gf-popover-header">
+            {content.title && <h2 className="gf-popover-title" id={titleId}>{content.title}</h2>}
+            <button
+              className="gf-popover-close"
+              onClick={() => gf.stop()}
+              aria-label={i18n.t('close')}
+              type="button"
+            >×</button>
+          </div>
+          {content.body && <p className="gf-popover-body" id={bodyId}>{content.body}</p>}
+          <div className="gf-popover-footer">
+            <span className="gf-popover-step-info">
+              {total > 1 && i18n.t('stepOf', { current: index + 1, total })}
+            </span>
+            <div className="gf-popover-actions">
+              <button className="gf-btn gf-btn-ghost" onClick={() => gf.stop()} type="button">
+                {i18n.t('skip')}
+              </button>
+              {index > 0 && (
+                <button className="gf-btn gf-btn-secondary" onClick={() => void gf.prev()} type="button">
+                  {i18n.t('prev')}
+                </button>
+              )}
+              <button className="gf-btn gf-btn-primary" onClick={() => void gf.next()} type="button">
+                {index === total - 1 ? i18n.t('done') : i18n.t('next')}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>,
     document.body,
   )

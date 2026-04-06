@@ -118,5 +118,6 @@ export type {
   HotspotOptions,
   HintStep,
   GuideFlowConfig,
+  GuideFlowInstance,
   PopoverPlacement,
 } from '@guideflow/core'

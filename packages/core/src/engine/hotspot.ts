@@ -68,6 +68,11 @@ export class HotspotManager extends EventEmitter<Pick<TourEvents, 'hotspot:open'
     this._nonce = nonce
   }
 
+  /** Update the CSP nonce used for future style injections. */
+  setNonce(nonce: string | undefined): void {
+    this._nonce = nonce
+  }
+
   // ── Public API ────────────────────────────────────────────────────────────
 
   add(target: string | Element, options: HotspotOptions = {}): string {

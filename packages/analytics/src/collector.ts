@@ -49,8 +49,14 @@ export class AnalyticsCollector {
   /**
    * Attach the collector to a GuideFlow instance.
    * Returns an unsubscribe function.
+   * Calling attach() a second time before detach() is a no-op to prevent
+   * duplicate event reporting.
    */
   attach(gf: GuideFlowInstance): () => void {
+    // Guard against duplicate subscriptions on repeated attach() calls
+    if (this.cleanups.length > 0) {
+      return () => this.detach()
+    }
     this.cleanups.push(
       gf.on('tour:start', (payload) => {
         this.send('guideflow.tour.started', base(payload.flowId));

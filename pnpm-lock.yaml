@@ -54,6 +54,43 @@ importers:
         specifier: ^1.3.1
         version: 1.6.1(@types/node@20.19.37)(happy-dom@13.10.1)
 
+  apps/demo:
+    dependencies:
+      '@guideflow/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@guideflow/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@guideflow/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@guideflow/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      react:
+        specifier: ^18.3.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.0
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.7(@types/react@18.3.28)
+      '@vitejs/plugin-react':
+        specifier: ^4.2.0
+        version: 4.7.0(vite@5.4.21)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.37)
+
   apps/docs:
     devDependencies:
       '@guideflow/ai':

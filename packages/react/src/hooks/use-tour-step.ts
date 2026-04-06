@@ -75,12 +75,16 @@ export function useHotspot(
 ): UseHotspotReturn {
   const gf = useGuideFlow()
   const idRef = useRef<string | null>(null)
+  // Stable reference to options — avoids re-creating hotspot on every render
+  // while still picking up genuine prop changes.
+  const optionsRef = useRef<HotspotOptions>(options)
+  useEffect(() => { optionsRef.current = options })
 
   useEffect(() => {
     const el = targetRef.current
     if (!el) return
 
-    idRef.current = gf.hotspot(el, options)
+    idRef.current = gf.hotspot(el, optionsRef.current)
 
     return () => {
       if (idRef.current) {
@@ -88,7 +92,7 @@ export function useHotspot(
         idRef.current = null
       }
     }
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gf, targetRef])
 
   return { id: idRef.current }

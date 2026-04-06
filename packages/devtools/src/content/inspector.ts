@@ -114,9 +114,11 @@ function relayGuideFlowEvents(): void {
   const gf = (window as WindowWithGF).__guideflow;
   if (!gf?.on) return;
 
+  // Use the exact event names emitted by @guideflow/core TourEvents
   const EVENTS = [
-    'tour:start', 'tour:end', 'tour:skip',
-    'step:enter', 'step:exit', 'step:complete', 'step:abandon',
+    'tour:start', 'tour:complete', 'tour:abandon', 'tour:pause', 'tour:resume',
+    'step:enter', 'step:exit', 'step:skip',
+    'hotspot:open', 'hotspot:close', 'hint:click',
   ];
 
   EVENTS.forEach((evt) => {

@@ -177,10 +177,31 @@ function BuilderTab() {
   };
 
   const runTour = () => {
-    sendToContent({
-      type: 'GF_START_TOUR',
-      payload: { id: `devtools-tour-${Date.now()}`, steps },
-    });
+    if (steps.length === 0) return;
+    // Build a proper FlowDefinition so FlowMachine receives valid initial/states schema
+    const flowId = `devtools-tour-${Date.now()}`;
+    const flow = {
+      id: flowId,
+      initial: `step-0`,
+      states: Object.fromEntries(
+        steps.map((step, i) => [
+          `step-${i}`,
+          {
+            steps: [
+              {
+                id: step.id,
+                content: { title: step.title, body: step.body },
+                ...(step.target !== undefined ? { target: step.target } : {}),
+                placement: step.placement,
+              },
+            ],
+            on: i < steps.length - 1 ? { NEXT: `step-${i + 1}` } : {},
+            ...(i === steps.length - 1 ? { final: true } : {}),
+          },
+        ])
+      ),
+    };
+    sendToContent({ type: 'GF_START_TOUR', payload: flow });
   };
 
   const copyJSON = () => {

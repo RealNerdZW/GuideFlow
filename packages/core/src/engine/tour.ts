@@ -189,17 +189,17 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     let step = this._machine.currentStep
     if (!step) return
 
-    // Evaluate showIf — bounded loop to prevent infinite recursion
-    const maxSkips = this._machine.totalSteps
-    let skipped = 0
+    // Evaluate showIf — bounded loop using a visited-set to prevent infinite cycles
+    // even when the FSM has complex multi-state transitions.
+    const visitedStepIds = new Set<string>()
     while (step && step.showIf && !step.showIf(this._machine.context)) {
-      this.emit('step:skip', { stepId: step.id })
-      skipped++
-      if (skipped >= maxSkips) {
-        // All remaining steps skipped — end tour
+      if (visitedStepIds.has(step.id)) {
+        // Cycle detected — all remaining steps are blocked; end the tour.
         this._doEnd(true)
         return
       }
+      visitedStepIds.add(step.id)
+      this.emit('step:skip', { stepId: step.id })
       const advanced = this._machine.nextStep()
       if (!advanced || this._machine.isFinal) {
         this._doEnd(true)

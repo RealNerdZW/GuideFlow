@@ -89,16 +89,29 @@ export class ProgressStore {
 
   async markCompleted(userId: string, flowId: string): Promise<void> {
     const key = `${this._keyFn(userId)}:completed`
-    const existing = (await this._driver.get<string[]>(key)) ?? []
+    const existing = await this.getCompletedFlows(userId)
     if (!existing.includes(flowId)) {
       existing.push(flowId)
-      await this._driver.set(key, existing)
+      // Wrap in StoredEntry for consistency with markDismissed / saveSnapshot
+      const entry: StoredEntry<string[]> = {
+        value: existing,
+        expiresAt: Date.now() + this._ttl,
+      }
+      await this._driver.set(key, entry)
     }
   }
 
   async getCompletedFlows(userId: string): Promise<string[]> {
     const key = `${this._keyFn(userId)}:completed`
-    return (await this._driver.get<string[]>(key)) ?? []
+    const entry = await this._driver.get<StoredEntry<string[]>>(key)
+    if (!entry) return []
+    // Handle legacy raw string[] format (pre-fix) gracefully
+    if (Array.isArray(entry)) return entry
+    if (Date.now() > entry.expiresAt) {
+      await this._driver.remove(key)
+      return []
+    }
+    return entry.value
   }
 
   async isCompleted(userId: string, flowId: string): Promise<boolean> {
