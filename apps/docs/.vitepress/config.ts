@@ -228,6 +228,41 @@ export default defineConfig({
             { text: 'GuidePopover', link: '/api/react/guide-popover' },
           ],
         },
+        {
+          text: 'Vue API',
+          items: [
+            { text: 'GuideFlowPlugin', link: '/api/vue/guide-flow-plugin' },
+            { text: 'useTour()', link: '/api/vue/use-tour' },
+          ],
+        },
+        {
+          text: 'Svelte API',
+          items: [
+            { text: 'createTourStore()', link: '/api/svelte/create-tour-store' },
+          ],
+        },
+        {
+          text: 'AI API',
+          items: [
+            { text: 'createAI()', link: '/api/ai/create-ai' },
+            { text: 'GuideBrain', link: '/api/ai/guide-brain' },
+            { text: 'Providers', link: '/api/ai/providers' },
+          ],
+        },
+        {
+          text: 'Analytics API',
+          items: [
+            { text: 'AnalyticsCollector', link: '/api/analytics/analytics-collector' },
+            { text: 'Transports', link: '/api/analytics/transports' },
+            { text: 'ExperimentEngine', link: '/api/analytics/experiment-engine' },
+          ],
+        },
+        {
+          text: 'CLI',
+          items: [
+            { text: 'Commands', link: '/api/cli' },
+          ],
+        },
       ],
 
       '/themes/': [
