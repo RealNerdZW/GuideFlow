@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  base: '/GuideFlow/demo/',
   plugins: [react()],
   resolve: {
     // Point workspace packages directly at their TypeScript source so the
