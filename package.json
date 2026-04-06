@@ -14,10 +14,10 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "publish-packages": "turbo run build --filter=!@guideflow/docs --filter=!@guideflow/e2e --filter=!@guideflow/storybook && changeset publish",
+    "publish-packages": "turbo run build --filter=!docs --filter=!e2e --filter=!storybook --filter=!@guideflow/demo && changeset publish",
     "docs:dev": "pnpm --filter docs dev",
     "docs:build": "pnpm --filter docs build",
-    "storybook": "pnpm --filter @guideflow/storybook dev",
+    "storybook": "pnpm --filter storybook dev",
     "demo": "pnpm --filter @guideflow/demo dev",
     "studio": "pnpm --filter @guideflow/cli exec guideflow studio",
     "sync-repo": "node scripts/sync-repo-meta.mjs"
