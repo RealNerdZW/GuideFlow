@@ -34,7 +34,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm build
+        run: pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
       - name: Create Release PR or Publish
         id: changesets
