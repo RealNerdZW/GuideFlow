@@ -1,11 +1,11 @@
 ---
-description: Complete API reference for GuideFlow.js. Documents all core exports, React components and hooks, FlowDefinition, TourEngine, ProgressStore, and more.
+description: Complete API reference for GuideFlow.js. Documents all core exports, React, Vue, Svelte, AI, Analytics, and CLI packages.
 keywords: GuideFlow API reference, GuideFlow documentation, createGuideFlow API, TourEngine API
 ---
 
 # API Reference
 
-Complete API documentation for GuideFlow.js packages.
+Complete API documentation for all GuideFlow.js packages.
 
 ## Core API
 
@@ -22,3 +22,28 @@ Complete API documentation for GuideFlow.js packages.
 - [useTour()](./react/use-tour) — Tour state and controls hook
 - [TourStep](./react/tour-step) — Step renderer component
 - [GuidePopover](./react/guide-popover) — Popover component
+
+## Vue API
+
+- [GuideFlowPlugin](./vue/guide-flow-plugin) — Vue 3 plugin and `useGuideFlow()` accessor
+- [useTour()](./vue/use-tour) — Reactive composable for tour state and controls
+
+## Svelte API
+
+- [createTourStore()](./svelte/create-tour-store) — Svelte store-based tour API
+
+## AI API
+
+- [createAI()](./ai/create-ai) — Attach AI capabilities to a GuideFlow instance
+- [GuideBrain](./ai/guide-brain) — Tour generation, intent detection, and chat
+- [Providers](./ai/providers) — OpenAI, Anthropic, Ollama, and Mock providers
+
+## Analytics API
+
+- [AnalyticsCollector](./analytics/analytics-collector) — Subscribe to tour events and forward to transports
+- [Transports](./analytics/transports) — PostHog, Mixpanel, Amplitude, Segment, Webhook
+- [ExperimentEngine](./analytics/experiment-engine) — Deterministic client-side A/B testing
+
+## CLI
+
+- [CLI Reference](./cli) — `guideflow init`, `studio`, `export`, `push`
