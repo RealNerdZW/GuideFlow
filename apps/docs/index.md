@@ -18,6 +18,10 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/RealNerdZW/GuideFlow
+    - theme: alt
+      text: Live Demo ↗
+      link: https://realnerdzw.github.io/GuideFlow/demo/
+      target: _blank
 
 features:
   - icon: 🤖

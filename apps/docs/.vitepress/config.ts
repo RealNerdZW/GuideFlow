@@ -151,6 +151,7 @@ export default defineConfig({
           { text: '@guideflow/devtools', link: '/packages/devtools' },
         ],
       },
+      { text: 'Demo', link: 'https://realnerdzw.github.io/GuideFlow/demo/', target: '_blank', rel: 'noopener' },
     ],
 
     sidebar: {
