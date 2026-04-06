@@ -1,3 +1,8 @@
+---
+description: GuideFlow Minimal theme — a clean, understated tour popover theme with subtle shadows and neutral colors. Best suited for SaaS dashboards and developer tools.
+keywords: GuideFlow minimal theme, clean tour popover, SaaS dashboard tour theme
+---
+
 # Minimal Theme
 
 A clean, understated theme with subtle shadows and neutral colors. Best suited for SaaS dashboards and developer tools.

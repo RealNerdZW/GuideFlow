@@ -1,3 +1,8 @@
+---
+description: GuideFlow tours are powered by a finite state machine (FSM). Full control over branching, looping, and conditional flows. Learn how states and transitions work.
+keywords: GuideFlow state machine, finite state machine tour, FSM product tour, branching tour flows
+---
+
 # State Machine
 
 GuideFlow tours are powered by a finite state machine (FSM). Each tour is a graph of **states** connected by **transitions**. This gives you full control over branching, looping, and conditional flows.

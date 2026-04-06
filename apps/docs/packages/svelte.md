@@ -1,3 +1,8 @@
+---
+description: "@guideflow/svelte — Svelte stores and utilities for GuideFlow product tours. Supports Svelte 4 and Svelte 5 with a reactive store-based API."
+keywords: "@guideflow/svelte, Svelte product tour, Svelte 5 onboarding, GuideFlow Svelte stores"
+---
+
 # @guideflow/svelte
 
 **Svelte stores and utilities for GuideFlow product tours.**

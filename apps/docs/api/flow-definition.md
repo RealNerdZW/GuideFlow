@@ -1,3 +1,8 @@
+---
+description: FlowDefinition API reference — describes a complete GuideFlow tour as a finite state machine. Learn the full type signature, required fields, and options.
+keywords: FlowDefinition API, GuideFlow flow type, tour definition schema, FSM tour config
+---
+
 # FlowDefinition
 
 A flow definition describes a complete tour as a finite state machine.

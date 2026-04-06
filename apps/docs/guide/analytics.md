@@ -1,3 +1,8 @@
+---
+description: Track product tour engagement with @guideflow/analytics. Collect step-level events and send them to PostHog, Mixpanel, Amplitude, or any custom analytics platform.
+keywords: GuideFlow analytics, product tour events, tour analytics PostHog Mixpanel, @guideflow/analytics
+---
+
 # Analytics
 
 `@guideflow/analytics` provides event collection, transport adapters, and A/B testing without adding third-party SDKs as hard dependencies.

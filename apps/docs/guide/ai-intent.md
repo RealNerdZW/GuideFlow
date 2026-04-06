@@ -1,3 +1,8 @@
+---
+description: GuideFlow intent detection passively monitors user behaviour and automatically surfaces the right product tour at the right moment — without any explicit trigger.
+keywords: GuideFlow intent detection, behavioural onboarding, passive tour trigger, user behaviour monitoring
+---
+
 # Intent Detection
 
 GuideFlow can passively monitor user behaviour and detect when they need help — automatically surfacing the right tour at the right moment.

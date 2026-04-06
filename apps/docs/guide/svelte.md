@@ -1,3 +1,8 @@
+---
+description: Add GuideFlow product tours to a Svelte 4 or Svelte 5 app. Install @guideflow/svelte and use the reactive Svelte store API for guided user onboarding.
+keywords: GuideFlow Svelte, Svelte product tour, Svelte 5 onboarding, @guideflow/svelte store
+---
+
 # Svelte
 
 GuideFlow provides a store-based reactive API for Svelte 4 and 5.

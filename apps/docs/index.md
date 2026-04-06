@@ -1,5 +1,8 @@
 ---
 layout: home
+title: GuideFlow.js — AI-Powered Product Tours for React, Vue & Svelte
+description: GuideFlow.js is an open-source, AI-powered product tour library for React, Vue, Svelte and Vanilla JS. Auto-generate tours, detect user intent, and guide users through your app.
+keywords: product tour library, user onboarding, AI product tour, React tour, Vue tour, Svelte tour, open source guided tour, Driver.js alternative, Intro.js alternative
 
 hero:
   name: "GuideFlow.js"

@@ -1,3 +1,8 @@
+---
+description: Run A/B tests on GuideFlow product tours with deterministic variant assignment. No server round-trips. Integrates with PostHog, Mixpanel, Amplitude, and more.
+keywords: GuideFlow A/B testing, product tour experiments, tour variant testing, deterministic variant assignment
+---
+
 # A/B Testing
 
 GuideFlow's `ExperimentEngine` provides deterministic variant assignment for running experiments on your tours.

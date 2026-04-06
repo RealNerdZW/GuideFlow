@@ -1,3 +1,8 @@
+---
+description: TourProvider API reference — React context provider that makes a GuideFlow instance available to all child components via the useTour() hook.
+keywords: TourProvider React, GuideFlow React context, useTour context, @guideflow/react provider
+---
+
 # TourProvider
 
 React context provider that makes the GuideFlow instance available to all child components.

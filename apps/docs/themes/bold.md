@@ -1,3 +1,8 @@
+---
+description: GuideFlow Bold theme — a vibrant, high-contrast tour popover theme with strong colors and prominent shadows. Ideal for consumer apps and marketing sites.
+keywords: GuideFlow bold theme, high-contrast tour, vibrant popover theme, marketing site tour
+---
+
 # Bold Theme
 
 A vibrant, high-contrast theme with strong colors and prominent shadows. Ideal for consumer apps and marketing sites.

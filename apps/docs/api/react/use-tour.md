@@ -1,3 +1,8 @@
+---
+description: "useTour() hook API reference — access tour state and control methods from any React component. Start, stop, advance, and observe GuideFlow tours reactively."
+keywords: useTour hook, GuideFlow React hook, React tour state, @guideflow/react
+---
+
 # useTour()
 
 Hook that provides tour state and control methods.

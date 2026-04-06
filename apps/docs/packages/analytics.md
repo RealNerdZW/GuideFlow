@@ -1,3 +1,8 @@
+---
+description: "@guideflow/analytics — Analytics, event collection and A/B testing for GuideFlow product tours. Adapters for PostHog, Mixpanel, Amplitude and custom backends."
+keywords: "@guideflow/analytics, product tour analytics, A/B tour testing, tour event tracking"
+---
+
 # @guideflow/analytics
 
 **Analytics, event collection, and A/B testing for GuideFlow.**

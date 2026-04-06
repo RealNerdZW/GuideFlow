@@ -1,3 +1,8 @@
+---
+description: GuideFlow's spotlight overlay draws an animated SVG cutout around a target element. The popover anchors with smart positioning. Learn spotlight and popover configuration options.
+keywords: GuideFlow spotlight, popover tooltip, guided tour overlay, smart positioning tooltip
+---
+
 # Spotlight & Popover
 
 GuideFlow's spotlight overlay draws an animated SVG cutout around the target element, directing user attention. The popover anchors to the target with smart positioning.

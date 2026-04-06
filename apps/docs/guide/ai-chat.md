@@ -1,3 +1,8 @@
+---
+description: GuideFlow's embedded AI chat panel answers user questions in-app and highlights relevant UI elements — a conversational onboarding assistant built into your product tour.
+keywords: GuideFlow conversational AI, in-app chat onboarding, AI help widget, embedded tour assistant
+---
+
 # Conversational Help
 
 GuideFlow includes an embedded AI chat panel that can answer user questions and highlight relevant UI elements.

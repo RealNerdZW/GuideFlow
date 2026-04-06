@@ -1,3 +1,8 @@
+---
+description: Get started with GuideFlow.js in minutes. Quick-start examples for Vanilla JS, React, Vue and Svelte. Create your first product tour with just a few lines of code.
+keywords: GuideFlow quick start, product tour tutorial, guided tour example React Vue Svelte
+---
+
 # Quick Start
 
 ## Vanilla JS

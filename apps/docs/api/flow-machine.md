@@ -1,3 +1,8 @@
+---
+description: FlowMachine API reference — GuideFlow's internal finite state machine that powers flow execution, state transitions, and context management between tour steps.
+keywords: FlowMachine API, GuideFlow FSM, flow state transitions, createMachine
+---
+
 # FlowMachine
 
 The `FlowMachine` is GuideFlow's internal finite state machine implementation. It powers flow execution, transitions, and context management.

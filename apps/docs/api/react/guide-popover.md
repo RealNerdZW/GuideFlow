@@ -1,3 +1,8 @@
+---
+description: GuidePopover API reference — standalone popover React component that can be used independently of the full GuideFlow tour system for custom tooltip UIs.
+keywords: GuidePopover component, standalone popover React, GuideFlow popover, custom tooltip component
+---
+
 # GuidePopover
 
 Standalone popover component that can be used independently of the tour system.

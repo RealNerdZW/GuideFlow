@@ -1,3 +1,8 @@
+---
+description: Complete API reference for GuideFlow.js. Documents all core exports, React components and hooks, FlowDefinition, TourEngine, ProgressStore, and more.
+keywords: GuideFlow API reference, GuideFlow documentation, createGuideFlow API, TourEngine API
+---
+
 # API Reference
 
 Complete API documentation for GuideFlow.js packages.

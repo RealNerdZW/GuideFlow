@@ -1,3 +1,8 @@
+---
+description: "@guideflow/vue — Vue 3 composables and plugin for GuideFlow product tours. Register the Vue plugin and use useGuideFlow() for reactive tour management."
+keywords: "@guideflow/vue, Vue 3 product tour, Vue onboarding composable, GuideFlow Vue plugin"
+---
+
 # @guideflow/vue
 
 **Vue 3 composables and plugin for GuideFlow product tours.**

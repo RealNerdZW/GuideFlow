@@ -1,3 +1,8 @@
+---
+description: Automatically generate GuideFlow product tour steps from a plain-English prompt by analyzing the current page's DOM. No manual step authoring needed.
+keywords: auto-generate product tour, AI tour generation, DOM-based tour, GuideFlow ai-generate
+---
+
 # Auto-Generate Tours
 
 GuideFlow's AI module can generate tour steps from a plain-English prompt by analyzing the current page's DOM.

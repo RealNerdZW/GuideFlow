@@ -1,3 +1,8 @@
+---
+description: Migrate from Driver.js to GuideFlow. GuideFlow is a drop-in replacement with a more expressive API, built-in AI capabilities, and first-class TypeScript support.
+keywords: migrate from Driver.js, Driver.js alternative, GuideFlow vs Driver.js, replace Driver.js
+---
+
 # Migrating from Driver.js
 
 GuideFlow is a drop-in replacement for Driver.js with a more expressive API, AI capabilities, and a first-class TypeScript experience.

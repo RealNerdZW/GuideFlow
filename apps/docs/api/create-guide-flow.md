@@ -1,3 +1,8 @@
+---
+description: "createGuideFlow() API reference — the main entry point for all GuideFlow functionality. Returns a GuideFlowInstance with methods to define and run product tours."
+keywords: createGuideFlow API, GuideFlow instance, product tour initialization
+---
+
 # createGuideFlow()
 
 Creates and returns a `GuideFlowInstance` — the main entry point for all GuideFlow functionality.

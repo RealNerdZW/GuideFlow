@@ -1,3 +1,8 @@
+---
+description: GuideFlow AI features overview — auto-generate tour steps from your DOM, detect user intent in real-time, and answer questions with an embedded conversational AI.
+keywords: AI product tour, auto-generate tour, GuideFlow AI, AI onboarding library, @guideflow/ai
+---
+
 # AI Features
 
 `@guideflow/ai` is the primary differentiator of GuideFlow — no other tour library has built-in AI capabilities.

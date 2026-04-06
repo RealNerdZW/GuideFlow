@@ -1,3 +1,8 @@
+---
+description: GuideFlow Glass theme — a frosted glass translucent tour popover theme with backdrop blur. Perfect for modern UIs and dark mode applications.
+keywords: GuideFlow glass theme, frosted glass tour, dark mode popover, backdrop blur tour
+---
+
 # Glass Theme
 
 A frosted glass, translucent theme with backdrop blur. Perfect for modern UIs and dark mode apps.

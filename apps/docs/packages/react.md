@@ -1,3 +1,8 @@
+---
+description: "@guideflow/react — React hooks and components for building product tours. Includes TourProvider, useTour() hook, TourStep and GuidePopover components."
+keywords: "@guideflow/react, React product tour hooks, useTour hook, TourProvider component, React onboarding"
+---
+
 # @guideflow/react
 
 **React hooks and components for GuideFlow product tours.**

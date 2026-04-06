@@ -1,3 +1,8 @@
+---
+description: "@guideflow/cli — Command-line tool to scaffold, build, export and publish GuideFlow product tours. Quickly bootstrap new tour projects from the terminal."
+keywords: "@guideflow/cli, GuideFlow CLI, scaffold product tour, publish GuideFlow tour"
+---
+
 # @guideflow/cli
 
 **CLI for GuideFlow — scaffold, build, export, and publish product tours.**

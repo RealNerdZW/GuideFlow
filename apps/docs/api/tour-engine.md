@@ -1,3 +1,8 @@
+---
+description: TourEngine API reference — manages the GuideFlow tour lifecycle including start, stop, step navigation, and event emission. Core orchestrator of all tour flows.
+keywords: TourEngine API, GuideFlow tour lifecycle, start tour, stop tour, tour events
+---
+
 # TourEngine
 
 The `TourEngine` manages the tour lifecycle — starting, stopping, stepping through flows, and emitting events.

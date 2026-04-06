@@ -1,3 +1,8 @@
+---
+description: GuideFlow ships with 5 built-in themes for tour popovers, spotlight overlays and hotspot beacons — Minimal, Bold, Glass, Brutalist, and Enterprise.
+keywords: GuideFlow themes, product tour theme, tour popover styles, spotlight overlay theme
+---
+
 # Themes
 
 GuideFlow ships with a collection of built-in themes that control the look and feel of tour popovers, spotlight overlays, and hotspot beacons.

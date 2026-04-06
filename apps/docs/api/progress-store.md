@@ -1,3 +1,8 @@
+---
+description: ProgressStore API reference — persists and restores GuideFlow tour progress across sessions using localStorage, IndexedDB, or a custom adapter.
+keywords: ProgressStore API, GuideFlow persistence, tour progress localStorage, IndexedDB tour store
+---
+
 # ProgressStore
 
 The `ProgressStore` handles persisting and restoring tour progress across sessions.

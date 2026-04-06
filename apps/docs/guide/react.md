@@ -1,3 +1,8 @@
+---
+description: Use GuideFlow with React. Install @guideflow/react, wrap your app with TourProvider, and use the useTour() hook to create interactive onboarding tours.
+keywords: GuideFlow React, React product tour, useTour hook, TourProvider, @guideflow/react
+---
+
 # React
 
 ## Installation

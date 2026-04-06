@@ -1,18 +1,133 @@
-import { defineConfig } from 'vitepress';
+import { defineConfig, type PageData } from 'vitepress';
+
+const SITE_URL = 'https://realnerdZW.github.io/GuideFlow';
+const SITE_TITLE = 'GuideFlow.js';
+const SITE_DESCRIPTION = 'AI-powered product tours. Guide users like you know them. Open-source tour library for React, Vue, Svelte & Vanilla JS.';
+const OG_IMAGE = `${SITE_URL}/hero.svg`;
+
+function canonicalUrl(relativePath: string): string {
+  // relativePath e.g. "guide/installation.md" → "https://.../GuideFlow/guide/installation"
+  const clean = relativePath
+    .replace(/\.md$/, '')
+    .replace(/(^|\/)index$/, '$1');
+  const path = clean ? `/${clean}` : '';
+  return `${SITE_URL}${path}`;
+}
 
 export default defineConfig({
   lang: 'en-US',
-  title: 'GuideFlow.js',
-  description: 'AI-powered product tours. Guide users like you know them.',
+  title: SITE_TITLE,
+  titleTemplate: ':title — GuideFlow.js',
+  description: SITE_DESCRIPTION,
   base: '/GuideFlow/',
   cleanUrls: true,
   lastUpdated: true,
 
+  sitemap: {
+    hostname: `${SITE_URL}/`,
+  },
+
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
-    ['meta', { name: 'og:title', content: 'GuideFlow.js' }],
-    ['meta', { name: 'og:description', content: 'AI-powered product tours. Guide users like you know them.' }],
+    // Open Graph — global defaults (overridden per-page via transformPageData)
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:site_name', content: SITE_TITLE }],
+    ['meta', { property: 'og:title', content: SITE_TITLE }],
+    ['meta', { property: 'og:description', content: SITE_DESCRIPTION }],
+    ['meta', { property: 'og:image', content: OG_IMAGE }],
+    ['meta', { property: 'og:image:alt', content: 'GuideFlow.js — AI-Powered Product Tour Library' }],
+    ['meta', { property: 'og:image:type', content: 'image/svg+xml' }],
+    // Twitter / X Card
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: SITE_TITLE }],
+    ['meta', { name: 'twitter:description', content: SITE_DESCRIPTION }],
+    ['meta', { name: 'twitter:image', content: OG_IMAGE }],
+    // Global keyword signals
+    ['meta', { name: 'keywords', content: 'product tour, user onboarding, AI tour, guided tour library, React tour, Vue tour, Svelte tour, Driver.js alternative, Intro.js alternative, TypeScript tour library' }],
   ],
+
+  transformPageData(pageData: PageData) {
+    const canonical = canonicalUrl(pageData.relativePath);
+    const pageTitle = pageData.frontmatter?.title
+      ? `${pageData.frontmatter.title} — ${SITE_TITLE}`
+      : pageData.title
+        ? `${pageData.title} — ${SITE_TITLE}`
+        : SITE_TITLE;
+    const pageDesc: string = pageData.frontmatter?.description || SITE_DESCRIPTION;
+
+    pageData.frontmatter.head ??= [];
+    pageData.frontmatter.head.push(
+      ['link', { rel: 'canonical', href: canonical }],
+      ['meta', { property: 'og:url', content: canonical }],
+      ['meta', { property: 'og:title', content: pageTitle }],
+      ['meta', { property: 'og:description', content: pageDesc }],
+      ['meta', { name: 'twitter:title', content: pageTitle }],
+      ['meta', { name: 'twitter:description', content: pageDesc }],
+    );
+
+    // JSON-LD structured data
+    const isHome = pageData.relativePath === 'index.md';
+    if (isHome) {
+      pageData.frontmatter.head.push([
+        'script',
+        { type: 'application/ld+json' },
+        JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'WebSite',
+              '@id': `${SITE_URL}/#website`,
+              url: `${SITE_URL}/`,
+              name: SITE_TITLE,
+              description: SITE_DESCRIPTION,
+              inLanguage: 'en-US',
+            },
+            {
+              '@type': 'SoftwareApplication',
+              '@id': `${SITE_URL}/#software`,
+              name: SITE_TITLE,
+              url: `${SITE_URL}/`,
+              description: SITE_DESCRIPTION,
+              applicationCategory: 'DeveloperApplication',
+              operatingSystem: 'Any',
+              programmingLanguage: ['TypeScript', 'JavaScript'],
+              codeRepository: 'https://github.com/RealNerdZW/GuideFlow',
+              license: 'https://opensource.org/licenses/MIT',
+              keywords: 'product tour, user onboarding, AI tour library, React, Vue, Svelte',
+              offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+            },
+          ],
+        }),
+      ]);
+    } else {
+      // BreadcrumbList for all non-home pages
+      const segments = pageData.relativePath
+        .replace(/\.md$/, '')
+        .replace(/\/index$/, '')
+        .split('/')
+        .filter(Boolean);
+      const breadcrumbs = [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
+        ...segments.map((seg, i) => ({
+          '@type': 'ListItem',
+          position: i + 2,
+          name: seg
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase()),
+          item: `${SITE_URL}/${segments.slice(0, i + 1).join('/')}/`,
+        })),
+      ];
+      pageData.frontmatter.head.push([
+        'script',
+        { type: 'application/ld+json' },
+        JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: breadcrumbs,
+        }),
+      ]);
+    }
+  },
 
   themeConfig: {
     logo: '/logo.svg',

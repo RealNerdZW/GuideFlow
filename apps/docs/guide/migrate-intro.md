@@ -1,3 +1,8 @@
+---
+description: Migrate from Intro.js to GuideFlow. Step-by-step concept mapping and API equivalents to help you switch your user onboarding tours from Intro.js to GuideFlow.
+keywords: migrate from Intro.js, Intro.js alternative, GuideFlow vs Intro.js, replace Intro.js
+---
+
 # Migrating from Intro.js
 
 ## Concept mapping

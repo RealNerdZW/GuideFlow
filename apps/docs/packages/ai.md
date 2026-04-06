@@ -1,3 +1,8 @@
+---
+description: "@guideflow/ai — AI-powered tour generation, intent detection and conversational help for GuideFlow. Auto-generate steps from DOM, detect when users need help."
+keywords: "@guideflow/ai, AI product tour, auto-generate tour steps, intent detection onboarding, conversational tour"
+---
+
 # @guideflow/ai
 
 **AI-powered tour generation, intent detection, and conversational help.**

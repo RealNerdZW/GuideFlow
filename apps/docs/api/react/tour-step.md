@@ -1,3 +1,8 @@
+---
+description: TourStep API reference — React component that renders the current tour step popover with spotlight overlay. Drop it into your app to display GuideFlow steps.
+keywords: TourStep component, GuideFlow tour step React, popover component, spotlight step component
+---
+
 # TourStep
 
 Component that renders the current tour step popover with spotlight overlay.

@@ -1,3 +1,8 @@
+---
+description: Step API reference — a step represents a single tooltip, spotlight, or action in a GuideFlow product tour. Learn all configuration options and type definitions.
+keywords: GuideFlow Step API, tour step type, tooltip step, spotlight step, step configuration
+---
+
 # Step
 
 A step represents a single tooltip, spotlight, or action in a tour.

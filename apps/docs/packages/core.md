@@ -1,3 +1,8 @@
+---
+description: "@guideflow/core — Zero-dependency FSM engine for JavaScript product tours, spotlights, hotspots and hints. Works with React, Vue, Svelte or plain JS."
+keywords: "@guideflow/core, product tour engine, FSM tour library, zero-dependency tour, TypeScript tour"
+---
+
 # @guideflow/core
 
 **Zero-dependency FSM engine for product tours, spotlights, hotspots, and hints.**

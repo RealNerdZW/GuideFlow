@@ -1,3 +1,8 @@
+---
+description: GuideFlow Brutalist theme — a raw monospace tour popover theme with thick borders and no rounded corners. Suited for developer tools and CLI-adjacent interfaces.
+keywords: GuideFlow brutalist theme, monospace tour popover, developer tool tour theme
+---
+
 # Brutalist Theme
 
 A raw, monospace theme with thick borders and no rounded corners. Suited for developer tools and CLI-adjacent interfaces.

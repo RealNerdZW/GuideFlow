@@ -1,3 +1,8 @@
+---
+description: Add GuideFlow product tours to a Vue 3 app. Install @guideflow/vue, register the plugin, and use useGuideFlow() composables for reactive tour management.
+keywords: GuideFlow Vue, Vue 3 product tour, Vue onboarding library, @guideflow/vue composable
+---
+
 # Vue 3
 
 GuideFlow provides a Vue 3 plugin and composables for reactive tour management.

@@ -1,3 +1,8 @@
+---
+description: GuideFlow Enterprise theme — a neutral, accessible tour popover theme designed for enterprise software and compliance-heavy environments. WCAG-friendly.
+keywords: GuideFlow enterprise theme, accessible tour theme, WCAG tour popover, enterprise onboarding
+---
+
 # Enterprise Theme
 
 A neutral, accessible theme designed for enterprise software and compliance-heavy environments.

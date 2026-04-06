@@ -1,3 +1,8 @@
+---
+description: Use GuideFlow with plain JavaScript or TypeScript — no framework required. @guideflow/core is zero-dependency and works in any vanilla JS or TypeScript project.
+keywords: GuideFlow vanilla JS, javascript product tour, TypeScript tour library, framework-agnostic tour
+---
+
 # Vanilla JavaScript
 
 GuideFlow's core engine works without any framework. Use it with plain JavaScript or TypeScript.

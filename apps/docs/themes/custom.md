@@ -1,3 +1,8 @@
+---
+description: Customize GuideFlow tour themes by overriding CSS custom properties. Full list of available design tokens for popovers, spotlights, hotspots, and overlays.
+keywords: GuideFlow custom theme, CSS custom properties tour, tour design tokens, customize popover
+---
+
 # Custom Tokens
 
 Create your own theme by overriding GuideFlow's CSS custom properties.

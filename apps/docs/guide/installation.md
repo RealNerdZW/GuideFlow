@@ -1,3 +1,8 @@
+---
+description: Install GuideFlow.js packages via npm, pnpm, or yarn. Covers @guideflow/core and framework adapters for React, Vue, Svelte. Node.js 18+ required.
+keywords: install GuideFlow, npm install product tour, @guideflow/core, @guideflow/react setup
+---
+
 # Installation
 
 ## Requirements

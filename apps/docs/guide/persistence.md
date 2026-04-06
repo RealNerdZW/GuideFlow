@@ -1,3 +1,8 @@
+---
+description: Persist GuideFlow tour progress across sessions using localStorage, IndexedDB, or a custom backend adapter. Users resume where they left off after page reloads.
+keywords: GuideFlow persistence, tour progress storage, localStorage product tour, IndexedDB tour state
+---
+
 # Persistence
 
 GuideFlow can persist tour progress so users resume where they left off, even across page reloads or browser tabs.

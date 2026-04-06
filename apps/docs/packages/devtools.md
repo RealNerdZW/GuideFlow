@@ -1,3 +1,8 @@
+---
+description: "@guideflow/devtools — Browser DevTools extension for visual tour building and flow inspection. Manifest V3 Chrome extension with AI-assisted tour authoring."
+keywords: "@guideflow/devtools, tour builder extension, visual tour builder, GuideFlow DevTools, Chrome extension tour"
+---
+
 # @guideflow/devtools
 
 **Browser DevTools extension for visual tour building and flow inspection.**

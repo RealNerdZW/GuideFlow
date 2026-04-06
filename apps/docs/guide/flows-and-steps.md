@@ -1,3 +1,8 @@
+---
+description: Learn how GuideFlow flows and steps work. A flow is a finite state machine; steps are the individual tooltips, spotlights, and actions users see during a tour.
+keywords: GuideFlow flow definition, tour steps, product tour state machine, GuideFlow FSM
+---
+
 # Flows & Steps
 
 A **flow** is a state machine that defines your tour. Each state contains an array of **steps** — the individual tooltips, spotlights, and actions your users see.
