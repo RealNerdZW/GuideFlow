@@ -29,6 +29,7 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+    ['meta', { name: 'google-site-verification', content: '1J0N9Y8BUH5i51OK_NqAPKYAay-BURoxm9UmJ1d28I8' }],
     // Open Graph — global defaults (overridden per-page via transformPageData)
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: SITE_TITLE }],
