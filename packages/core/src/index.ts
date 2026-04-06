@@ -198,12 +198,21 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     }
   })
 
-  hotspots.on('hotspot:open', (e) => instance.emit('hotspot:open', e))
-  hotspots.on('hotspot:close', (e) => instance.emit('hotspot:close', e))
-  hints.on('hint:click', (e) => instance.emit('hint:click', e))
+  // Capture original TourEngine methods BEFORE Object.assign overwrites them.
+  // Since instance === engine, assigning new methods onto engine replaces the
+  // prototype-inherited ones — any wrapper that calls engine.xxx() would
+  // therefore call itself and recurse infinitely without these captures.
+  const _engineStart   = engine.start.bind(engine)
+  const _engineEnd     = engine.end.bind(engine)
+  const _engineNext    = engine.next.bind(engine)
+  const _enginePrev    = engine.prev.bind(engine)
+  const _engineGoTo    = engine.goTo.bind(engine)
+  const _engineSend    = engine.send.bind(engine)
+  const _engineDestroy = engine.destroy.bind(engine)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
   const instance: GuideFlowInstance<TContext> = Object.assign(engine as any, {
+
     configure(patch: DeepPartialConfig): void {
       _config = { ..._config, ...patch }
       if (patch.nonce !== undefined) {
@@ -238,7 +247,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
         const snapshot = await progress.loadSnapshot(userId, flow.id)
         if (snapshot && !snapshot.completed) {
-          await engine.start(flow, ctx)
+          await _engineStart(flow, ctx)
           // Restore exact position
           engine.machine?.restore({ state: snapshot.currentState, stepIndex: snapshot.stepIndex })
           // Sync broadcast
@@ -250,30 +259,30 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         }
       }
 
-      await engine.start(flow, ctx)
+      await _engineStart(flow, ctx)
     },
 
     stop(): void {
-      engine.end()
+      _engineEnd()
     },
 
     async next(): Promise<void> {
-      await engine.next()
+      await _engineNext()
       await _saveProgress()
     },
 
     async prev(): Promise<void> {
-      await engine.prev()
+      await _enginePrev()
       await _saveProgress()
     },
 
     async goTo(stepId: string): Promise<void> {
-      await engine.goTo(stepId)
+      await _engineGoTo(stepId)
       await _saveProgress()
     },
 
     async send(event: string): Promise<void> {
-      await engine.send(event)
+      await _engineSend(event)
       await _saveProgress()
     },
 
@@ -297,7 +306,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     },
 
     destroy(): void {
-      engine.destroy()
+      _engineDestroy()
       hotspots.removeAll()
       hints.destroy()
       _broadcastSync?.destroy()
@@ -306,14 +315,9 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
     i18n,
     progress,
-
-    get isActive(): boolean { return engine.isActive },
-    get currentStepId(): string | null { return engine.currentStepId },
-    get currentStepIndex(): number { return engine.currentStepIndex },
-    get totalSteps(): number { return engine.totalSteps },
-    get currentStep() { return engine.currentStep },
-    get currentContent() { return engine.currentContent },
   })
+  // instance === engine, so TourEngine's prototype getters (isActive,
+  // currentStepId, etc.) are already reachable — no extra wiring needed.
 
   async function _saveProgress(): Promise<void> {
     const userId = _config.context?.userId

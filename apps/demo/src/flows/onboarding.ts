@@ -1,15 +1,17 @@
-import type { FlowDefinition } from '@guideflow/core'
+import type { FlowDefinition, StepAction } from '@guideflow/core'
 
-/**
- * A fully-typed 3-step onboarding FlowDefinition.
- *
- * Steps use correct FlowDefinition schema:
- *   - `initial` — first state key
- *   - `states`  — map of state id → { steps, on, final? }
- *   - `on`      — FSM transitions (NEXT / PREV)
- *   - `showIf`  — conditional step rendering
- *   - `meta`    — arbitrary metadata per step
- */
+// ---------------------------------------------------------------------------
+// Demo context (used for role-based FSM branching)
+// ---------------------------------------------------------------------------
+export interface DemoContext {
+  role?: 'admin' | 'user'
+  completedSetup?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// 1. Onboarding — 5-state flow, one step per demo section.
+//    Demonstrates: target, placement, padding, scrollIntoView, meta, actions.
+// ---------------------------------------------------------------------------
 export const onboardingFlow: FlowDefinition = {
   id: 'demo-onboarding',
   initial: 'welcome',
@@ -18,54 +20,174 @@ export const onboardingFlow: FlowDefinition = {
       steps: [
         {
           id: 'welcome-header',
-          target: '#demo-header',
+          target: '#gf-header',
           placement: 'bottom',
           content: {
-            title: '👋 Welcome to GuideFlow Demo',
-            body: 'This demo exercises every major feature of @guideflow/core and @guideflow/react.',
+            title: '👋 Welcome to GuideFlow',
+            body: 'This demo exercises every major feature across all @guideflow/* packages.',
           },
-          meta: { category: 'intro' },
+          padding: 10,
+          scrollIntoView: true,
+          meta: { category: 'intro', priority: 'high' },
         },
       ],
-      on: { NEXT: 'features' },
+      on: { NEXT: 'tours' },
     },
-    features: {
+    tours: {
       steps: [
         {
-          id: 'features-section',
-          target: '#features',
-          placement: 'right',
+          id: 'tours-section',
+          target: '#gf-tours',
+          placement: 'bottom-start',
           content: {
-            title: '✨ Features Section',
-            body: 'Here you can see tours, hotspots, AI chat, and analytics all working together.',
+            title: '🎯 Tours & State Machine',
+            body: 'Multi-state FSM with guard transitions. showIf conditional steps. Custom StepAction buttons.',
           },
-          meta: { category: 'feature-highlight' },
+          padding: 4,
+          scrollIntoView: true,
+          meta: { category: 'feature' },
         },
       ],
-      on: { NEXT: 'analytics', PREV: 'welcome' },
+      on: { NEXT: 'hotspots', PREV: 'welcome' },
+    },
+    hotspots: {
+      steps: [
+        {
+          id: 'hotspots-section',
+          target: '#gf-hotspots',
+          placement: 'top',
+          content: {
+            title: '📍 Hotspots & Hints',
+            body: 'Beacons highlight features in context. Hints show numbered badges. Both declarative & programmatic.',
+          },
+          scrollIntoView: true,
+          meta: { category: 'feature' },
+        },
+      ],
+      on: { NEXT: 'ai', PREV: 'tours' },
+    },
+    ai: {
+      steps: [
+        {
+          id: 'ai-section',
+          target: '#gf-ai',
+          placement: 'top',
+          content: {
+            title: '🤖 AI Features',
+            body: 'Generate tours from a prompt + live DOM. Answer user questions. Detect intent signals.',
+          },
+          scrollIntoView: true,
+          meta: { category: 'ai' },
+        },
+      ],
+      on: { NEXT: 'analytics', PREV: 'hotspots' },
     },
     analytics: {
       steps: [
         {
           id: 'analytics-section',
-          target: '#analytics-log',
+          target: '#gf-analytics',
           placement: 'top',
           content: {
-            title: '📊 Analytics',
-            body: 'Every tour event is forwarded to AnalyticsCollector. Check the console and the log below.',
+            title: '📊 Analytics & A/B Testing',
+            body: 'Every event flows through AnalyticsCollector. ExperimentEngine assigns variants deterministically.',
           },
-          meta: { category: 'analytics-demo' },
+          scrollIntoView: true,
+          actions: [
+            { label: 'Finish Tour \u2713', variant: 'primary', action: 'end' } as StepAction,
+            { label: '\u2190 Back', variant: 'secondary', action: 'prev' } as StepAction,
+          ],
+          meta: { category: 'analytics' },
         },
       ],
-      on: { PREV: 'features' },
+      on: { PREV: 'ai' },
       final: true,
     },
   },
 }
 
-/**
- * A second flow to test showIf conditional stepping.
- */
+// ---------------------------------------------------------------------------
+// 2. FSM Branch flow — guard-based routing demo.
+//    Demonstrates: FlowTransition.guard, onEntry callbacks, context mutation.
+// ---------------------------------------------------------------------------
+export const fsmBranchFlow: FlowDefinition<DemoContext> = {
+  id: 'demo-fsm-branch',
+  initial: 'intro',
+  states: {
+    intro: {
+      steps: [
+        {
+          id: 'fsm-intro',
+          target: '#gf-tours',
+          placement: 'bottom',
+          content: {
+            title: '🔀 FSM Guard Demo',
+            body: 'Pick a role (Admin / User) below then press "Admin Path" or "User Path". The guard on NEXT routes you to a different state.',
+          },
+          padding: 6,
+        },
+      ],
+      on: {
+        NEXT:      { target: 'admin-path', guard: (ctx) => ctx.role === 'admin' },
+        NEXT_USER: 'user-path',
+      },
+      onEntry: (ctx) => { ctx.completedSetup = false },
+    },
+    'admin-path': {
+      steps: [
+        {
+          id: 'fsm-admin',
+          target: '#gf-config',
+          placement: 'top',
+          content: {
+            title: '🔑 Admin Path',
+            body: 'Guard matched (role === "admin"). You were routed to Config.',
+          },
+          scrollIntoView: true,
+        },
+      ],
+      on: { NEXT: 'fsm-done', PREV: 'intro' },
+    },
+    'user-path': {
+      steps: [
+        {
+          id: 'fsm-user',
+          target: '#gf-hotspots',
+          placement: 'top',
+          content: {
+            title: '👤 User Path',
+            body: 'Guard did not match; NEXT_USER event routed you here instead.',
+          },
+          scrollIntoView: true,
+        },
+      ],
+      on: { NEXT: 'fsm-done', PREV: 'intro' },
+    },
+    'fsm-done': {
+      steps: [
+        {
+          id: 'fsm-complete',
+          target: '#gf-tours',
+          placement: 'bottom',
+          content: {
+            title: '\u2705 Paths Converge',
+            body: 'Both admin and user paths end here. The guard transition worked.',
+          },
+          meta: { finalStep: true },
+        },
+      ],
+      on: {},
+      final: true,
+      onEntry: (ctx) => { ctx.completedSetup = true },
+    },
+  },
+}
+
+// ---------------------------------------------------------------------------
+// 3. showIf conditional flow.
+//    Demonstrates the visited-Set fix: step-b is always hidden, tour must not
+//    loop or end prematurely.
+// ---------------------------------------------------------------------------
 export const conditionalFlow: FlowDefinition = {
   id: 'demo-conditional',
   initial: 'step-a',
@@ -74,10 +196,9 @@ export const conditionalFlow: FlowDefinition = {
       steps: [
         {
           id: 'step-a',
-          target: '#demo-header',
+          target: '#gf-header',
           placement: 'bottom',
-          content: { title: 'Step A', body: 'Always visible.' },
-          // This step never gets skipped — showIf always true
+          content: { title: 'Step A', body: 'Always visible. Hit Next \u2014 Step B is silently skipped by showIf.' },
           showIf: () => true,
         },
       ],
@@ -87,10 +208,9 @@ export const conditionalFlow: FlowDefinition = {
       steps: [
         {
           id: 'step-b-hidden',
-          target: '#features',
+          target: '#gf-tours',
           placement: 'right',
-          content: { title: 'Step B — Hidden', body: 'You should never see this.' },
-          // This step is always hidden — tests the showIf skip loop fix
+          content: { title: 'Step B \u2014 Hidden', body: 'You should NEVER see this.' },
           showIf: () => false,
         },
       ],
@@ -100,9 +220,65 @@ export const conditionalFlow: FlowDefinition = {
       steps: [
         {
           id: 'step-c',
-          target: '#analytics-log',
+          target: '#gf-hotspots',
           placement: 'top',
-          content: { title: 'Step C', body: 'Step B was skipped! The showIf loop fix works.' },
+          content: { title: 'Step C \u2713', body: 'Step B was silently skipped. The visited-set loop fix works.' },
+        },
+      ],
+      on: {},
+      final: true,
+    },
+  },
+}
+
+// ---------------------------------------------------------------------------
+// 4. Custom-actions flow — per-step StepAction[] override.
+//    Demonstrates: custom button labels, ghost variant, FSM event dispatch.
+// ---------------------------------------------------------------------------
+export const customActionsFlow: FlowDefinition = {
+  id: 'demo-custom-actions',
+  initial: 'ca-p1',
+  states: {
+    'ca-p1': {
+      steps: [
+        {
+          id: 'ca-p1',
+          target: '#gf-tours',
+          placement: 'bottom',
+          content: { title: '🎮 Custom Actions', body: '"Jump to End" sends FSM event "END", bypassing page 2.' },
+          actions: [
+            { label: 'Next \u2192', variant: 'primary', action: 'next' } as StepAction,
+            { label: 'Jump to End', variant: 'ghost', action: 'END' } as unknown as StepAction,
+          ],
+        },
+      ],
+      on: { NEXT: 'ca-p2', END: 'ca-p3' },
+    },
+    'ca-p2': {
+      steps: [
+        {
+          id: 'ca-p2',
+          target: '#gf-ai',
+          placement: 'top',
+          content: { title: 'Page 2', body: 'Normal next/back. Or press Finish.' },
+          actions: [
+            { label: '\u2190 Back', variant: 'secondary', action: 'prev' } as StepAction,
+            { label: 'Finish', variant: 'primary', action: 'next' } as StepAction,
+          ],
+          scrollIntoView: true,
+        },
+      ],
+      on: { NEXT: 'ca-p3', PREV: 'ca-p1' },
+    },
+    'ca-p3': {
+      steps: [
+        {
+          id: 'ca-final',
+          target: '#gf-analytics',
+          placement: 'top',
+          content: { title: '🏁 Done!', body: 'Custom actions tour complete.' },
+          actions: [{ label: 'Close', variant: 'primary', action: 'end' } as StepAction],
+          scrollIntoView: true,
         },
       ],
       on: {},
