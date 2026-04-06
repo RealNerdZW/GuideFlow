@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+build
+.next
+out
+.svelte-kit
+
+# Coverage
+coverage
+*.lcov
+
+# Cache
+.turbo
+.cache
+.parcel-cache
+.eslintcache
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea
+*.swp
+*.swo
+.vscode/settings.json
+
+# Test results
+test-results
+playwright-report
+**/e2e/screenshots
+
+# Extension builds
+packages/devtools/web-ext-artifacts
+*.crx
+*.xpi
