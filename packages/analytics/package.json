@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/analytics",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Analytics, A/B testing, and event transport for GuideFlow.js",
   "keywords": [
     "guided-tour",
