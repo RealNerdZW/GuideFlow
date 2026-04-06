@@ -1,46 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Usage - Guideflow Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        nav { background-color: #f4f4f4; padding: 10px; }
-        nav a { margin: 0 10px; text-decoration: none; }
-        code { background-color: #f4f4f4; padding: 2px 4px; }
-        pre { background-color: #f4f4f4; padding: 10px; overflow-x: auto; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usage - GuideFlow.js</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; color: #1a1a1a; }
+    nav { background: #0f172a; padding: 14px 32px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover, nav a.active { color: #fff; }
+    nav .brand { color: #fff; font-weight: 700; font-size: 1rem; margin-right: auto; }
+    main { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.3rem; margin-top: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+    p, li { line-height: 1.7; color: #334155; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 0.88rem; line-height: 1.6; }
+    ul, ol { padding-left: 24px; } li { margin-bottom: 6px; }
+  </style>
 </head>
 <body>
-    <nav>
-        <a href="index.html">Home</a>
-        <a href="installation.html">Installation</a>
-        <a href="usage.html">Usage</a>
-        <a href="api-reference.html">API Reference</a>
-        <a href="examples.html">Examples</a>
-        <a href="faq.html">FAQ</a>
-        <a href="changelog.html">Changelog</a>
-        <a href="publishing.html">Publishing</a>
-    </nav>
+  <nav>
+    <span class="brand">GuideFlow.js</span>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+    <a href="usage.html" class="active">Usage</a>
+    <a href="api-reference.html">API Reference</a>
+    <a href="examples.html">Examples</a>
+    <a href="faq.html">FAQ</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="publishing.html">Publishing</a>
+  </nav>
+  <main>
     <h1>Usage Guide</h1>
-    <p>This section covers how to use Guideflow for various scenarios, including creating guides, customizing workflows, and integrating with other tools.</p>
-    <h2>Creating a Basic Guide</h2>
-    <ol>
-        <li>Open Guideflow in your browser.</li>
-        <li>Click "New Guide" and enter a title.</li>
-        <li>Add steps by clicking "Add Step" and inputting content.</li>
-        <li>Save and export your guide.</li>
-    </ol>
-    <h2>Advanced Scenarios</h2>
-    <ul>
-        <li><strong>Educational Tutorials:</strong> Use branching logic for quizzes.</li>
-        <li><strong>Onboarding Flows:</strong> Integrate with HR systems for automated steps.</li>
-        <li><strong>Decision Trees:</strong> Implement conditional paths based on user input.</li>
-        <li><strong>Multi-User Collaboration:</strong> Share guides with edit permissions.</li>
-        <li><strong>Offline Mode:</strong> Sync guides for use without internet.</li>
-        <li><strong>API-Driven Guides:</strong> Pull data from external sources.</li>
-    </ul>
-    <p>For code examples, see the <a href="api-reference.html">API Reference</a>.</p>
+
+    <h2>1. Create an Instance</h2>
+    <pre>import { createGuideFlow } from '@guideflow/core';
+import '@guideflow/core/styles';
+
+export const gf = createGuideFlow({ theme: 'minimal' });</pre>
+
+    <h2>2. Define a Flow</h2>
+    <p>Flows are finite-state machines. Each key in <code>states</code> maps to one or more steps.</p>
+    <pre>import type { FlowDefinition } from '@guideflow/core';
+
+export const onboardingFlow: FlowDefinition = {
+  id: 'onboarding',
+  initial: 'welcome',
+  states: {
+    welcome: {
+      steps: [{
+        id: 'welcome',
+        content: { title: 'Welcome!', body: 'Let us show you around.' },
+        target: '#app-header',
+        placement: 'bottom',
+      }],
+      on: { NEXT: 'dashboard' },
+    },
+    dashboard: {
+      steps: [{
+        id: 'dashboard',
+        content: { title: 'Your Dashboard', body: 'All your data lives here.' },
+        target: '#dashboard',
+        placement: 'right',
+      }],
+      on: {},
+      final: true,
+    },
+  },
+};</pre>
+
+    <h2>3. Start the Tour</h2>
+    <pre>import { gf } from './guideflow';
+import { onboardingFlow } from './flows/onboarding';
+
+await gf.start(onboardingFlow);</pre>
+
+    <h2>4. React Integration</h2>
+    <pre>import { TourProvider, useTour } from '@guideflow/react';
+
+function App() {
+  return (
+    &lt;TourProvider instance={gf}&gt;
+      &lt;MyApp /&gt;
+    &lt;/TourProvider&gt;
+  );
+}
+
+function StartButton() {
+  const { start } = useTour();
+  return &lt;button onClick={() =&gt; start(onboardingFlow)}&gt;Start Tour&lt;/button&gt;;
+}</pre>
+
+    <h2>5. AI-Generated Tours</h2>
+    <pre>import { createAI, OpenAIProvider } from '@guideflow/ai';
+
+const gfWithAI = createAI(
+  new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }),
+  gf
+);
+
+const steps = await gfWithAI.ai.generate('Walk me through checkout');
+await gfWithAI.start({ id: 'ai-tour', steps });</pre>
+
+    <h2>6. Analytics</h2>
+    <pre>import { AnalyticsCollector, PostHogTransport } from '@guideflow/analytics';
+
+const collector = new AnalyticsCollector({ userId: currentUser.id })
+  .addTransport(new PostHogTransport());
+
+collector.attach(gf);</pre>
+  </main>
 </body>
 </html>

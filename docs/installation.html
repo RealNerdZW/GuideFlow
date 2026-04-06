@@ -1,51 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Installation - Guideflow Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        nav { background-color: #f4f4f4; padding: 10px; }
-        nav a { margin: 0 10px; text-decoration: none; }
-        code { background-color: #f4f4f4; padding: 2px 4px; }
-        pre { background-color: #f4f4f4; padding: 10px; overflow-x: auto; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation - GuideFlow.js</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; color: #1a1a1a; }
+    nav { background: #0f172a; padding: 14px 32px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover, nav a.active { color: #fff; }
+    nav .brand { color: #fff; font-weight: 700; font-size: 1rem; margin-right: auto; }
+    main { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 2rem; margin-bottom: 8px; }
+    h2 { font-size: 1.3rem; margin-top: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+    h3 { font-size: 1rem; margin-top: 24px; }
+    p, li { line-height: 1.7; color: #334155; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 0.88rem; line-height: 1.6; }
+    ul, ol { padding-left: 24px; } li { margin-bottom: 6px; }
+    .note { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; font-size: 0.9rem; color: #1e40af; }
+  </style>
 </head>
 <body>
-    <nav>
-        <a href="index.html">Home</a>
-        <a href="installation.html">Installation</a>
-        <a href="usage.html">Usage</a>
-        <a href="api-reference.html">API Reference</a>
-        <a href="examples.html">Examples</a>
-        <a href="faq.html">FAQ</a>
-        <a href="changelog.html">Changelog</a>
-        <a href="publishing.html">Publishing</a>
-    </nav>
-    <h1>Installation Guide</h1>
-    <p>This guide walks you through installing Guideflow on various platforms, including Windows, macOS, Linux, and web-based environments.</p>
-    <h2>Prerequisites</h2>
+  <nav>
+    <span class="brand">GuideFlow.js</span>
+    <a href="index.html">Home</a>
+    <a href="installation.html" class="active">Installation</a>
+    <a href="usage.html">Usage</a>
+    <a href="api-reference.html">API Reference</a>
+    <a href="examples.html">Examples</a>
+    <a href="faq.html">FAQ</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="publishing.html">Publishing</a>
+  </nav>
+  <main>
+    <h1>Installation</h1>
+    <p>GuideFlow.js requires <strong>Node.js &ge; 18</strong>.</p>
+
+    <h2>Install via npm</h2>
+    <pre>npm install @guideflow/core</pre>
+
+    <h2>Install via pnpm</h2>
+    <pre>pnpm add @guideflow/core</pre>
+
+    <h2>Install via yarn</h2>
+    <pre>yarn add @guideflow/core</pre>
+
+    <h2>Framework Packages</h2>
+    <p>Install the package for your framework alongside core:</p>
+    <pre># React
+npm install @guideflow/core @guideflow/react
+
+# Vue 3
+npm install @guideflow/core @guideflow/vue
+
+# Svelte
+npm install @guideflow/core @guideflow/svelte</pre>
+
+    <h2>Optional Packages</h2>
+    <pre># AI tour generation
+npm install @guideflow/ai
+
+# Analytics &amp; A/B testing
+npm install @guideflow/analytics
+
+# CLI tools
+npm install -g @guideflow/cli</pre>
+
+    <h2>Import Styles</h2>
+    <p>Import the default stylesheet once near your app entry point:</p>
+    <pre>import '@guideflow/core/styles';</pre>
+    <div class="note">The styles export is available as <code>@guideflow/core/styles</code>. Custom themes are available via CSS variables — see the <a href="usage.html">Usage guide</a>.</div>
+
+    <h2>CDN (UMD)</h2>
+    <p>For quick prototyping, load GuideFlow directly from a CDN:</p>
+    <pre>&lt;script src="https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.4/dist/index.global.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@guideflow/core@0.1.4/dist/styles/index.css"&gt;</pre>
+    <p>The UMD build exposes <code>GuideFlow.createGuideFlow</code> on the global scope.</p>
+
+    <h2>Next Steps</h2>
     <ul>
-        <li>Node.js (version 14 or higher)</li>
-        <li>Git</li>
-        <li>A code editor (e.g., VS Code)</li>
+      <li><a href="usage.html">Usage Guide</a> — create your first tour</li>
+      <li><a href="api-reference.html">API Reference</a> — full API docs</li>
     </ul>
-    <h2>Installation Steps</h2>
-    <ol>
-        <li>Clone the repository: <code>git clone https://github.com/your-repo/guideflow.git</code></li>
-        <li>Navigate to the directory: <code>cd guideflow</code></li>
-        <li>Install dependencies: <code>npm install</code></li>
-        <li>Run the application: <code>npm start</code></li>
-    </ol>
-    <h2>Web Deployment</h2>
-    <p>For GitHub Pages deployment:</p>
-    <pre>
-npm run build
-git add dist/
-git commit -m "Deploy to GitHub Pages"
-git push origin main
-    </pre>
-    <p>All scenarios, including offline installations and cloud deployments, are supported.</p>
+  </main>
 </body>
 </html>

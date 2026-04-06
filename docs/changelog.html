@@ -1,38 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Changelog - Guideflow Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        nav { background-color: #f4f4f4; padding: 10px; }
-        nav a { margin: 0 10px; text-decoration: none; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Changelog - GuideFlow.js</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; color: #1a1a1a; }
+    nav { background: #0f172a; padding: 14px 32px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover, nav a.active { color: #fff; }
+    nav .brand { color: #fff; font-weight: 700; font-size: 1rem; margin-right: auto; }
+    main { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.3rem; margin-top: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+    p, li { line-height: 1.7; color: #334155; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    ul { padding-left: 24px; } li { margin-bottom: 6px; }
+    .version-badge { display: inline-block; background: #dbeafe; color: #1d4ed8; font-size: 0.75rem; padding: 2px 8px; border-radius: 9999px; margin-left: 8px; vertical-align: middle; }
+  </style>
 </head>
 <body>
-    <nav>
-        <a href="index.html">Home</a>
-        <a href="installation.html">Installation</a>
-        <a href="usage.html">Usage</a>
-        <a href="api-reference.html">API Reference</a>
-        <a href="examples.html">Examples</a>
-        <a href="faq.html">FAQ</a>
-        <a href="changelog.html">Changelog</a>
-        <a href="publishing.html">Publishing</a>
-    </nav>
+  <nav>
+    <span class="brand">GuideFlow.js</span>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+    <a href="usage.html">Usage</a>
+    <a href="api-reference.html">API Reference</a>
+    <a href="examples.html">Examples</a>
+    <a href="faq.html">FAQ</a>
+    <a href="changelog.html" class="active">Changelog</a>
+    <a href="publishing.html">Publishing</a>
+  </nav>
+  <main>
     <h1>Changelog</h1>
-    <h2>Version 2.0 (Latest)</h2>
+
+    <h2>v0.1.4 <span class="version-badge">Latest</span></h2>
+    <p>Released: April 7, 2026</p>
     <ul>
-        <li>Added offline mode support.</li>
-        <li>Enhanced API for all scenarios.</li>
-        <li>Bug fixes for mobile views.</li>
+      <li>Complete API documentation for all packages: Vue, Svelte, AI, Analytics, and CLI</li>
+      <li>Updated static documentation site with accurate GuideFlow.js content</li>
+      <li>Consistent styling across all docs pages</li>
     </ul>
-    <h2>Version 1.5</h2>
+
+    <h2>v0.1.3</h2>
     <ul>
-        <li>Introduced collaboration features.</li>
-        <li>Improved decision tree logic.</li>
+      <li>Initial public release of all <code>@guideflow/*</code> packages</li>
+      <li>Core FSM engine with zero dependencies</li>
+      <li>React bindings: <code>TourProvider</code>, <code>useTour()</code>, <code>TourStep</code>, <code>GuidePopover</code></li>
+      <li>Vue 3 plugin and <code>useTour()</code> composable</li>
+      <li>Svelte <code>createTourStore()</code></li>
+      <li>AI package with OpenAI, Anthropic, Ollama, and Mock providers</li>
+      <li>Analytics package with PostHog, Mixpanel, Amplitude, Segment, and Webhook transports</li>
+      <li>Deterministic A/B testing via <code>ExperimentEngine</code></li>
+      <li>CLI commands: <code>init</code>, <code>studio</code>, <code>export</code>, <code>push</code></li>
+      <li>VitePress documentation site</li>
+      <li>GitHub Actions CI/CD pipeline</li>
+      <li>Themes: Minimal, Bold, Enterprise, Brutalist</li>
     </ul>
-    <p>Full history covers all updates.</p>
+  </main>
 </body>
 </html>

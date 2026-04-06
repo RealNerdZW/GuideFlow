@@ -3,27 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Publishing to npm &amp; jsDelivr - Guideflow Documentation</title>
+    <title>Publishing to npm &amp; jsDelivr - GuideFlow.js</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
-        nav { background-color: #f4f4f4; padding: 10px; }
-        nav a { margin: 0 10px; text-decoration: none; }
-        h1, h2, h3 { color: #333; }
-        code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 3px; }
-        pre { background-color: #f4f4f4; padding: 14px; overflow-x: auto; border-radius: 4px; }
-        table { border-collapse: collapse; width: 100%; margin: 16px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f9f9f9; }
-        .note { background-color: #fff8e1; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 16px 0; border-radius: 0 4px 4px 0; }
-        .warning { background-color: #fce4ec; border-left: 4px solid #e53935; padding: 12px 16px; margin: 16px 0; border-radius: 0 4px 4px 0; }
-        .success { background-color: #e8f5e9; border-left: 4px solid #43a047; padding: 12px 16px; margin: 16px 0; border-radius: 0 4px 4px 0; }
-        details { margin: 12px 0; }
-        summary { cursor: pointer; font-weight: bold; padding: 8px 0; }
-        hr { border: none; border-top: 1px solid #e0e0e0; margin: 32px 0; }
+      *, *::before, *::after { box-sizing: border-box; }
+      body { font-family: system-ui, -apple-system, sans-serif; margin: 0; line-height: 1.6; color: #1a1a1a; }
+      nav { background: #0f172a; padding: 14px 32px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+      nav a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+      nav a:hover, nav a.active { color: #fff; }
+      nav .brand { color: #fff; font-weight: 700; font-size: 1rem; margin-right: auto; }
+      h1, h2, h3 { color: #0f172a; }
+      code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+      pre { background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 0.88rem; line-height: 1.6; }
+      table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+      th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 0.9rem; }
+      th { background: #f8fafc; }
+      .note { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
+      .warning { background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
+      .success { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; margin: 16px 0; border-radius: 0 6px 6px 0; font-size: 0.9rem; }
+      details { margin: 12px 0; }
+      summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+      hr { border: none; border-top: 1px solid #e2e8f0; margin: 32px 0; }
+      main { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
     </style>
 </head>
 <body>
     <nav>
+        <span class="brand">GuideFlow.js</span>
         <a href="index.html">Home</a>
         <a href="installation.html">Installation</a>
         <a href="usage.html">Usage</a>
@@ -31,9 +36,9 @@
         <a href="examples.html">Examples</a>
         <a href="faq.html">FAQ</a>
         <a href="changelog.html">Changelog</a>
-        <a href="publishing.html">Publishing</a>
+        <a href="publishing.html" class="active">Publishing</a>
     </nav>
-
+  <main>
     <h1>Publishing to npm &amp; jsDelivr</h1>
     <p>This guide covers everything you need to publish GuideFlow packages to <strong>npm</strong> and serve them via <strong>jsDelivr</strong>&apos;s global CDN. It is written for the GuideFlow monorepo which uses <strong>pnpm workspaces</strong>, <strong>Turborepo</strong>, and <strong>Changesets</strong>.</p>
 
@@ -539,5 +544,6 @@ git push --follow-tags</pre>
     <hr>
 
     <p>&larr; <a href="index.html">Back to Home</a></p>
+  </main>
 </body>
 </html>

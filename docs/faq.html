@@ -1,33 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FAQ - Guideflow Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        nav { background-color: #f4f4f4; padding: 10px; }
-        nav a { margin: 0 10px; text-decoration: none; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQ - GuideFlow.js</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; color: #1a1a1a; }
+    nav { background: #0f172a; padding: 14px 32px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover, nav a.active { color: #fff; }
+    nav .brand { color: #fff; font-weight: 700; font-size: 1rem; margin-right: auto; }
+    main { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.15rem; margin-top: 28px; color: #1e3a5f; }
+    p, li { line-height: 1.7; color: #334155; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    .q { font-weight: 600; color: #0f172a; margin-bottom: 4px; }
+    .a { margin: 0 0 20px 0; }
+  </style>
 </head>
 <body>
-    <nav>
-        <a href="index.html">Home</a>
-        <a href="installation.html">Installation</a>
-        <a href="usage.html">Usage</a>
-        <a href="api-reference.html">API Reference</a>
-        <a href="examples.html">Examples</a>
-        <a href="faq.html">FAQ</a>
-        <a href="changelog.html">Changelog</a>
-        <a href="publishing.html">Publishing</a>
-    </nav>
+  <nav>
+    <span class="brand">GuideFlow.js</span>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+    <a href="usage.html">Usage</a>
+    <a href="api-reference.html">API Reference</a>
+    <a href="examples.html">Examples</a>
+    <a href="faq.html" class="active">FAQ</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="publishing.html">Publishing</a>
+  </nav>
+  <main>
     <h1>Frequently Asked Questions</h1>
+
+    <h2>General</h2>
+    <p class="q">What is GuideFlow.js?</p>
+    <p class="a">GuideFlow.js is an open-source product tour library that uses a finite-state machine engine. It supports React, Vue, Svelte, and vanilla JavaScript, with optional AI-powered tour generation.</p>
+
+    <p class="q">Does it have runtime dependencies?</p>
+    <p class="a">No. <code>@guideflow/core</code> ships with zero runtime dependencies and is tree-shakeable.</p>
+
+    <p class="q">What Node.js version is required?</p>
+    <p class="a">Node.js &ge; 18.0.0 is required.</p>
+
     <h2>Installation</h2>
-    <p><strong>Q:</strong> Does Guideflow work on mobile?<br><strong>A:</strong> Yes, via web browsers.</p>
+    <p class="q">Do I need to install all packages?</p>
+    <p class="a">No. Install only what you need. At minimum: <code>@guideflow/core</code>. Add a framework package (<code>@guideflow/react</code>, <code>@guideflow/vue</code>, or <code>@guideflow/svelte</code>) for framework-specific bindings.</p>
+
+    <p class="q">Can I use GuideFlow.js via CDN?</p>
+    <p class="a">Yes. The UMD build is available via jsDelivr: <code>https://cdn.jsdelivr.net/npm/@guideflow/core@latest/dist/index.global.js</code></p>
+
     <h2>Usage</h2>
-    <p><strong>Q:</strong> Can I edit guides collaboratively?<br><strong>A:</strong> Yes, with sharing features.</p>
-    <h2>API</h2>
-    <p><strong>Q:</strong> How to handle errors?<br><strong>A:</strong> Use try-catch in API calls.</p>
-    <p>All common scenarios are addressed here.</p>
+    <p class="q">How do I create branching flows?</p>
+    <p class="a">Use the <code>on</code> map in each FSM state to define transitions. For example, <code>on: { NEXT: 'step-2', SKIP: 'step-3' }</code> creates two possible paths from a state.</p>
+
+    <p class="q">Can I persist tour progress across page reloads?</p>
+    <p class="a">Yes. Pass <code>persistence: 'localStorage'</code> (or <code>'sessionStorage'</code>) to <code>createGuideFlow()</code>. You can also implement a custom <code>ProgressStore</code>.</p>
+
+    <p class="q">Can I use GuideFlow.js with SSR (Next.js, Nuxt, SvelteKit)?</p>
+    <p class="a">Yes. GuideFlow guards all DOM access with <code>isBrowser</code> checks. Start tours inside <code>useEffect</code> / <code>onMounted</code> / <code>browser</code> blocks to avoid hydration issues.</p>
+
+    <h2>AI</h2>
+    <p class="q">Which AI providers are supported?</p>
+    <p class="a">OpenAI (GPT-4o), Anthropic (Claude), Ollama (local), and a Mock provider for tests. You can also implement the <code>AIProvider</code> interface for any custom backend.</p>
+
+    <p class="q">Is the AI package required?</p>
+    <p class="a">No. <code>@guideflow/ai</code> is fully optional and only loaded if you call <code>createAI()</code>.</p>
+
+    <h2>Analytics</h2>
+    <p class="q">Which analytics platforms are supported?</p>
+    <p class="a">PostHog, Mixpanel, Amplitude, Segment, and any HTTP webhook. You can also implement the <code>AnalyticsTransport</code> interface for custom destinations.</p>
+
+    <p class="q">How does A/B testing work?</p>
+    <p class="a">The <code>ExperimentEngine</code> uses a deterministic djb2 hash of <code>userId + experimentId</code> to assign variants client-side. The same user always gets the same variant without any server round-trip.</p>
+  </main>
 </body>
 </html>

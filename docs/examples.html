@@ -1,49 +1,153 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Examples - Guideflow Documentation</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        nav { background-color: #f4f4f4; padding: 10px; }
-        nav a { margin: 0 10px; text-decoration: none; }
-        code { background-color: #f4f4f4; padding: 2px 4px; }
-        pre { background-color: #f4f4f4; padding: 10px; overflow-x: auto; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Examples - GuideFlow.js</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; color: #1a1a1a; }
+    nav { background: #0f172a; padding: 14px 32px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+    nav a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    nav a:hover, nav a.active { color: #fff; }
+    nav .brand { color: #fff; font-weight: 700; font-size: 1rem; margin-right: auto; }
+    main { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.3rem; margin-top: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+    p, li { line-height: 1.7; color: #334155; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 0.88rem; line-height: 1.6; }
+    ul { padding-left: 24px; } li { margin-bottom: 6px; }
+  </style>
 </head>
 <body>
-    <nav>
-        <a href="index.html">Home</a>
-        <a href="installation.html">Installation</a>
-        <a href="usage.html">Usage</a>
-        <a href="api-reference.html">API Reference</a>
-        <a href="examples.html">Examples</a>
-        <a href="faq.html">FAQ</a>
-        <a href="changelog.html">Changelog</a>
-        <a href="publishing.html">Publishing</a>
-    </nav>
+  <nav>
+    <span class="brand">GuideFlow.js</span>
+    <a href="index.html">Home</a>
+    <a href="installation.html">Installation</a>
+    <a href="usage.html">Usage</a>
+    <a href="api-reference.html">API Reference</a>
+    <a href="examples.html" class="active">Examples</a>
+    <a href="faq.html">FAQ</a>
+    <a href="changelog.html">Changelog</a>
+    <a href="publishing.html">Publishing</a>
+  </nav>
+  <main>
     <h1>Examples</h1>
-    <p>This page provides real-world examples for all Guideflow scenarios.</p>
-    <h2>Example 1: Educational Tutorial</h2>
-    <p>Create a math lesson with branching quizzes.</p>
-    <pre>
-Guide: "Math Basics"
-Step 1: "What is 2+2?" (Options: 4, 5)
-If correct, proceed; else, retry.
-    </pre>
-    <h2>Example 2: Onboarding Flow</h2>
-    <p>Automate new employee setup.</p>
-    <pre>
-Step 1: Complete profile.
-Step 2: Assign tasks based on role.
-    </pre>
-    <h2>Example 3: Decision Tree</h2>
-    <p>Customer support triage.</p>
-    <pre>
-Question: "Issue type?" (Options: Technical, Billing)
-Branch to relevant support.
-    </pre>
-    <p>More examples cover offline sync, API integration, and collaboration.</p>
+
+    <h2>Basic Onboarding Tour (Vanilla JS)</h2>
+    <pre>import { createGuideFlow } from '@guideflow/core';
+import '@guideflow/core/styles';
+
+const gf = createGuideFlow({ theme: 'minimal' });
+
+await gf.start({
+  id: 'onboarding',
+  initial: 'step-1',
+  states: {
+    'step-1': {
+      steps: [{ id: 'step-1', content: { title: 'Welcome!', body: 'Let us show you around.' }, target: '#header', placement: 'bottom' }],
+      on: { NEXT: 'step-2' },
+    },
+    'step-2': {
+      steps: [{ id: 'step-2', content: { title: 'Dashboard', body: 'All your data lives here.' }, target: '#dashboard', placement: 'right' }],
+      on: {},
+      final: true,
+    },
+  },
+});</pre>
+
+    <h2>React — useTour Hook</h2>
+    <pre>import { TourProvider, useTour } from '@guideflow/react';
+import { gf } from './guideflow';
+import { onboardingFlow } from './flows/onboarding';
+
+function App() {
+  return (
+    &lt;TourProvider instance={gf}&gt;
+      &lt;StartButton /&gt;
+    &lt;/TourProvider&gt;
+  );
+}
+
+function StartButton() {
+  const { start, stop, next, isActive, currentStepIndex, totalSteps } = useTour();
+  return (
+    &lt;div&gt;
+      &lt;button onClick={() =&gt; start(onboardingFlow)}&gt;Start Tour&lt;/button&gt;
+      {isActive &amp;&amp; (
+        &lt;span&gt;Step {currentStepIndex + 1} / {totalSteps}&lt;/span&gt;
+      )}
+    &lt;/div&gt;
+  );
+}</pre>
+
+    <h2>Vue 3 — useTour Composable</h2>
+    <pre>&lt;script setup&gt;
+import { useTour } from '@guideflow/vue';
+import onboardingFlow from './flows/onboarding';
+
+const tour = useTour();
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;button @click="tour.start(onboardingFlow)"&gt;Start Tour&lt;/button&gt;
+  &lt;p v-if="tour.isActive.value"&gt;
+    Step {{ tour.currentStepIndex.value + 1 }} of {{ tour.totalSteps.value }}
+  &lt;/p&gt;
+&lt;/template&gt;</pre>
+
+    <h2>Svelte — createTourStore</h2>
+    <pre>&lt;script&gt;
+  import { createTourStore } from '@guideflow/svelte';
+  import myFlow from './flows/onboarding';
+
+  const tour = createTourStore({ theme: 'bold' });
+&lt;/script&gt;
+
+&lt;button on:click={() =&gt; tour.start(myFlow)}&gt;Start&lt;/button&gt;
+
+{#if $tour.isActive}
+  &lt;p&gt;Step {$tour.currentStepIndex + 1} of {$tour.totalSteps}&lt;/p&gt;
+{/if}</pre>
+
+    <h2>AI-Generated Tour</h2>
+    <pre>import { createGuideFlow } from '@guideflow/core';
+import { createAI, OpenAIProvider } from '@guideflow/ai';
+
+const gf = createAI(
+  new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }),
+  createGuideFlow({})
+);
+
+// Generate a tour from a natural language prompt
+const steps = await gf.ai.generate('Walk the user through creating a new project');
+await gf.start({ id: 'ai-tour', steps });
+
+// Answer a user question
+const answer = await gf.ai.chat('Where do I find my billing settings?');
+console.log(answer.answer);</pre>
+
+    <h2>Analytics + A/B Testing</h2>
+    <pre>import { createGuideFlow } from '@guideflow/core';
+import { AnalyticsCollector, PostHogTransport, ExperimentEngine } from '@guideflow/analytics';
+
+// A/B test the tour theme
+const engine = new ExperimentEngine(currentUser.id);
+const { value: theme } = engine.assign({
+  id: 'tour-theme',
+  variants: [
+    { id: 'control', value: 'minimal' },
+    { id: 'treatment', value: 'bold' },
+  ],
+});
+
+const gf = createGuideFlow({ theme });
+
+// Track events
+new AnalyticsCollector({ userId: currentUser.id })
+  .addTransport(new PostHogTransport())
+  .attach(gf);</pre>
+  </main>
 </body>
 </html>
