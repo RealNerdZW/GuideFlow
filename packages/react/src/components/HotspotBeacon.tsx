@@ -36,6 +36,7 @@ export function HotspotBeacon({ target, ...options }: HotspotBeaconProps): null 
         idRef.current = null
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gf, target])
 
   return null

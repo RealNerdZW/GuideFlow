@@ -92,6 +92,7 @@ export function useHotspot(
         idRef.current = null
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gf, targetRef])
 
   return { id: idRef.current }
