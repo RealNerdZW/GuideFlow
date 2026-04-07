@@ -26,7 +26,10 @@ export default defineConfig({
   // Static sitemap.xml lives in public/ — only priority pages, not every doc
 
   head: [
-    ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/GuideFlow/favicon-32x32.png' }],
+    ['link', { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/GuideFlow/favicon-16x16.png' }],
+    ['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/GuideFlow/apple-touch-icon.png' }],
+    ['link', { rel: 'icon', href: '/GuideFlow/favicon.svg', type: 'image/svg+xml' }],
     ['meta', { name: 'google-site-verification', content: '1J0N9Y8BUH5i51OK_NqAPKYAay-BURoxm9UmJ1d28I8' }],
     // Open Graph — global defaults (overridden per-page via transformPageData)
     ['meta', { property: 'og:type', content: 'website' }],
@@ -78,6 +81,7 @@ export default defineConfig({
               '@id': `${SITE_URL}/#website`,
               url: `${SITE_URL}/`,
               name: SITE_TITLE,
+              alternateName: ['GuideFlow', 'guideflow.js'],
               description: SITE_DESCRIPTION,
               inLanguage: 'en-US',
             },
