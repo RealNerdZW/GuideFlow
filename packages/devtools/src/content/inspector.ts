@@ -2,10 +2,13 @@
  * Content script — injected into every page by the GuideFlow DevTools extension.
  *
  * Responsibilities:
- *  - Detect whether GuideFlow is present on the page
- *  - Enable element inspection mode (point-and-click step builder)
- *  - Relay GuideFlow internal events to the DevTools panel via the background
- *  - Handle commands from the DevTools panel (start tour, highlight element, …)
+ *  - Inject the bridge.js script into the PAGE world so it can access
+ *    `window.__guideflow` (content scripts run in an isolated JS world
+ *    and cannot access page globals directly).
+ *  - Relay bridge messages (via window.postMessage) to the background
+ *    service-worker through chrome.runtime.sendMessage.
+ *  - Enable element inspection mode (point-and-click step builder).
+ *  - Handle commands from the DevTools panel.
  */
 
 // ---------------------------------------------------------------------------
@@ -17,14 +20,53 @@ interface GFMessage {
   payload?: unknown;
 }
 
-interface WindowWithGF extends Window {
-  __guideflow?: {
-    on: (event: string, handler: (...args: unknown[]) => void) => () => void;
-    start: (flow: unknown) => void;
-    /** Returns all registered flows (added in @guideflow/core 0.x+). */
-    listFlows?: () => unknown[];
-  };
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Sentinel value emitted by bridge.ts → content script direction. */
+const BRIDGE_SOURCE = '__gf_bridge__';
+/** Sentinel value emitted by content script → bridge.ts direction. */
+const CONTENT_SOURCE = '__gf_content__';
+
+// ---------------------------------------------------------------------------
+// Bridge injection
+// ---------------------------------------------------------------------------
+
+let bridgeInjected = false;
+
+function injectBridge(): void {
+  if (bridgeInjected) return;
+  bridgeInjected = true;
+
+  const url = chrome.runtime.getURL('bridge.js');
+  const script = document.createElement('script');
+  script.src = url;
+  script.type = 'module';
+  script.onload = () => script.remove(); // Clean up DOM after execution
+  (document.head || document.documentElement).appendChild(script);
 }
+
+// Inject as early as possible
+injectBridge();
+
+// ---------------------------------------------------------------------------
+// Bridge ↔ background relay
+// ---------------------------------------------------------------------------
+
+/**
+ * Listen for postMessage from the bridge script (running in the page world)
+ * and forward them to the extension background via chrome.runtime.sendMessage.
+ */
+window.addEventListener('message', (event: MessageEvent) => {
+  if (event.source !== window) return;
+  if (event.data?.source !== BRIDGE_SOURCE) return;
+
+  const { type, payload } = event.data;
+  chrome.runtime.sendMessage({ type, payload }).catch(() => {
+    // Extension context may be invalidated after reload
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -32,6 +74,14 @@ interface WindowWithGF extends Window {
 
 function send(msg: GFMessage): void {
   chrome.runtime.sendMessage(msg).catch(() => {});
+}
+
+/**
+ * Forward a command from the DevTools panel to the bridge script in the page
+ * world via window.postMessage.
+ */
+function sendToBridge(msg: GFMessage): void {
+  window.postMessage({ source: CONTENT_SOURCE, ...msg }, '*');
 }
 
 // ---------------------------------------------------------------------------
@@ -107,57 +157,19 @@ function stopInspect(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Relay GuideFlow events to panel
-// ---------------------------------------------------------------------------
-
-function relayGuideFlowEvents(): void {
-  const gf = (window as WindowWithGF).__guideflow;
-  if (!gf?.on) return;
-
-  // Use the exact event names emitted by @guideflow/core TourEvents
-  const EVENTS = [
-    'tour:start', 'tour:complete', 'tour:abandon', 'tour:pause', 'tour:resume',
-    'step:enter', 'step:exit', 'step:skip',
-    'hotspot:open', 'hotspot:close', 'hint:click',
-  ];
-
-  EVENTS.forEach((evt) => {
-    gf.on(evt, (...args: unknown[]) => {
-      send({ type: 'GF_TOUR_EVENT', payload: { event: evt, args } });
-    });
-  });
-
-  // Send initial flow list if available
-  const flows = gf.listFlows?.();
-  if (flows && flows.length > 0) {
-    send({ type: 'GF_FLOWS_LIST', payload: flows });
-  }
-}
-
-// Retry relay a few times in case GuideFlow initialises after the script runs
-let relayAttempts = 0;
-function tryRelay(): void {
-  if ((window as WindowWithGF).__guideflow) {
-    relayGuideFlowEvents();
-    send({ type: 'GF_DETECTED' });
-    return;
-  }
-  if (relayAttempts < 10) {
-    relayAttempts++;
-    setTimeout(tryRelay, 500);
-  }
-}
-
-tryRelay();
-
-// ---------------------------------------------------------------------------
 // Handle commands from DevTools panel (via background)
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((msg: GFMessage) => {
   switch (msg.type) {
     case 'GF_DEVTOOLS_OPEN':
-      send({ type: 'GF_PING' });
+      // Re-inject bridge in case the page has navigated
+      injectBridge();
+      // Ask the bridge (running in the page world) to re-check
+      // window.__guideflow and re-send GF_DETECTED + flow list.
+      // This handles the common case where the page loaded before
+      // the user opened DevTools.
+      sendToBridge({ type: 'GF_PROBE' });
       break;
 
     case 'GF_START_INSPECT':
@@ -168,13 +180,15 @@ chrome.runtime.onMessage.addListener((msg: GFMessage) => {
       stopInspect();
       break;
 
-    case 'GF_START_TOUR': {
-      const gf = (window as WindowWithGF).__guideflow;
-      if (gf?.start) {
-        gf.start(msg.payload);
-      }
+    case 'GF_START_TOUR':
+      // Forward to bridge.ts in the page world
+      sendToBridge({ type: 'GF_START_TOUR', payload: msg.payload });
       break;
-    }
+
+    case 'GF_LIST_FLOWS':
+      // Ask bridge to enumerate registered flows
+      sendToBridge({ type: 'GF_LIST_FLOWS' });
+      break;
 
     case 'GF_HIGHLIGHT_SELECTOR': {
       const sel = msg.payload as string;
@@ -182,6 +196,7 @@ chrome.runtime.onMessage.addListener((msg: GFMessage) => {
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         el.classList.add(HIGHLIGHT_CLASS);
+        injectHighlightStyle();
         setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), 2000);
       }
       break;

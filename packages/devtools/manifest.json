@@ -26,7 +26,13 @@
       "run_at": "document_idle"
     }
   ],
-  "devtools_page": "panel.html",
+  "devtools_page": "devtools.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["bridge.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "action": {
     "default_title": "GuideFlow DevTools",
     "default_icon": {

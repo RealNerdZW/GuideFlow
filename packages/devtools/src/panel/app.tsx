@@ -110,13 +110,17 @@ const S = {
 // PostMessage bridge (panel ↔ background ↔ content)
 // ---------------------------------------------------------------------------
 
+/**
+ * Send a message from the panel to the content script running on the
+ * inspected page.  Uses `chrome.devtools.inspectedWindow.tabId` so the
+ * message reaches the correct tab even when DevTools is undocked in a
+ * separate window (chrome.tabs.query would return the wrong tab).
+ */
 function sendToContent(msg: { type: string; payload?: unknown }) {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const tabId = tabs[0]?.id;
-    if (tabId) {
-      chrome.tabs.sendMessage(tabId, msg).catch(() => {});
-    }
-  });
+  const tabId = chrome.devtools.inspectedWindow.tabId;
+  if (tabId) {
+    chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -345,6 +349,28 @@ function App() {
   const [flows, setFlows] = useState<unknown[]>([]);
 
   useEffect(() => {
+    const tabId = chrome.devtools.inspectedWindow.tabId;
+
+    // ----- Port-based connection to background service worker -----
+    // This enables the background to route content-script messages
+    // directly to this panel instance (keyed by inspected tab ID).
+    const port = chrome.runtime.connect({ name: `devtools:${tabId}` });
+
+    const portHandler = (msg: { type: string; payload?: unknown }) => {
+      if (msg.type === 'GF_DETECTED') setDetected(true);
+      if (msg.type === 'GF_TOUR_EVENT') {
+        const { event, args } = msg.payload as { event: string; args: unknown[] };
+        setEvents((prev) => [...prev.slice(-199), { event, args, ts: Date.now() }]);
+      }
+      if (msg.type === 'GF_FLOWS_LIST') setFlows(msg.payload as unknown[]);
+      if (msg.type === 'GF_ELEMENT_SELECTED') {
+        // Forward to BuilderTab listeners
+        chrome.runtime.sendMessage(msg).catch(() => {});
+      }
+    };
+    port.onMessage.addListener(portHandler);
+
+    // ----- Broadcast listener (fallback for messages not routed via port) -----
     const handler = (msg: { type: string; payload?: unknown }) => {
       if (msg.type === 'GF_DETECTED') setDetected(true);
       if (msg.type === 'GF_TOUR_EVENT') {
@@ -354,9 +380,14 @@ function App() {
       if (msg.type === 'GF_FLOWS_LIST') setFlows(msg.payload as unknown[]);
     };
     chrome.runtime.onMessage.addListener(handler);
+
     // Ping content on mount to check GuideFlow presence
     sendToContent({ type: 'GF_DEVTOOLS_OPEN' });
-    return () => chrome.runtime.onMessage.removeListener(handler);
+
+    return () => {
+      port.disconnect();
+      chrome.runtime.onMessage.removeListener(handler);
+    };
   }, []);
 
   return (
