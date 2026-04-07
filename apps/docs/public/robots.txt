@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://realnerdZW.github.io/GuideFlow/sitemap.xml
+Sitemap: https://realnerdzw.github.io/GuideFlow/sitemap.xml

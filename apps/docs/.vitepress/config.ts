@@ -1,6 +1,6 @@
 import { defineConfig, type PageData } from 'vitepress';
 
-const SITE_URL = 'https://realnerdZW.github.io/GuideFlow';
+const SITE_URL = 'https://realnerdzw.github.io/GuideFlow';
 const SITE_TITLE = 'GuideFlow.js';
 const SITE_DESCRIPTION = 'AI-powered product tours. Guide users like you know them. Open-source tour library for React, Vue, Svelte & Vanilla JS.';
 const OG_IMAGE = `${SITE_URL}/hero.svg`;
@@ -23,9 +23,7 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
 
-  sitemap: {
-    hostname: `${SITE_URL}/`,
-  },
+  // Static sitemap.xml lives in public/ — only priority pages, not every doc
 
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
@@ -277,6 +275,23 @@ export default defineConfig({
             { text: 'Brutalist', link: '/themes/brutalist' },
             { text: 'Enterprise', link: '/themes/enterprise' },
             { text: 'Custom Tokens', link: '/themes/custom' },
+          ],
+        },
+      ],
+
+      '/packages/': [
+        {
+          text: 'Packages',
+          items: [
+            { text: 'Overview', link: '/packages/' },
+            { text: '@guideflow/core', link: '/packages/core' },
+            { text: '@guideflow/react', link: '/packages/react' },
+            { text: '@guideflow/vue', link: '/packages/vue' },
+            { text: '@guideflow/svelte', link: '/packages/svelte' },
+            { text: '@guideflow/ai', link: '/packages/ai' },
+            { text: '@guideflow/analytics', link: '/packages/analytics' },
+            { text: '@guideflow/cli', link: '/packages/cli' },
+            { text: '@guideflow/devtools', link: '/packages/devtools' },
           ],
         },
       ],
