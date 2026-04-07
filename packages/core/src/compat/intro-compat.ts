@@ -107,6 +107,7 @@ export function scanAttributeTour(
 
 /**
  * Watch for dynamically added attribute-tour elements using MutationObserver.
+ * Debounced to prevent re-triggering from GuideFlow's own DOM mutations.
  */
 export function watchAttributeTour(
   callback: (flow: FlowDefinition) => void,
@@ -115,11 +116,27 @@ export function watchAttributeTour(
   if (!isBrowser()) return () => { /* noop */ }
 
   const target = root ?? document.body
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let scanning = false
+
   const obs = new MutationObserver(() => {
-    // Pass `root` so only the scoped subtree is scanned, not the whole document
-    const flow = scanAttributeTour(root)
-    if (flow) callback(flow)
+    // Debounce rapid DOM mutations (e.g. GuideFlow's own spotlight/popover creation)
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      if (scanning) return
+      scanning = true
+      try {
+        // Pass `root` so only the scoped subtree is scanned, not the whole document
+        const flow = scanAttributeTour(root)
+        if (flow) callback(flow)
+      } finally {
+        scanning = false
+      }
+    }, 300)
   })
   obs.observe(target, { childList: true, subtree: true, attributes: true, attributeFilter: [ATTR_STEP] })
-  return () => obs.disconnect()
+  return () => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    obs.disconnect()
+  }
 }

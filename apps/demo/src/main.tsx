@@ -7,7 +7,7 @@ import {
   type AnalyticsTransport,
 } from '@guideflow/analytics'
 import { createGuideFlow, LocalStorageDriver } from '@guideflow/core'
-import { GuidePopover, TourProvider } from '@guideflow/react'
+import { TourProvider } from '@guideflow/react'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -70,18 +70,22 @@ const bufferTransport: AnalyticsTransport = {
   },
 }
 
-// WebhookTransport — will 404 in demo, but demonstrates the transport chain
-const webhookTransport = new WebhookTransport({
-  url: '/api/analytics',  // replace with a real endpoint in production
-})
-
 export const collector = new AnalyticsCollector({
   userId: 'demo-user',
   globalProperties: { app: 'guideflow-demo', version: '0.1.0' },
 })
 collector.addTransport(consoleTransport)
 collector.addTransport(bufferTransport)
-collector.addTransport(webhookTransport)
+
+// WebhookTransport — only registered in production to avoid 405 errors from
+// the Vite dev server which has no /api/analytics POST handler.
+if (import.meta.env.PROD) {
+  const webhookTransport = new WebhookTransport({
+    url: '/api/analytics',  // replace with a real endpoint in production
+  })
+  collector.addTransport(webhookTransport)
+}
+
 collector.attach(gf)
 
 // ---------------------------------------------------------------------------
@@ -103,7 +107,6 @@ createRoot(container).render(
   <React.StrictMode>
     <TourProvider instance={gfWithAI}>
       <App instance={gfWithAI} collector={collector} capturedEvents={capturedEvents} />
-      <GuidePopover />
     </TourProvider>
   </React.StrictMode>,
 )

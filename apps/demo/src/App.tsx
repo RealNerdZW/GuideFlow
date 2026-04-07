@@ -289,7 +289,10 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
 
   const toggleAttrWatch = useCallback(() => {
     if (attrWatcher) { attrWatcher(); setAttrWatcher(null); return }
-    const stop = watchAttributeTour((flow) => { void gf.start(flow) })
+    const stop = watchAttributeTour((flow) => {
+      // Guard: don't restart a tour if one is already active
+      if (!gf.isActive) void gf.start(flow)
+    })
     setAttrWatcher(() => stop)
   }, [gf, attrWatcher])
 

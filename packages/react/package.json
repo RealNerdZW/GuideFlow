@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/react",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "GuideFlow React adapter — hooks and components",
   "keywords": [
     "guided-tour",

@@ -29,7 +29,7 @@ const SPOTLIGHT_CSS = `
   z-index: 999999;
   pointer-events: none;
   border-radius: var(--gf-spotlight-radius, 4px);
-  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, var(--gf-overlay-opacity, 0.5));
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, var(--gf-overlay-opacity, 0.5));
   transition: 
     top 200ms ease,
     left 200ms ease,
@@ -47,6 +47,8 @@ export class SpotlightOverlay {
   private _options: Required<SpotlightOptions>
   private _scrollHandler: (() => void) | null = null
   private _id: string
+  private _onOverlayClick: (() => void) | null = null
+  private _overlayClickHandler: ((e: MouseEvent) => void) | null = null
 
   constructor(options: SpotlightOptions = {}) {
     this._options = {
@@ -56,8 +58,14 @@ export class SpotlightOverlay {
       overlayColor: options.overlayColor ?? 'rgba(0,0,0,0)',
       overlayOpacity: options.overlayOpacity ?? 0.5,
       nonce: options.nonce ?? '',
+      dismissOnBackdropClick: options.dismissOnBackdropClick ?? true,
     }
     this._id = gfId('spotlight')
+  }
+
+  /** Register a callback invoked when the user clicks the backdrop overlay. */
+  setOverlayClickHandler(handler: (() => void) | null): void {
+    this._onOverlayClick = handler
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -79,6 +87,10 @@ export class SpotlightOverlay {
   hide(): void {
     if (this._overlayEl) {
       this._overlayEl.style.opacity = '0'
+      this._overlayEl.style.pointerEvents = 'none'
+    }
+    if (this._cutoutEl) {
+      this._cutoutEl.style.display = 'none'
     }
     this._detachObservers()
     this._currentTarget = null
@@ -86,6 +98,10 @@ export class SpotlightOverlay {
 
   destroy(): void {
     this._detachObservers()
+    if (this._overlayEl && this._overlayClickHandler) {
+      this._overlayEl.removeEventListener('click', this._overlayClickHandler)
+      this._overlayClickHandler = null
+    }
     this._overlayEl?.parentNode?.removeChild(this._overlayEl)
     this._cutoutEl?.parentNode?.removeChild(this._cutoutEl)
     this._overlayEl = null
@@ -117,6 +133,19 @@ export class SpotlightOverlay {
         pointer-events: all;
         transition: opacity 200ms ease;
       `
+      // Attach backdrop click handler
+      this._overlayClickHandler = (e: MouseEvent) => {
+        // Only fire if we're not in click-through mode and dismissal is enabled
+        if (
+          this._options.dismissOnBackdropClick &&
+          !this._overlayEl?.classList.contains('gf-clickthrough') &&
+          this._onOverlayClick
+        ) {
+          e.stopPropagation()
+          this._onOverlayClick()
+        }
+      }
+      this._overlayEl.addEventListener('click', this._overlayClickHandler)
       document.body.appendChild(this._overlayEl)
     }
 
@@ -134,6 +163,10 @@ export class SpotlightOverlay {
     }
 
     this._overlayEl.style.opacity = '1'
+    this._overlayEl.style.pointerEvents = 'all'
+    if (this._cutoutEl) {
+      this._cutoutEl.style.display = ''
+    }
   }
 
   private _update(): void {
@@ -165,7 +198,7 @@ export class SpotlightOverlay {
     this._cutoutEl.style.width = `${rect.width + pad * 2}px`
     this._cutoutEl.style.height = `${rect.height + pad * 2}px`
     this._cutoutEl.style.borderRadius = `${br}px`
-    this._cutoutEl.style.boxShadow = `0 0 0 100vmax rgba(0,0,0,${opacity})`
+    this._cutoutEl.style.boxShadow = `0 0 0 9999px rgba(0,0,0,${opacity})`
 
     if (this._overlayEl) {
       this._overlayEl.style.background = 'transparent'

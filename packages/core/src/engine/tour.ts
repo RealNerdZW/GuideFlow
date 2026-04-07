@@ -41,12 +41,19 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   /** True when step:exit has already been emitted for the active step (prevents double-emission). */
   private _stepExitEmitted = true
   private _paused = false
+  /** Monotonically increasing counter — used to cancel stale async _renderCurrentStep() calls. */
+  private _renderGeneration = 0
 
   constructor(options: TourEngineOptions<TContext>) {
     super()
     this._options = options
     this._renderer = options.renderer
     this._spotlight = new SpotlightOverlay(options.spotlight)
+
+    // Wire overlay backdrop click → tour dismissal
+    this._spotlight.setOverlayClickHandler(() => {
+      if (this._active) this.skip()
+    })
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -92,6 +99,8 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     this._flow = flow
     this._machine = new FlowMachine<TContext>(flow, context ?? this._options.context)
     this._active = true
+    // Bump generation to cancel any in-flight render from a previous tour
+    this._renderGeneration++
 
     this.emit('tour:start', { flowId: flow.id })
     this._log('Tour started:', flow.id)
@@ -186,6 +195,9 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   private async _renderCurrentStep(): Promise<void> {
     if (!this._machine) return
 
+    // Capture generation so we can detect if a newer render has been started
+    const gen = this._renderGeneration
+
     let step = this._machine.currentStep
     if (!step) return
 
@@ -210,42 +222,55 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
     if (!step) return
 
-    // Resolve async content
-    const content = await this._resolveContent(step)
+    try {
+      // Resolve async content
+      const content = await this._resolveContent(step)
+      // Abort if a newer render or tour end has superseded this one
+      if (gen !== this._renderGeneration) return
 
-    // Find target element
-    const target = this._resolveTarget(step)
+      // Find target element
+      const target = this._resolveTarget(step)
 
-    // Scroll into view if needed
-    if (target && step.scrollIntoView !== false) {
-      scrollTargetIntoView(target)
-      // Brief delay to let scroll settle before positioning
-      await this._sleep(150)
-    }
+      // Scroll into view if needed
+      if (target && step.scrollIntoView !== false) {
+        scrollTargetIntoView(target)
+        // Brief delay to let scroll settle before positioning
+        await this._sleep(150)
+        // Check again after async pause
+        if (gen !== this._renderGeneration) return
+      }
 
-    // Update spotlight — honour per-step padding override
-    if (isBrowser()) {
-      this._spotlight.show(target, {
-        ...this._options.spotlight,
-        ...(step.padding !== undefined && { padding: step.padding }),
+      // Update spotlight — honour per-step padding override
+      if (isBrowser()) {
+        this._spotlight.show(target, {
+          ...this._options.spotlight,
+          ...(step.padding !== undefined && { padding: step.padding }),
+        })
+        this._spotlight.setClickThrough(step.clickThrough ?? false)
+      }
+
+      // Store current step/content so external consumers (e.g. React GuidePopover) can read them
+      this._currentStep = step
+      this._currentContent = content
+      this._stepExitEmitted = false
+
+      // Emit event
+      this.emit('step:enter', {
+        stepId: step.id,
+        stepIndex: this._machine.stepIndex,
+        target,
       })
-      this._spotlight.setClickThrough(step.clickThrough ?? false)
+
+      // Delegate to renderer — cast away TContext since renderer never calls showIf
+      this._renderer.renderStep(step as Step, content, this._machine.stepIndex, this._machine.totalSteps)
+    } catch (err) {
+      // Error boundary — log, emit, and clean up so the page is not left in a broken state
+      const flowId = this._flow?.id ?? 'unknown'
+      const stepId = step?.id ?? 'unknown'
+      this._log('Error rendering step:', stepId, err)
+      this.emit('tour:error', { flowId, stepId, error: err })
+      this._doEnd(false)
     }
-
-    // Store current step/content so external consumers (e.g. React GuidePopover) can read them
-    this._currentStep = step
-    this._currentContent = content
-    this._stepExitEmitted = false
-
-    // Emit event
-    this.emit('step:enter', {
-      stepId: step.id,
-      stepIndex: this._machine.stepIndex,
-      target,
-    })
-
-    // Delegate to renderer — cast away TContext since renderer never calls showIf
-    this._renderer.renderStep(step as Step, content, this._machine.stepIndex, this._machine.totalSteps)
   }
 
   private async _resolveContent(step: Step<TContext>): Promise<StepContent> {
@@ -267,6 +292,8 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   private _doEnd(completed: boolean): void {
     if (!this._active) return
     this._active = false
+    // Bump generation to cancel any in-flight _renderCurrentStep() calls
+    this._renderGeneration++
 
     // Always emit step:exit before ending — guards against double-emission via _stepExitEmitted flag
     this._emitStepExit()

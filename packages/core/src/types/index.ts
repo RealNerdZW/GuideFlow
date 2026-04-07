@@ -128,6 +128,8 @@ export interface SpotlightOptions {
   overlayOpacity?: number
   /** Nonce for CSP-compliant style injection */
   nonce?: string
+  /** Whether clicking the backdrop overlay dismisses the tour (default: true). */
+  dismissOnBackdropClick?: boolean
 }
 
 // ── Popover ──────────────────────────────────────────────────────────────────
@@ -203,6 +205,7 @@ export interface TourEvents {
   'tour:abandon': { flowId: string; stepId: string; stepIndex: number }
   'tour:pause': { flowId: string; stepId: string }
   'tour:resume': { flowId: string; stepId: string }
+  'tour:error': { flowId: string; stepId: string; error: unknown }
   'step:enter': { stepId: string; stepIndex: number; target: Element | null }
   'step:exit': { stepId: string; stepIndex: number }
   'step:skip': { stepId: string }
