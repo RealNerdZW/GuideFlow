@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/ai",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "GuideFlow AI module — natural language tours, behavioral intent, conversational help",
   "keywords": [
     "guided-tour",
