@@ -2,13 +2,15 @@
 
 **AI-Powered Product Tours. Guide users like you know them.**
 
-[![Build](https://img.shields.io/github/actions/workflow/status/innfuture/guideflow/ci.yml?branch=main&label=build)](https://github.com/innfuture/guideflow/actions)
+[![Build](https://img.shields.io/github/actions/workflow/status/RealNerdZW/GuideFlow/ci.yml?branch=master&label=build)](https://github.com/RealNerdZW/GuideFlow/actions)
 [![npm version](https://img.shields.io/npm/v/@guideflow/core.svg)](https://www.npmjs.com/package/@guideflow/core)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/@guideflow/core?label=core%20gzip)](https://bundlephobia.com/package/@guideflow/core)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 
 GuideFlow is a modular, framework-agnostic product tour library with a built-in finite state machine engine, AI-powered tour generation, analytics, and A/B testing. It works with React, Vue, Svelte, or plain JavaScript.
+
+**[Documentation](https://realnerdzw.github.io/GuideFlow/)** · **[Live Demo](https://realnerdzw.github.io/GuideFlow/demo/)** · **[npm](https://www.npmjs.com/package/@guideflow/core)**
 
 ---
 
@@ -563,8 +565,8 @@ autoInit()
 ### Setup
 
 ```bash
-git clone https://github.com/innfuture/guideflow.git
-cd guideflow
+git clone https://github.com/RealNerdZW/GuideFlow.git
+cd GuideFlow
 pnpm install
 pnpm build
 ```
@@ -604,4 +606,4 @@ pnpm publish-packages
 
 ## License
 
-[MIT](LICENSE) © GuideFlow Contributors
+[MIT](LICENSE) © 2026 GuideFlow Contributors
