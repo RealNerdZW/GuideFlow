@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/devtools",
-  "version": "0.1.0",
+  "version": "0.1.6",
   "description": "Browser DevTools extension for GuideFlow.js — visual tour builder and flow inspector",
   "private": true,
   "type": "module",

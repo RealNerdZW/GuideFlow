@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/svelte",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "GuideFlow Svelte adapter — stores and components",
   "keywords": [
     "guided-tour",
