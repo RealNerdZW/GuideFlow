@@ -22,13 +22,6 @@ chrome.runtime.onConnect.addListener((port) => {
     port.onDisconnect.addListener(() => {
       devtoolsPorts.delete(tabId);
     });
-
-    // Forward messages from content script to panel
-    port.onMessage.addListener((msg: unknown) => {
-      chrome.tabs.sendMessage(tabId, msg).catch(() => {
-        // Tab may have navigated away
-      });
-    });
   }
 });
 
@@ -48,12 +41,12 @@ chrome.runtime.onMessage.addListener(
       }
     }
 
-    // Handle storage operations requested by the panel
+    // Handle storage operations requested by the panel (async sendResponse)
     if (message.type === 'GF_SAVE_FLOW') {
       void chrome.storage.local.set({ [`gf_flow_${Date.now()}`]: message.payload }, () => {
         sendResponse({ ok: true });
       });
-      return true;
+      return true; // Keep channel open for async sendResponse
     }
 
     if (message.type === 'GF_LOAD_FLOWS') {
@@ -63,11 +56,11 @@ chrome.runtime.onMessage.addListener(
           .map(([, v]) => v as unknown);
         sendResponse({ flows });
       });
-      return true;
+      return true; // Keep channel open for async sendResponse
     }
 
-    sendResponse({ ok: true });
-    return true;
+    // For all other messages, don't keep the channel open
+    return undefined;
   },
 );
 

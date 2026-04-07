@@ -8,9 +8,18 @@
  * content script through `window.postMessage`.
  */
 
+// Force TypeScript to treat this as a module (isolated scope)
+export {};
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface BridgeMessage {
+  source?: string;
+  type?: string;
+  payload?: unknown;
+}
 
 interface GFInstance {
   on: (event: string, handler: (...args: unknown[]) => void) => () => void;
@@ -52,8 +61,11 @@ const EVENTS = [
 // Relay logic
 // ---------------------------------------------------------------------------
 
-/** Track whether we've already subscribed to avoid duplicate listeners. */
-let subscribed = false;
+/**
+ * Track which GF instance we've already subscribed to.
+ * If the page creates a new instance (e.g. HMR), we re-subscribe.
+ */
+let subscribedInstance: GFInstance | null = null;
 
 function relay(): void {
   const gf = (window as unknown as WindowWithGF).__guideflow;
@@ -75,9 +87,9 @@ function relay(): void {
     // listFlows may not exist on older versions
   }
 
-  // Subscribe to every known event (only once)
-  if (!subscribed) {
-    subscribed = true;
+  // Subscribe to every known event (re-subscribe if the GF instance changed)
+  if (subscribedInstance !== gf) {
+    subscribedInstance = gf;
     EVENTS.forEach((evt) => {
       gf.on(evt, (...args: unknown[]) => {
         window.postMessage(
@@ -95,16 +107,17 @@ function relay(): void {
 
 window.addEventListener('message', (e: MessageEvent) => {
   if (e.source !== window) return;
-  if (e.data?.source !== CONTENT_SOURCE) return;
+  const data = e.data as BridgeMessage | undefined;
+  if (data?.source !== CONTENT_SOURCE) return;
 
   const gf = (window as unknown as WindowWithGF).__guideflow;
   if (!gf) return;
 
-  switch (e.data.type) {
+  switch (data.type) {
     case 'GF_START_TOUR':
       if (gf.start) {
         try {
-          gf.start(e.data.payload);
+          gf.start(data.payload);
         } catch (err) {
           console.error('[GuideFlow bridge] Failed to start tour:', err);
         }

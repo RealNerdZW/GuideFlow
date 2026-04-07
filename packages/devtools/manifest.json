@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "GuideFlow DevTools",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Visual tour builder and flow inspector for GuideFlow.js",
   "icons": {
     "16": "assets/icon-16.png",
@@ -10,7 +10,6 @@
   },
   "permissions": [
     "activeTab",
-    "scripting",
     "storage",
     "tabs"
   ],

@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/core",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "GuideFlow core engine — framework-agnostic, zero dependencies",
   "keywords": [
     "guided-tour",

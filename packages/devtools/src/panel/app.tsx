@@ -133,25 +133,25 @@ type TabId = 'builder' | 'events' | 'flows';
 // Builder tab
 // ---------------------------------------------------------------------------
 
-function BuilderTab() {
+function BuilderTab({
+  selectedElement,
+  onClearSelected,
+}: {
+  selectedElement: SelectedElement | null;
+  onClearSelected: () => void;
+}) {
   const [inspecting, setInspecting] = useState(false);
-  const [selected, setSelected] = useState<SelectedElement | null>(null);
   const [steps, setSteps] = useState<StepDraft[]>([]);
   const [stepTitle, setStepTitle] = useState('');
   const [stepBody, setStepBody] = useState('');
   const [stepPlacement, setStepPlacement] = useState('bottom');
 
+  // When a new element is selected, stop inspecting
   useEffect(() => {
-    const handler = (msg: { type: string; payload?: unknown }) => {
-      if (msg.type === 'GF_ELEMENT_SELECTED') {
-        setSelected(msg.payload as SelectedElement);
-        setInspecting(false);
-        sendToContent({ type: 'GF_STOP_INSPECT' });
-      }
-    };
-    chrome.runtime.onMessage.addListener(handler);
-    return () => chrome.runtime.onMessage.removeListener(handler);
-  }, []);
+    if (selectedElement) {
+      setInspecting(false);
+    }
+  }, [selectedElement]);
 
   const toggleInspect = () => {
     if (inspecting) {
@@ -171,13 +171,13 @@ function BuilderTab() {
         id: `step-${Date.now()}`,
         title: stepTitle,
         body: stepBody,
-        ...(selected?.selector !== undefined ? { target: selected.selector } : {}),
+        ...(selectedElement?.selector !== undefined ? { target: selectedElement.selector } : {}),
         placement: stepPlacement,
       },
     ]);
     setStepTitle('');
     setStepBody('');
-    setSelected(null);
+    onClearSelected();
   };
 
   const runTour = () => {
@@ -227,10 +227,10 @@ function BuilderTab() {
         )}
       </div>
 
-      {selected && (
+      {selectedElement && (
         <div style={S.card}>
-          <span style={S.label}>Selected: <code>{selected.selector}</code></span>
-          <span style={S.label}>Label: {selected.label ?? '—'}</span>
+          <span style={S.label}>Selected: <code>{selectedElement.selector}</code></span>
+          <span style={S.label}>Label: {selectedElement.label ?? '—'}</span>
         </div>
       )}
 
@@ -347,6 +347,7 @@ function App() {
   const [detected, setDetected] = useState(false);
   const [events, setEvents] = useState<GFTourEvent[]>([]);
   const [flows, setFlows] = useState<unknown[]>([]);
+  const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
 
   useEffect(() => {
     const tabId = chrome.devtools.inspectedWindow.tabId;
@@ -364,29 +365,16 @@ function App() {
       }
       if (msg.type === 'GF_FLOWS_LIST') setFlows(msg.payload as unknown[]);
       if (msg.type === 'GF_ELEMENT_SELECTED') {
-        // Forward to BuilderTab listeners
-        chrome.runtime.sendMessage(msg).catch(() => {});
+        setSelectedElement(msg.payload as SelectedElement);
       }
     };
     port.onMessage.addListener(portHandler);
-
-    // ----- Broadcast listener (fallback for messages not routed via port) -----
-    const handler = (msg: { type: string; payload?: unknown }) => {
-      if (msg.type === 'GF_DETECTED') setDetected(true);
-      if (msg.type === 'GF_TOUR_EVENT') {
-        const { event, args } = msg.payload as { event: string; args: unknown[] };
-        setEvents((prev) => [...prev.slice(-199), { event, args, ts: Date.now() }]);
-      }
-      if (msg.type === 'GF_FLOWS_LIST') setFlows(msg.payload as unknown[]);
-    };
-    chrome.runtime.onMessage.addListener(handler);
 
     // Ping content on mount to check GuideFlow presence
     sendToContent({ type: 'GF_DEVTOOLS_OPEN' });
 
     return () => {
       port.disconnect();
-      chrome.runtime.onMessage.removeListener(handler);
     };
   }, []);
 
@@ -406,7 +394,12 @@ function App() {
       </header>
 
       <div style={S.body}>
-        {tab === 'builder' && <BuilderTab />}
+        {tab === 'builder' && (
+          <BuilderTab
+            selectedElement={selectedElement}
+            onClearSelected={() => setSelectedElement(null)}
+          />
+        )}
         {tab === 'events' && <EventsTab events={events} />}
         {tab === 'flows' && <FlowsTab flows={flows} />}
       </div>

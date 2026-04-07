@@ -11,6 +11,9 @@
  *  - Handle commands from the DevTools panel.
  */
 
+// Force TypeScript to treat this as a module (isolated scope)
+export {};
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -60,9 +63,10 @@ injectBridge();
  */
 window.addEventListener('message', (event: MessageEvent) => {
   if (event.source !== window) return;
-  if (event.data?.source !== BRIDGE_SOURCE) return;
+  const data = event.data as { source?: string; type?: string; payload?: unknown } | undefined;
+  if (data?.source !== BRIDGE_SOURCE) return;
 
-  const { type, payload } = event.data;
+  const { type, payload } = data;
   chrome.runtime.sendMessage({ type, payload }).catch(() => {
     // Extension context may be invalidated after reload
   });
@@ -112,7 +116,21 @@ function buildSelector(el: Element): string {
   if (ariaLabel) return `[aria-label="${CSS.escape(ariaLabel)}"]`;
   const testId = el.getAttribute('data-testid');
   if (testId) return `[data-testid="${CSS.escape(testId)}"]`;
-  return el.tagName.toLowerCase();
+
+  // Build an nth-child path (up to 4 levels) for a unique selector
+  const parts: string[] = [];
+  let cur: Element | null = el;
+  while (cur && parts.length < 4) {
+    let seg = cur.tagName.toLowerCase();
+    if (cur.parentElement) {
+      const siblings = Array.from(cur.parentElement.children);
+      const idx = siblings.indexOf(cur) + 1;
+      seg += `:nth-child(${idx})`;
+    }
+    parts.unshift(seg);
+    cur = cur.parentElement;
+  }
+  return parts.join(' > ');
 }
 
 function onMouseOver(e: MouseEvent): void {
@@ -130,6 +148,9 @@ function onClick(e: MouseEvent): void {
   if (!el) return;
   const selector = buildSelector(el);
   const rect = el.getBoundingClientRect();
+  // Stop inspect immediately to avoid race condition (don't wait for
+  // the panel to send GF_STOP_INSPECT back)
+  stopInspect();
   send({
     type: 'GF_ELEMENT_SELECTED',
     payload: {
