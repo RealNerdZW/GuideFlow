@@ -25,6 +25,14 @@ interface GFInstance {
   on: (event: string, handler: (...args: unknown[]) => void) => () => void;
   start: (flow: unknown) => void;
   listFlows?: () => unknown[];
+  isActive?: boolean;
+  currentStepId?: string;
+  currentStepIndex?: number;
+  totalSteps?: number;
+  pause?: () => void;
+  resume?: () => void;
+  stop?: () => void;
+  version?: string;
 }
 
 interface WindowWithGF extends Window {
@@ -72,7 +80,14 @@ function relay(): void {
   if (!gf?.on) return;
 
   // Always re-send GF_DETECTED so a freshly-opened panel gets it
-  window.postMessage({ source: BRIDGE_SOURCE, type: 'GF_DETECTED' }, '*');
+  window.postMessage(
+    {
+      source: BRIDGE_SOURCE,
+      type: 'GF_DETECTED',
+      payload: { version: gf.version ?? 'unknown' },
+    },
+    '*',
+  );
 
   // Send the list of registered flows (if any)
   try {
@@ -139,6 +154,33 @@ window.addEventListener('message', (e: MessageEvent) => {
       // where the page loaded (and bridge already ran) before the user
       // opened DevTools.
       relay();
+      break;
+
+    case 'GF_GET_ACTIVE_TOUR': {
+      // Return current tour state to caller
+      const tourState = {
+        isActive: gf.isActive ?? false,
+        currentStepId: gf.currentStepId ?? null,
+        currentStepIndex: gf.currentStepIndex ?? 0,
+        totalSteps: gf.totalSteps ?? 0,
+      };
+      window.postMessage(
+        { source: BRIDGE_SOURCE, type: 'GF_ACTIVE_TOUR_STATE', payload: tourState },
+        '*',
+      );
+      break;
+    }
+
+    case 'GF_PAUSE_TOUR':
+      gf.pause?.();
+      break;
+
+    case 'GF_RESUME_TOUR':
+      gf.resume?.();
+      break;
+
+    case 'GF_STOP_TOUR':
+      gf.stop?.();
       break;
   }
 });

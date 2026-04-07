@@ -96,6 +96,129 @@ let inspectMode = false;
 let hoverEl: Element | null = null;
 const HIGHLIGHT_CLASS = '__gf_inspect__';
 
+// ---------------------------------------------------------------------------
+// Recording mode — capture user interactions as tour steps
+// ---------------------------------------------------------------------------
+
+let recordingMode = false;
+let recordingBadge: HTMLDivElement | null = null;
+
+function createRecordingBadge(): HTMLDivElement {
+  const badge = document.createElement('div');
+  badge.id = '__gf_recording_badge__';
+  badge.innerHTML = `
+    <style>
+      @keyframes __gf_pulse__ {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      #__gf_recording_badge__ {
+        position: fixed !important;
+        top: 12px !important;
+        right: 12px !important;
+        z-index: 2147483647 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        padding: 8px 14px !important;
+        background: rgba(30, 30, 46, 0.95) !important;
+        border: 1px solid #f38ba8 !important;
+        border-radius: 8px !important;
+        font-family: system-ui, -apple-system, sans-serif !important;
+        font-size: 12px !important;
+        color: #cdd6f4 !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+        cursor: pointer !important;
+        user-select: none !important;
+      }
+      #__gf_recording_badge__ .__gf_rec_dot__ {
+        width: 8px !important;
+        height: 8px !important;
+        border-radius: 50% !important;
+        background: #f38ba8 !important;
+        animation: __gf_pulse__ 1.2s ease-in-out infinite !important;
+      }
+    </style>
+    <span class="__gf_rec_dot__"></span>
+    <span>Recording…</span>
+    <span style="color: #6c7086; font-size: 10px; margin-left: 4px;">click to stop</span>
+  `;
+  badge.addEventListener('click', () => {
+    stopRecording();
+    send({ type: 'GF_RECORDING_STOPPED' });
+  });
+  return badge;
+}
+
+function onRecordClick(e: MouseEvent): void {
+  if (!recordingMode) return;
+  // Don't capture clicks on the recording badge
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target || target.closest('#__gf_recording_badge__')) return;
+
+  const selector = buildSelector(target);
+  const rect = target.getBoundingClientRect();
+  send({
+    type: 'GF_RECORDED_STEP',
+    payload: {
+      action: 'click',
+      selector,
+      label: target.getAttribute('aria-label') ?? target.textContent?.trim().slice(0, 60) ?? '',
+      tagName: target.tagName.toLowerCase(),
+      rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+      ts: Date.now(),
+    },
+  });
+}
+
+function onRecordInput(e: Event): void {
+  if (!recordingMode) return;
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target) return;
+
+  const selector = buildSelector(target);
+  send({
+    type: 'GF_RECORDED_STEP',
+    payload: {
+      action: 'input',
+      selector,
+      label: target.getAttribute('aria-label') ?? target.getAttribute('placeholder') ?? '',
+      tagName: target.tagName.toLowerCase(),
+      value: (target as HTMLInputElement).value?.slice(0, 100) ?? '',
+      ts: Date.now(),
+    },
+  });
+}
+
+function startRecording(): void {
+  recordingMode = true;
+  recordingBadge = createRecordingBadge();
+  document.body.appendChild(recordingBadge);
+  document.addEventListener('click', onRecordClick, true);
+  document.addEventListener('change', onRecordInput, true);
+  send({ type: 'GF_RECORDING_STARTED' });
+}
+
+function stopRecording(): void {
+  recordingMode = false;
+  document.removeEventListener('click', onRecordClick, true);
+  document.removeEventListener('change', onRecordInput, true);
+  if (recordingBadge) {
+    recordingBadge.remove();
+    recordingBadge = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Context menu element tracking
+// ---------------------------------------------------------------------------
+
+let lastContextElement: Element | null = null;
+
+document.addEventListener('contextmenu', (e: MouseEvent) => {
+  lastContextElement = e.target instanceof Element ? e.target : null;
+}, true);
+
 function injectHighlightStyle(): void {
   if (document.getElementById('__gf_inspector_style__')) return;
   const style = document.createElement('style');
@@ -222,5 +345,66 @@ chrome.runtime.onMessage.addListener((msg: GFMessage) => {
       }
       break;
     }
+
+    // --- Recording commands ---
+    case 'GF_START_RECORDING':
+      startRecording();
+      break;
+
+    case 'GF_STOP_RECORDING':
+      stopRecording();
+      send({ type: 'GF_RECORDING_STOPPED' });
+      break;
+
+    // --- Context menu element capture ---
+    case 'GF_CONTEXT_ADD_ELEMENT': {
+      if (lastContextElement) {
+        const ctxSelector = buildSelector(lastContextElement);
+        const ctxRect = lastContextElement.getBoundingClientRect();
+        send({
+          type: 'GF_ELEMENT_SELECTED',
+          payload: {
+            selector: ctxSelector,
+            label: lastContextElement.getAttribute('aria-label') ?? lastContextElement.textContent?.trim().slice(0, 60),
+            rect: {
+              top: ctxRect.top,
+              left: ctxRect.left,
+              width: ctxRect.width,
+              height: ctxRect.height,
+            },
+          },
+        });
+      }
+      break;
+    }
+
+    case 'GF_CONTEXT_QUICK_TOUR': {
+      if (lastContextElement) {
+        const qtSelector = buildSelector(lastContextElement);
+        const qtRect = lastContextElement.getBoundingClientRect();
+        send({
+          type: 'GF_QUICK_TOUR_ELEMENT',
+          payload: {
+            selector: qtSelector,
+            label: lastContextElement.getAttribute('aria-label') ?? lastContextElement.textContent?.trim().slice(0, 60),
+            rect: {
+              top: qtRect.top,
+              left: qtRect.left,
+              width: qtRect.width,
+              height: qtRect.height,
+            },
+          },
+        });
+      }
+      break;
+    }
+
+    // --- Bridge forwarding ---
+    case 'GF_PAUSE_TOUR':
+    case 'GF_RESUME_TOUR':
+    case 'GF_STOP_TOUR':
+    case 'GF_GET_ACTIVE_TOUR':
+      sendToBridge(msg);
+      break;
   }
 });

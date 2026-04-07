@@ -37,13 +37,24 @@ export default defineConfig({
         if (existsSync(nestedHtml)) {
           let html = readFileSync(nestedHtml, 'utf-8');
           // Fix paths: the HTML is now at root, not src/panel/
-          html = html.replace(/src="\.\.\/\.\.\/panel\.js"/g, 'src="./panel.js"');
-          html = html.replace(/src="\.\.\/\.\.\/chunks\//g, 'src="./chunks/');
+          html = html.replace(/(\.\.\/){2}/g, './');
           // Strip crossorigin attribute (unnecessary in Chrome extensions and
           // can cause issues with CSP)
           html = html.replace(/\s+crossorigin/g, '');
           writeFileSync(resolve(dist, 'panel.html'), html);
-          // Clean up the now-empty src/ tree
+        }
+
+        // Move the Vite-emitted popup HTML from dist/src/popup/popup.html → dist/popup.html
+        const nestedPopup = resolve(dist, 'src/popup/popup.html');
+        if (existsSync(nestedPopup)) {
+          let html = readFileSync(nestedPopup, 'utf-8');
+          html = html.replace(/(\.\.\/){2}/g, './');
+          html = html.replace(/\s+crossorigin/g, '');
+          writeFileSync(resolve(dist, 'popup.html'), html);
+        }
+
+        // Clean up the now-empty src/ tree
+        if (existsSync(resolve(dist, 'src'))) {
           rmSync(resolve(dist, 'src'), { recursive: true, force: true });
         }
 
@@ -64,8 +75,10 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        // DevTools panel UI — the only HTML that Vite needs to process
+        // DevTools panel UI
         panel: resolve(__dirname, 'src/panel/index.html'),
+        // Popup UI (toolbar icon)
+        popup: resolve(__dirname, 'src/popup/popup.html'),
         // Background service worker
         background: resolve(__dirname, 'src/background/service-worker.ts'),
         // Content script injected into every page

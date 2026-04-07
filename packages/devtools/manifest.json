@@ -10,6 +10,7 @@
   },
   "permissions": [
     "activeTab",
+    "contextMenus",
     "storage",
     "tabs"
   ],
@@ -34,6 +35,7 @@
   ],
   "action": {
     "default_title": "GuideFlow DevTools",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "assets/icon-16.png",
       "48": "assets/icon-48.png"
