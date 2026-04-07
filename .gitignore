@@ -42,6 +42,9 @@ Thumbs.db
 *.swo
 .vscode/settings.json
 
+# Claude
+.claude
+
 # Test results
 test-results
 playwright-report
