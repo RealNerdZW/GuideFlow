@@ -144,7 +144,17 @@ export function getAbsoluteRect(element: Element): DOMRect {
 }
 
 /**
- * Get the current viewport rectangle in page coordinates.
+ * Get the current viewport rectangle in **client coordinates** — the same space
+ * as `Element.getBoundingClientRect()` and `position: fixed`, so its origin is
+ * always (0, 0) regardless of scroll position.
+ *
+ * This is the space `computePosition` expects. It previously returned page
+ * coordinates (`window.scrollX/scrollY`), which meant every fit test failed once
+ * the page was scrolled and the popover collapsed to a clamped centre — see
+ * AUDIT `popover-viewport-coordinate-mismatch`.
+ *
+ * For page-coordinate maths use {@link getAbsoluteRect} instead.
+ *
  * Returns a safe fallback in SSR environments.
  */
 export function getViewportRect(): { x: number; y: number; width: number; height: number } {
@@ -152,8 +162,8 @@ export function getViewportRect(): { x: number; y: number; width: number; height
     return { x: 0, y: 0, width: 1280, height: 800 }
   }
   return {
-    x: window.scrollX,
-    y: window.scrollY,
+    x: 0,
+    y: 0,
     width: window.innerWidth,
     height: window.innerHeight,
   }

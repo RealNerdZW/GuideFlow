@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { computePosition, getViewportRect } from '../engine/popover.js'
-import { defaultI18n } from '../i18n/index.js'
+import { defaultI18n, type I18nRegistry } from '../i18n/index.js'
 import type {
   RendererContract,
   Step,
@@ -71,9 +71,25 @@ export class DefaultRenderer implements RendererContract {
   private _onAction: OnAction | null = null
   private _config: GuideFlowConfig | null = null
   private _popoverId = gfId('gf-popover')
+  /** Target + placement of the step currently on screen, for re-positioning. */
+  private _currentTarget: Element | null = null
+  private _currentPlacement: PopoverPlacement = 'bottom'
+  private _repositionHandler: (() => void) | null = null
+  /**
+   * The instance-scoped translation registry. Falls back to the module-level
+   * `defaultI18n` singleton when nothing is wired, which is what every render
+   * used to do unconditionally — so `gf.i18n.use('fr')` had no effect at all.
+   * See AUDIT `per-instance-i18n-dead`.
+   */
+  private _i18n: I18nRegistry | null = null
 
   setActionHandler(fn: OnAction): void {
     this._onAction = fn
+  }
+
+  /** Point this renderer at an instance's translation registry. */
+  setI18n(i18n: I18nRegistry): void {
+    this._i18n = i18n
   }
 
   onInit(config: GuideFlowConfig): void {
@@ -116,7 +132,10 @@ export class DefaultRenderer implements RendererContract {
         ? target
         : null
 
-    this._position(el, targetEl, step.placement ?? 'bottom')
+    this._currentTarget = targetEl
+    this._currentPlacement = step.placement ?? 'bottom'
+    this._position(el, targetEl, this._currentPlacement)
+    this._attachReposition()
 
     // Focus management — move focus into popover
     const firstFocusable = el.querySelector<HTMLElement>(
@@ -126,6 +145,8 @@ export class DefaultRenderer implements RendererContract {
   }
 
   hideStep(): void {
+    this._detachReposition()
+    this._currentTarget = null
     if (this._popoverEl) {
       this._popoverEl.parentNode?.removeChild(this._popoverEl)
       this._popoverEl = null
@@ -154,7 +175,7 @@ export class DefaultRenderer implements RendererContract {
   }
 
   private _buildHTML(step: Step, content: StepContent, index: number, total: number): string {
-    const i18n = defaultI18n
+    const i18n = this._i18n ?? defaultI18n
     const progressPct = total > 1 ? Math.round(((index + 1) / total) * 100) : 100
     const isFirst = index === 0
     const isLast = index === total - 1
@@ -193,16 +214,59 @@ export class DefaultRenderer implements RendererContract {
     `
   }
 
-  private _position(el: HTMLElement, target: Element | null, placement: PopoverPlacement): void {
-    // Initial render off-screen to measure
-    el.style.visibility = 'hidden'
-    el.style.left = '0'
-    el.style.top = '0'
+  /**
+   * Keep the popover glued to its target through scroll and resize. Without
+   * this the popover is positioned once and drifts away from the spotlight as
+   * soon as the page moves — AUDIT `popover-drifts-on-scroll`.
+   */
+  private _attachReposition(): void {
+    if (!isBrowser() || this._repositionHandler) return
+    this._repositionHandler = (): void => {
+      if (!this._popoverEl) return
+      this._position(this._popoverEl, this._currentTarget, this._currentPlacement, false)
+    }
+    window.addEventListener('scroll', this._repositionHandler, { passive: true, capture: true })
+    window.addEventListener('resize', this._repositionHandler, { passive: true })
+  }
+
+  private _detachReposition(): void {
+    if (!this._repositionHandler || !isBrowser()) {
+      this._repositionHandler = null
+      return
+    }
+    window.removeEventListener('scroll', this._repositionHandler, { capture: true })
+    window.removeEventListener('resize', this._repositionHandler)
+    this._repositionHandler = null
+  }
+
+  /**
+   * Position the popover.
+   *
+   * `measure: true` (the default, used on first render) hides the element and
+   * resets it to the origin so its natural size can be read. Re-positions
+   * driven by scroll/resize skip that: the element is already laid out, and
+   * hiding it every frame would make it flicker.
+   *
+   * All maths here is in **client coordinates** — the popover is
+   * `position: fixed`, `getBoundingClientRect()` is client-relative, and
+   * `getViewportRect()` now agrees.
+   */
+  private _position(
+    el: HTMLElement,
+    target: Element | null,
+    placement: PopoverPlacement,
+    measure = true,
+  ): void {
+    if (measure) {
+      el.style.visibility = 'hidden'
+      el.style.left = '0'
+      el.style.top = '0'
+    }
 
     const popoverRect = { x: 0, y: 0, width: el.offsetWidth, height: el.offsetHeight }
 
     if (!target) {
-      // Center modal
+      // Centred modal
       el.style.left = `${window.innerWidth / 2 - el.offsetWidth / 2}px`
       el.style.top = `${window.innerHeight / 2 - el.offsetHeight / 2}px`
       el.style.visibility = ''

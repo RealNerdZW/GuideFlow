@@ -75,7 +75,38 @@ const gf = createGuideFlow({
 
 GuideFlow uses `BroadcastChannel` to sync tour state across browser tabs. When a user completes a step in one tab, all other tabs update automatically.
 
-This works out of the box with no configuration required.
+This requires `context.userId` to be set — the channel is keyed by user, and persistence is inert without an id:
+
+```ts
+const gf = createGuideFlow({ context: { userId: 'user-123' } })
+```
+
+Snapshots belonging to a different flow are ignored, so two tabs running different tours will not interfere.
+
+## Don't Show Again
+
+Set `persistDismissal: true` on a flow to permanently suppress it once the user dismisses it — via <kbd>Escape</kbd>, the Skip button, or a backdrop click:
+
+```ts
+await gf.start({
+  id: 'welcome',
+  initial: 'main',
+  persistDismissal: true,
+  states: { main: { steps: [...], final: true } },
+})
+```
+
+This is **off by default**: closing a tour once usually means "not now", not "never again". It also requires `context.userId`.
+
+To implement your own policy, listen for `tour:dismiss` — emitted only on a user dismissal, never on a programmatic `stop()`:
+
+```ts
+gf.on('tour:dismiss', ({ flowId, stepId, stepIndex }) => {
+  if (stepIndex > 2) void gf.progress.markDismissed('user-123', flowId)
+})
+```
+
+Completed tours are suppressed automatically — once `tour:complete` fires for a flow, `start()` will not run it again for that user.
 
 ## Custom Storage Keys
 

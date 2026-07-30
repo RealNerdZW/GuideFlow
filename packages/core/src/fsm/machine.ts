@@ -76,13 +76,26 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
 
     if (guard && !guard(this._ctx.context)) return false
 
+    // A transition to a state that does not exist used to succeed, leaving the
+    // machine somewhere with no steps, `isFinal: false` and nothing to render —
+    // a tour that is "active" but frozen. See AUDIT `fsm-send-to-nonexistent-state`.
+    if (!(target in this._ctx.flow.states)) {
+      console.warn(`[GuideFlow] Unknown transition target "${target}" for event "${event}".`)
+      return false
+    }
+
+    this._enterState(target)
+    return true
+  }
+
+  /** Shared state-entry transition: exit hook, history, index reset, entry hook. */
+  private _enterState(target: string, stepIndex = 0): void {
     this._callExit(this._ctx.currentState)
     this._ctx.history.push(target)
     this._ctx.currentState = target
-    this._ctx.stepIndex = 0
+    this._ctx.stepIndex = stepIndex
     this._callEntry(target)
     this._notify()
-    return true
   }
 
   /** Advance to the next step within the current state. Returns false if at last step. */
@@ -97,13 +110,39 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return this.send('NEXT')
   }
 
-  /** Move to the previous step. Returns false if at first step. */
+  /**
+   * Move to the previous step, crossing back into the previous state when
+   * already at index 0.
+   *
+   * Back navigation used to be intra-state only: at index 0 this returned
+   * `false` and `TourEngine.prev()` re-rendered the same step anyway, emitting a
+   * duplicate `step:enter`. `history` was written and never read.
+   * See AUDIT `fsm-navigation-cannot-cross-states`.
+   */
   prevStep(): boolean {
     if (this._ctx.stepIndex > 0) {
       this._ctx.stepIndex--
       this._notify()
       return true
     }
+
+    // Walk back through history to the nearest previous state that has steps.
+    const history = this._ctx.history
+    for (let i = history.length - 2; i >= 0; i--) {
+      const candidate = history[i]
+      if (candidate === undefined) continue
+      const steps = this._ctx.flow.states[candidate]?.steps
+      if (!steps || steps.length === 0) continue
+
+      this._callExit(this._ctx.currentState)
+      history.length = i + 1
+      this._ctx.currentState = candidate
+      this._ctx.stepIndex = steps.length - 1
+      this._callEntry(candidate)
+      this._notify()
+      return true
+    }
+
     return false
   }
 
@@ -115,11 +154,27 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return true
   }
 
+  /**
+   * Jump to a step by id, anywhere in the flow.
+   *
+   * This used to search only the current state's steps, so `gf.goTo(id)` for a
+   * step in another state silently did nothing (and `TourEngine.goTo` ignored
+   * the `false` and re-rendered the step it was already on).
+   * See AUDIT `fsm-navigation-cannot-cross-states`.
+   */
   goToStepById(stepId: string): boolean {
-    const steps = this.currentSteps
-    const idx = steps.findIndex((s) => s.id === stepId)
-    if (idx === -1) return false
-    return this.goToStep(idx)
+    const localIdx = this.currentSteps.findIndex((s) => s.id === stepId)
+    if (localIdx !== -1) return this.goToStep(localIdx)
+
+    for (const [stateId, node] of Object.entries(this._ctx.flow.states)) {
+      if (stateId === this._ctx.currentState) continue
+      const idx = node.steps?.findIndex((s) => s.id === stepId) ?? -1
+      if (idx === -1) continue
+      this._enterState(stateId, idx)
+      return true
+    }
+
+    return false
   }
 
   updateContext(patch: Partial<TContext>): void {
@@ -136,12 +191,29 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     }
   }
 
-  restore(snapshot: { state: string; stepIndex: number; context?: TContext }): void {
-    if (!(snapshot.state in this._ctx.flow.states)) return
+  /**
+   * Restore a persisted position. Returns false when the snapshot does not fit
+   * this flow.
+   *
+   * Snapshots come from storage, which is untrusted — another script or the
+   * user can edit it, and a snapshot saved against an older build of the flow
+   * may name a step index the state no longer has. `stepIndex` used to be
+   * written verbatim, leaving `currentStep === null` and an active tour with
+   * nothing to render. See AUDIT `machine-restore-unvalidated`.
+   */
+  restore(snapshot: { state: string; stepIndex: number; context?: TContext }): boolean {
+    const node = this._ctx.flow.states[snapshot.state]
+    if (!node) return false
+
+    const stepCount = node.steps?.length ?? 0
+    const raw = Math.trunc(Number(snapshot.stepIndex))
+    const index = Number.isFinite(raw) ? Math.min(Math.max(0, raw), Math.max(0, stepCount - 1)) : 0
+
     this._ctx.currentState = snapshot.state
-    this._ctx.stepIndex = snapshot.stepIndex
+    this._ctx.stepIndex = index
     if (snapshot.context) this._ctx.context = snapshot.context
     this._notify()
+    return true
   }
 
   // ── Subscriptions ─────────────────────────────────────────────────────────

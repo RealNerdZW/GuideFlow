@@ -33,6 +33,7 @@ import type {
   HintStep,
   TourEvents,
   FlowSnapshot,
+  RendererContract,
   Step,
   StepContent,
 } from './types/index.js'
@@ -138,6 +139,14 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   pause(): void
   /** Resume a paused tour. */
   resume(): void
+  /**
+   * Dismiss the tour the way a user would (Escape, the Skip button, a backdrop
+   * click): emits `step:skip`, then `tour:dismiss`, then `tour:abandon`.
+   *
+   * Reachable via the TourEngine prototype — see §5.1 of CLAUDE.md — but it was
+   * missing from this interface, so TypeScript users could not call it.
+   */
+  skip(): void
 }
 
 // Shallow partial is intentional here — nested config objects (e.g. renderer,
@@ -158,7 +167,10 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 ): GuideFlowInstance<TContext> {
   let _config: GuideFlowConfig = { injectStyles: true, ...config }
 
-  const renderer = (config.renderer ?? new DefaultRenderer()) as DefaultRenderer
+  // Typed as the contract, not the concrete class — a user-supplied renderer is
+  // a first-class citizen, and the old `as DefaultRenderer` cast hid that the
+  // wiring below only ever ran for the built-in one.
+  const renderer: RendererContract = config.renderer ?? new DefaultRenderer()
   const i18n = new I18nRegistry()
   const progress = new ProgressStore(_config.persistence)
   const hotspots = new HotspotManager(_config.nonce)
@@ -166,6 +178,9 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   const _registeredFlows = new Map<string, FlowDefinition<TContext>>()
 
   let _broadcastSync: BroadcastSync | null = null
+  let _broadcastUserId: string | null = null
+  /** The flow currently running, so lifecycle handlers can read its options. */
+  let _activeFlow: FlowDefinition<TContext> | null = null
 
   const engine = new TourEngine<TContext>({
     renderer,
@@ -174,53 +189,107 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     ...(_config.debug !== undefined && { debug: _config.debug }),
   })
 
-  // Wire renderer action handler
-  if (renderer instanceof DefaultRenderer) {
-    renderer.setActionHandler((action) => {
-      switch (action) {
-        case 'next': void instance.next(); break
-        case 'prev': void instance.prev(); break
-        case 'skip':
-        case 'end': instance.stop(); break
-        default: void engine.send(action)
-      }
-    })
-    renderer.onInit(_config)
+  // Wire the renderer. These calls used to sit inside an
+  // `instanceof DefaultRenderer` branch, so a user-supplied RendererContract
+  // never received its action handler, its config (nonce, injectStyles) or the
+  // instance i18n registry — see AUDIT `custom-renderer-oninit-never-called`.
+  const _handleAction = (action: string): void => {
+    switch (action) {
+      case 'next': void instance.next(); break
+      case 'prev': void instance.prev(); break
+      case 'skip': engine.skip(); break
+      case 'end': instance.stop(); break
+      default: void instance.send(action)
+    }
   }
+  if (renderer instanceof DefaultRenderer) {
+    renderer.setActionHandler(_handleAction)
+    renderer.setI18n(i18n)
+  } else {
+    renderer.setActionHandler?.(_handleAction)
+    renderer.setI18n?.(i18n)
+  }
+  renderer.onInit?.(_config)
 
   // Forward events from independent subsystems (hotspots, hints) to the instance.
   // NOTE: engine === instance (Object.assign target), so self-referential proxies
   // would cause infinite recursion. Only cross-subsystem forwarding is needed here.
-  // The tour:complete handler is the exception — it has a persistence side-effect.
+  // The persistence handlers below are the exception — they have side effects.
+
   engine.on('tour:complete', ({ flowId }) => {
-    if (_config.context?.userId) {
-      void progress.markCompleted(_config.context.userId, flowId)
-    }
+    const userId = _config.context?.userId
+    _activeFlow = null
+    if (!userId) return
+    void (async () => {
+      await progress.markCompleted(userId, flowId)
+      // Drop the resume point too. Without this a completed flow left a
+      // non-completed snapshot behind and resumed mid-flow on the next visit.
+      await progress.clearSnapshot(userId, flowId)
+    })()
+  })
+
+  // Persist the abandon position. `_doEnd` emits this *before* it nulls the
+  // machine, and _saveProgress reads the machine synchronously, so the snapshot
+  // is captured correctly. Previously nothing saved on exit at all.
+  engine.on('tour:abandon', () => {
+    void _saveProgress()
+    _activeFlow = null
+  })
+
+  // "Don't show again" — opt-in per flow, so closing a tour once does not
+  // silently suppress it forever.
+  engine.on('tour:dismiss', ({ flowId }) => {
+    const userId = _config.context?.userId
+    if (!userId || !_activeFlow?.persistDismissal) return
+    void progress.markDismissed(userId, flowId)
   })
 
   // Capture original TourEngine methods BEFORE Object.assign overwrites them.
   // Since instance === engine, assigning new methods onto engine replaces the
   // prototype-inherited ones — any wrapper that calls engine.xxx() would
   // therefore call itself and recurse infinitely without these captures.
-  const _engineStart   = engine.start.bind(engine)
-  const _engineEnd     = engine.end.bind(engine)
-  const _engineNext    = engine.next.bind(engine)
-  const _enginePrev    = engine.prev.bind(engine)
-  const _engineGoTo    = engine.goTo.bind(engine)
-  const _engineSend    = engine.send.bind(engine)
-  const _engineDestroy = engine.destroy.bind(engine)
+  const _engineStart      = engine.start.bind(engine)
+  const _engineEnd        = engine.end.bind(engine)
+  const _engineNext       = engine.next.bind(engine)
+  const _enginePrev       = engine.prev.bind(engine)
+  const _engineGoTo       = engine.goTo.bind(engine)
+  const _engineSend       = engine.send.bind(engine)
+  const _engineDestroy    = engine.destroy.bind(engine)
+  const _engineSetOptions = engine.setOptions.bind(engine)
+  const _engineRerender   = engine.rerender.bind(engine)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
   const instance: GuideFlowInstance<TContext> = Object.assign(engine as any, {
 
     configure(patch: DeepPartialConfig): void {
       _config = { ..._config, ...patch }
+
       if (patch.nonce !== undefined) {
         // Propagate the new nonce to sub-systems so future style injections
         // (hotspots, hints) use the updated value.
         hotspots.setNonce(patch.nonce)
         hints.setNonce(patch.nonce)
       }
+
+      // Push the patch down into the engine. Without this, `spotlight`,
+      // `context` and `debug` were consumed once at factory time and every
+      // later configure() call was silently ignored.
+      _engineSetOptions({
+        ...(patch.spotlight !== undefined && { spotlight: patch.spotlight }),
+        ...(patch.context !== undefined && { context: patch.context as TContext }),
+        ...(patch.debug !== undefined && { debug: patch.debug }),
+      })
+
+      if (patch.persistence !== undefined) {
+        progress.reconfigure(patch.persistence)
+      }
+
+      if (patch.renderer !== undefined && patch.renderer !== renderer) {
+        console.warn('[GuideFlow] configure({ renderer }) is ignored — set it in createGuideFlow().')
+      }
+
+      // Let the renderer pick up nonce / injectStyles / theming changes.
+      renderer.onInit?.(_config)
     },
 
     createFlow(definition: FlowDefinition<TContext>): FlowDefinition<TContext> {
@@ -239,27 +308,38 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         return
       }
 
-      // Check persistence — resume or skip if completed
       const userId = _config.context?.userId
+      let restorePoint: { state: string; stepIndex: number } | null = null
+
       if (userId) {
-        const dismissed = await progress.isDismissed(userId, flow.id)
-        if (dismissed) return
+        // Suppress flows the user has dismissed or already finished. The
+        // completed check was missing entirely, so `markCompleted` was
+        // write-only and every tour replayed on every visit.
+        if (await progress.isDismissed(userId, flow.id)) return
+        if (await progress.isCompleted(userId, flow.id)) return
 
         const snapshot = await progress.loadSnapshot(userId, flow.id)
         if (snapshot && !snapshot.completed) {
-          await _engineStart(flow, ctx)
-          // Restore exact position
-          engine.machine?.restore({ state: snapshot.currentState, stepIndex: snapshot.stepIndex })
-          // Sync broadcast
-          _broadcastSync = new BroadcastSync(userId)
-          _broadcastSync.on('progress:sync', ({ snapshot: snap }) => {
-            engine.machine?.restore({ state: snap.currentState, stepIndex: snap.stepIndex })
-          })
-          return
+          restorePoint = { state: snapshot.currentState, stepIndex: snapshot.stepIndex }
         }
+
+        // Cross-tab sync belongs to the instance, not to the resume path — it
+        // used to be created only when resuming, so a fresh tour published
+        // nothing and every resume leaked another channel.
+        _ensureBroadcastSync(userId)
       }
 
+      _activeFlow = flow
       await _engineStart(flow, ctx)
+
+      // Restoring must be followed by a re-render: _engineStart has already
+      // painted step 0, and FlowMachine.restore only moves the machine.
+      if (restorePoint && engine.machine?.restore(restorePoint) === true) {
+        await _engineRerender()
+      }
+
+      // Persist immediately so abandoning on the very first step is remembered.
+      await _saveProgress()
     },
 
     stop(): void {
@@ -311,6 +391,8 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       hints.destroy()
       _broadcastSync?.destroy()
       _broadcastSync = null
+      _broadcastUserId = null
+      _activeFlow = null
     },
 
     i18n,
@@ -318,6 +400,24 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   })
   // instance === engine, so TourEngine's prototype getters (isActive,
   // currentStepId, etc.) are already reachable — no extra wiring needed.
+
+  /**
+   * Create the cross-tab channel once per instance (recreating it only if the
+   * user identity changes), and ignore snapshots belonging to a different flow.
+   */
+  function _ensureBroadcastSync(userId: string): void {
+    if (_broadcastSync && _broadcastUserId === userId) return
+
+    _broadcastSync?.destroy()
+    _broadcastUserId = userId
+    _broadcastSync = new BroadcastSync(userId)
+    _broadcastSync.on('progress:sync', ({ snapshot: snap }) => {
+      if (snap.flowId !== engine.flowId) return
+      if (engine.machine?.restore({ state: snap.currentState, stepIndex: snap.stepIndex }) === true) {
+        void _engineRerender()
+      }
+    })
+  }
 
   async function _saveProgress(): Promise<void> {
     const userId = _config.context?.userId
@@ -331,7 +431,12 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       flowId,
       currentState: machine.state,
       stepIndex: machine.stepIndex,
-      completed: machine.isFinal,
+      // Always false: this only runs while a tour is live, so by definition it
+      // has not completed. It used to store `machine.isFinal`, which is true
+      // for the *whole* of a `final: true` state — now that such states render
+      // their steps, that marked every mid-flow save as complete and made the
+      // tour un-resumable.
+      completed: false,
       timestamp: Date.now(),
     }
     await progress.saveSnapshot(userId, snapshot)

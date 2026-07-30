@@ -46,7 +46,9 @@ export class I18nRegistry {
     let str = locale[key] ?? EN[key]
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
-        str = str.replace(`{${k}}`, String(v))
+        // Replace every occurrence — `String.replace` with a string pattern
+        // only replaces the first, so "{n} of {n}" used to render half-filled.
+        str = str.split(`{${k}}`).join(String(v))
       }
     }
     return str

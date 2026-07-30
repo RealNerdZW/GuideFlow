@@ -14,6 +14,10 @@ The `TourEngine` manages the tour lifecycle — starting, stopping, stepping thr
 | `tour:start` | `{ flowId }` | Tour started |
 | `tour:complete` | `{ flowId }` | All steps completed |
 | `tour:abandon` | `{ flowId, stepId, stepIndex }` | Tour closed early |
+| `tour:dismiss` | `{ flowId, stepId, stepIndex }` | User actively dismissed the tour (<kbd>Escape</kbd>, Skip, backdrop click). Always followed by `tour:abandon`. |
+| `tour:pause` | `{ flowId, stepId }` | Tour paused via `pause()` |
+| `tour:resume` | `{ flowId, stepId }` | Tour resumed via `resume()` |
+| `tour:error` | `{ flowId, stepId, error }` | A step failed to render; the tour was ended |
 | `step:enter` | `{ stepId, stepIndex, target }` | Step became active |
 | `step:exit` | `{ stepId, stepIndex }` | Step was dismissed |
 | `step:skip` | `{ stepId }` | Step was skipped (via `showIf`) |
@@ -38,10 +42,14 @@ off()
 
 | Method | Description |
 |--------|-------------|
-| `start(flow)` | Begin a tour. Throws if a tour is already active. |
-| `stop()` | Stop the active tour. Emits `tour:abandon`. |
-| `next()` | Advance to the next step. If last step, completes the tour. |
-| `prev()` | Go back one step. No-op if on the first step. |
+| `start(flow)` | Begin a tour. Ends any tour already running. |
+| `stop()` | Stop the active tour programmatically. Emits `tour:abandon`. |
+| `skip()` | Dismiss the tour as a user would. Emits `step:skip`, then `tour:dismiss`, then `tour:abandon`. |
+| `next()` | Advance to the next step. Completes the tour when no step remains. |
+| `prev()` | Go back one step, crossing into the previous state when at the start of the current one. No-op at the very first step. |
+| `goTo(stepId)` | Jump to a step by id, anywhere in the flow. |
+| `send(event)` | Fire a state-machine event. |
+| `pause()` / `resume()` | Hide the UI without abandoning the flow, then restore it. A paused tour ignores the keyboard. |
 
 ## Active Tour State
 

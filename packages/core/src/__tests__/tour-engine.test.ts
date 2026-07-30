@@ -92,15 +92,78 @@ describe('TourEngine', () => {
     expect(enters).toContain('step-1')
   })
 
-  it('completes tour when advancing past final state', async () => {
+  it('renders the steps of a final state before completing', async () => {
+    // Regression: next() used to check `isFinal` immediately after the
+    // transition, so entering `done` ended the tour without ever rendering
+    // step-3. See AUDIT `final-state-steps-never-rendered`.
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    const entered: string[] = []
+    engine.on('step:enter', (e) => entered.push(e.stepId))
+
+    await engine.start(simpleFlow)
+    await engine.next() // welcome -> features
+    await engine.next() // features -> done  (final, but it has a step)
+
+    expect(entered).toEqual(['step-1', 'step-2', 'step-3'])
+    expect(engine.currentStepId).toBe('step-3')
+    expect(engine.isActive).toBe(true)
+  })
+
+  it('completes tour when advancing past the last step of a final state', async () => {
     renderer = createMockRenderer()
     engine = new TourEngine({ renderer })
     const events: string[] = []
     engine.on('tour:complete', () => events.push('complete'))
     await engine.start(simpleFlow)
     await engine.next() // -> features
-    await engine.next() // -> done
-    await engine.next() // -> end
+    await engine.next() // -> done (renders step-3)
+    expect(events).toEqual([])
+    await engine.next() // nothing left -> complete
+    expect(events).toContain('complete')
+    expect(engine.isActive).toBe(false)
+  })
+
+  it('renders every step of the README quick-start flow', async () => {
+    // The exact flow from README.md — a single state carrying two steps and
+    // marked `final: true`. It used to show only step-1.
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    const entered: string[] = []
+    engine.on('step:enter', (e) => entered.push(e.stepId))
+
+    await engine.start({
+      id: 'welcome',
+      initial: 'intro',
+      states: {
+        intro: {
+          steps: [
+            { id: 'step-1', content: { title: 'Welcome!', body: 'This is your dashboard.' } },
+            { id: 'step-2', content: { title: 'Your profile', body: 'Manage your account here.' } },
+          ],
+          final: true,
+        },
+      },
+    })
+    await engine.next()
+
+    expect(entered).toEqual(['step-1', 'step-2'])
+  })
+
+  it('completes when a final state carries no steps of its own', async () => {
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    const events: string[] = []
+    engine.on('tour:complete', () => events.push('complete'))
+    await engine.start({
+      id: 'terminal-state',
+      initial: 'only',
+      states: {
+        only: { steps: [{ id: 's1', content: { title: 'One' } }], on: { NEXT: 'done' } },
+        done: { final: true },
+      },
+    })
+    await engine.next()
     expect(events).toContain('complete')
     expect(engine.isActive).toBe(false)
   })

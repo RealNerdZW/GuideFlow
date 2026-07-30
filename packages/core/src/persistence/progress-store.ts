@@ -14,21 +14,51 @@ interface StoredEntry<T> {
   expiresAt: number
 }
 
+/**
+ * True when a stored entry is past its expiry. `Infinity` (written when TTL is
+ * disabled) is never past, and a missing/NaN `expiresAt` is treated as
+ * non-expiring rather than instantly stale.
+ */
+function isExpired(entry: { expiresAt?: unknown }): boolean {
+  const at = entry.expiresAt
+  if (typeof at !== 'number' || Number.isNaN(at)) return false
+  return Date.now() > at
+}
+
 export class ProgressStore {
   private _driver: PersistenceDriver
   private _keyFn: (userId: string) => string
   private _ttl: number
 
   constructor(config: PersistenceConfig = {}) {
-    if (!config.driver || config.driver === 'localStorage') {
-      this._driver = new LocalStorageDriver()
-    } else if (config.driver === 'indexedDB') {
-      this._driver = createDriver('indexedDB')
-    } else {
-      this._driver = config.driver
-    }
+    this._driver = ProgressStore._resolveDriver(config)
     this._keyFn = config.key ?? ((userId) => `gf:${userId}:progress`)
     this._ttl = config.ttl ?? DEFAULT_TTL
+  }
+
+  private static _resolveDriver(config: PersistenceConfig): PersistenceDriver {
+    if (!config.driver || config.driver === 'localStorage') return new LocalStorageDriver()
+    if (config.driver === 'indexedDB') return createDriver('indexedDB')
+    return config.driver
+  }
+
+  /** Apply a new persistence config in place (used by `instance.configure()`). */
+  reconfigure(config: PersistenceConfig): void {
+    this._driver = ProgressStore._resolveDriver(config)
+    this._keyFn = config.key ?? ((userId) => `gf:${userId}:progress`)
+    this._ttl = config.ttl ?? DEFAULT_TTL
+  }
+
+  /**
+   * Absolute expiry for a new write. A TTL of `0` (or any non-positive value,
+   * or `Infinity`) means "never expires" — `ttl: 0` is documented as disabling
+   * expiry but used to make every entry expire on the very next read, silently
+   * turning off all persistence. See AUDIT `ttl-zero-expires-immediately`.
+   */
+  private _expiry(): number {
+    return this._ttl > 0 && Number.isFinite(this._ttl)
+      ? Date.now() + this._ttl
+      : Number.POSITIVE_INFINITY
   }
 
   // ── Flow snapshots ────────────────────────────────────────────────────────
@@ -37,7 +67,7 @@ export class ProgressStore {
     const key = `${this._keyFn(userId)}:${snapshot.flowId}:snapshot`
     const entry: StoredEntry<FlowSnapshot> = {
       value: snapshot,
-      expiresAt: Date.now() + this._ttl,
+      expiresAt: this._expiry(),
     }
     await this._driver.set(key, entry)
   }
@@ -46,7 +76,7 @@ export class ProgressStore {
     const key = `${this._keyFn(userId)}:${flowId}:snapshot`
     const entry = await this._driver.get<StoredEntry<FlowSnapshot>>(key)
     if (!entry) return null
-    if (Date.now() > entry.expiresAt) {
+    if (isExpired(entry)) {
       await this._driver.remove(key)
       return null
     }
@@ -64,7 +94,7 @@ export class ProgressStore {
     const key = `${this._keyFn(userId)}:${flowId}:dismissed`
     const entry: StoredEntry<boolean> = {
       value: true,
-      expiresAt: Date.now() + this._ttl,
+      expiresAt: this._expiry(),
     }
     await this._driver.set(key, entry)
   }
@@ -73,7 +103,7 @@ export class ProgressStore {
     const key = `${this._keyFn(userId)}:${flowId}:dismissed`
     const entry = await this._driver.get<StoredEntry<boolean>>(key)
     if (!entry) return false
-    if (Date.now() > entry.expiresAt) {
+    if (isExpired(entry)) {
       await this._driver.remove(key)
       return false
     }
@@ -95,7 +125,7 @@ export class ProgressStore {
       // Wrap in StoredEntry for consistency with markDismissed / saveSnapshot
       const entry: StoredEntry<string[]> = {
         value: existing,
-        expiresAt: Date.now() + this._ttl,
+        expiresAt: this._expiry(),
       }
       await this._driver.set(key, entry)
     }
@@ -107,7 +137,7 @@ export class ProgressStore {
     if (!entry) return []
     // Handle legacy raw string[] format (pre-fix) gracefully
     if (Array.isArray(entry)) return entry
-    if (Date.now() > entry.expiresAt) {
+    if (isExpired(entry)) {
       await this._driver.remove(key)
       return []
     }

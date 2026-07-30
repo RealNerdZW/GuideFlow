@@ -83,6 +83,32 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     return this._machine
   }
 
+  /**
+   * Apply a partial options patch after construction. Used by
+   * `GuideFlowInstance.configure()`, which previously mutated only its own
+   * config object so `spotlight`, `context` and `debug` never reached the
+   * running engine — AUDIT `configure-mostly-ignored`.
+   *
+   * A `context` patch is merged into the live FSM context too, so `showIf`
+   * predicates and transition guards see it immediately.
+   */
+  setOptions(patch: Partial<Omit<TourEngineOptions<TContext>, 'renderer'>>): void {
+    this._options = { ...this._options, ...patch }
+    if (patch.context !== undefined) {
+      this._machine?.updateContext(patch.context)
+    }
+  }
+
+  /**
+   * Re-render the current step in place. Used after an out-of-band FSM change
+   * (snapshot restore, cross-tab sync) so the UI matches the machine.
+   */
+  async rerender(): Promise<void> {
+    if (!this._active || !this._machine) return
+    this._renderGeneration++
+    await this._renderCurrentStep()
+  }
+
   /** The step that is currently being displayed (set after step:enter, cleared on step:exit). */
   get currentStep(): Step<TContext> | null {
     return this._currentStep
@@ -115,7 +141,12 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
     const advanced = this._machine.nextStep()
 
-    if (!advanced || this._machine.isFinal) {
+    // The tour completes when there is nothing left to render — NOT merely
+    // because the machine has entered a state marked `final: true`. A final
+    // state that carries steps must display them before the tour ends;
+    // checking `isFinal` here is what made the README quick-start silently
+    // drop its last step.
+    if (!advanced || this._machine.currentStep === null) {
       this._doEnd(true)
       return
     }
@@ -125,14 +156,27 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   async prev(): Promise<void> {
     if (!this._machine || !this._active) return
+
+    // Only leave the current step if we actually moved. Previously prev() at
+    // index 0 emitted step:exit and re-rendered the same step, producing a
+    // duplicate step:enter and double-counting the step in analytics.
+    const moved = this._machine.prevStep()
+    if (!moved) return
+
     this._emitStepExit()
-    this._machine.prevStep()
-    await this._renderCurrentStep()
+    await this._renderCurrentStep('backward')
   }
 
   async goTo(stepId: string): Promise<void> {
     if (!this._machine || !this._active) return
-    this._machine.goToStepById(stepId)
+
+    const moved = this._machine.goToStepById(stepId)
+    if (!moved) {
+      this._log(`goTo("${stepId}"): no such step in this flow`)
+      return
+    }
+
+    this._emitStepExit()
     await this._renderCurrentStep()
   }
 
@@ -140,19 +184,32 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     if (!this._machine || !this._active) return
     const moved = this._machine.send(event)
     if (!moved) return
-    if (this._machine.isFinal) {
-      this._emitStepExit()
+
+    // A successful transition always leaves the current step, so step:exit is
+    // owed here too — not only on the terminal path.
+    this._emitStepExit()
+
+    // Same rule as next(): end on "nothing left to render", not on isFinal.
+    if (this._machine.currentStep === null) {
       this._doEnd(true)
       return
     }
     await this._renderCurrentStep()
   }
 
+  /** The user actively dismissed the tour (Escape, Skip button, backdrop click). */
   skip(): void {
     if (!this._machine || !this._active) return
     this._emitStepExit()
     const step = this._machine.currentStep
     if (step) this.emit('step:skip', { stepId: step.id })
+    // Distinguish a user dismissal from a programmatic stop() so hosts can
+    // implement "don't show again" — nothing in core used to write dismissal.
+    this.emit('tour:dismiss', {
+      flowId: this._flow?.id ?? 'unknown',
+      stepId: step?.id ?? '',
+      stepIndex: this._machine.stepIndex,
+    })
     this._doEnd(false)
   }
 
@@ -167,6 +224,9 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   pause(): void {
     if (!this._active || this._paused) return
     this._paused = true
+    // Cancel any render still awaiting content resolution or the scroll settle,
+    // otherwise it lands after the pause and re-shows what we just hid.
+    this._renderGeneration++
     this._spotlight.hide()
     this._renderer.hideStep()
     const flowId = this._flow?.id ?? 'unknown'
@@ -178,6 +238,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   resume(): void {
     if (!this._active || !this._paused) return
     this._paused = false
+    this._renderGeneration++
     const flowId = this._flow?.id ?? 'unknown'
     const stepId = this._machine?.currentStep?.id ?? ''
     this.emit('tour:resume', { flowId, stepId })
@@ -192,7 +253,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   // ── Private ───────────────────────────────────────────────────────────────
 
-  private async _renderCurrentStep(): Promise<void> {
+  private async _renderCurrentStep(direction: 'forward' | 'backward' = 'forward'): Promise<void> {
     if (!this._machine) return
 
     // Capture generation so we can detect if a newer render has been started
@@ -203,6 +264,11 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
     // Evaluate showIf — bounded loop using a visited-set to prevent infinite cycles
     // even when the FSM has complex multi-state transitions.
+    //
+    // The loop must skip in the direction of travel. It always advanced with
+    // nextStep(), so pressing Back onto a hidden step bounced the user straight
+    // forward again and the Back button appeared dead.
+    // See AUDIT `showif-skip-breaks-back-navigation`.
     const visitedStepIds = new Set<string>()
     while (step && step.showIf && !step.showIf(this._machine.context)) {
       if (visitedStepIds.has(step.id)) {
@@ -212,8 +278,13 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       }
       visitedStepIds.add(step.id)
       this.emit('step:skip', { stepId: step.id })
-      const advanced = this._machine.nextStep()
-      if (!advanced || this._machine.isFinal) {
+
+      if (direction === 'backward') {
+        // Nothing visible behind us: stay put rather than ending the tour —
+        // the user asked to go back, not to quit.
+        if (!this._machine.prevStep()) return
+      } else if (!this._machine.nextStep() || this._machine.currentStep === null) {
+        // End on "nothing left to render", not on isFinal — see next().
         this._doEnd(true)
         return
       }
@@ -322,7 +393,10 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     if (!isBrowser()) return
     this._detachKeyboard()
     this._keyboardHandler = (e: KeyboardEvent): void => {
-      if (!this._active) return
+      // A paused tour must not respond to the keyboard — arrow keys used to
+      // advance it and re-show the UI that pause() had just hidden, and Escape
+      // silently abandoned a tour the caller meant to keep.
+      if (!this._active || this._paused) return
       switch (e.key) {
         case 'ArrowRight':
         case 'ArrowDown':

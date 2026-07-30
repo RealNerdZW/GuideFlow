@@ -3,6 +3,8 @@
 // All shared types used across packages
 // ---------------------------------------------------------------------------
 
+import type { I18nRegistry } from '../i18n/index.js'
+
 // ── Utility ─────────────────────────────────────────────────────────────────
 
 export type DeepPartial<T> = T extends object
@@ -106,6 +108,15 @@ export interface FlowDefinition<TContext = GuidanceContext> {
   initial: string
   states: Record<string, StateNode<TContext>>
   context?: TContext
+  /**
+   * When true, a user who dismisses this flow (Escape, the Skip button, or a
+   * backdrop click) will never be shown it again — `progress.markDismissed()`
+   * is written automatically.
+   *
+   * Off by default: permanently suppressing a tour because someone closed it
+   * once is rarely what you want. Requires `context.userId` to be set.
+   */
+  persistDismissal?: boolean
 }
 
 export interface FlowSnapshot {
@@ -203,6 +214,12 @@ export interface TourEvents {
   'tour:start': { flowId: string }
   'tour:complete': { flowId: string }
   'tour:abandon': { flowId: string; stepId: string; stepIndex: number }
+  /**
+   * The user actively dismissed the tour (Escape, Skip, or backdrop click), as
+   * opposed to it being stopped programmatically. Always followed by
+   * `tour:abandon`.
+   */
+  'tour:dismiss': { flowId: string; stepId: string; stepIndex: number }
   'tour:pause': { flowId: string; stepId: string }
   'tour:resume': { flowId: string; stepId: string }
   'tour:error': { flowId: string; stepId: string; error: unknown }
@@ -225,8 +242,21 @@ export interface RendererContract {
   destroyHotspot(id: string): void
   renderHint(hint: HintStep): void
   destroyHints(): void
-  /** Called once config is ready */
+  /**
+   * Called once config is ready, and again whenever `configure()` changes it.
+   * Implement this to pick up `nonce`, `injectStyles` and theming.
+   */
   onInit?(config: GuideFlowConfig): void
+  /**
+   * Receives the instance's translation registry. Implement this to make
+   * `instance.i18n.use(locale)` affect your rendered strings.
+   */
+  setI18n?(i18n: I18nRegistry): void
+  /**
+   * Receives the callback to invoke when the user activates a step action
+   * (`next`, `prev`, `skip`, `end`, or a custom FSM event name).
+   */
+  setActionHandler?(handler: (action: string) => void): void
 }
 
 // ── GuideFlow Config ──────────────────────────────────────────────────────────
