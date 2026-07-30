@@ -1,0 +1,277 @@
+# CLAUDE.md — GuideFlow.js
+
+Operating manual for Claude Code in this repository. Read this before touching anything.
+
+> **Companion documents** live in [`.claude/docs/`](.claude/docs/). Start with
+> [`AUDIT.md`](.claude/docs/AUDIT.md) (what is broken) and
+> [`REMEDIATION-PLAN.md`](.claude/docs/REMEDIATION-PLAN.md) (the ordered work queue).
+> [`.claude/README.md`](.claude/README.md) indexes everything.
+
+---
+
+## 1. What this project is
+
+GuideFlow.js is a **framework-agnostic product-tour / user-onboarding library**, published as a
+scoped npm monorepo. Tours are modelled as **finite state machines**, not linear step arrays —
+that is the core architectural bet and the thing that differentiates it from `driver.js`,
+`intro.js`, and `shepherd.js`.
+
+The pitch is "AI-Powered Product Tours". Treat that as an *aspiration under construction*, not a
+description of the current state — see `.claude/docs/AUDIT.md` §AI.
+
+**Author / owner:** John Mugabe (GitHub `RealNerdZW`). Licence MIT.
+
+---
+
+## 2. Repository shape
+
+```
+packages/
+  core/         @guideflow/core       FSM engine, spotlight, popover, renderer, persistence, i18n. ZERO runtime deps.
+  react/        @guideflow/react      TourProvider, useTour, useTourStep, useHotspot, GuidePopover, ConversationalPanel
+  vue/          @guideflow/vue        GuideFlowPlugin + useTour composable (no components)
+  svelte/       @guideflow/svelte     createTourStore (no components)
+  ai/           @guideflow/ai         GuideBrain + OpenAI / Anthropic / Ollama / Mock providers
+  analytics/    @guideflow/analytics  AnalyticsCollector, 5 transports, ExperimentEngine
+  cli/          @guideflow/cli        init / studio / export / push
+  devtools/     @guideflow/devtools   MV3 browser extension (private: not published)
+apps/
+  demo/         Vite + React playground that exercises core/react/ai/analytics
+  docs/         VitePress site — THIS IS THE CANONICAL DOCS SITE
+  e2e/          Playwright suite (currently non-functional — see AUDIT)
+  storybook/    Storybook 8 component explorer
+docs/           Legacy hand-written HTML site — STALE. Do not add to it.
+scripts/
+  sync-repo-meta.mjs   Propagates repo.config.json into package manifests
+.changeset/     Changesets config (release automation)
+```
+
+### Dependency direction
+
+`core` depends on nothing. Everything else depends on `core` via `workspace:*`. **Never** introduce
+a runtime dependency into `core`, and never make `core` import from a sibling package — the
+zero-dependency, 12 kB-gzip budget is a headline promise and is enforced by `size-limit`.
+
+---
+
+## 3. Commands
+
+Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported package manager.
+
+| Task | Command |
+|---|---|
+| Install | `pnpm install` |
+| Build everything publishable | `pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e` |
+| Build one package | `pnpm --filter @guideflow/core build` |
+| Type-check | `pnpm type-check` |
+| Lint (zero-warning policy) | `pnpm lint` |
+| Unit tests | `pnpm test` |
+| Watch tests for one package | `pnpm --filter @guideflow/core test:watch` |
+| Bundle-size gate | `pnpm --filter @guideflow/core size` |
+| Demo app | `pnpm demo` |
+| Docs site | `pnpm docs:dev` |
+| Storybook | `pnpm storybook` |
+
+**Full local verification before claiming done** — use the `/verify` command, or:
+
+```bash
+pnpm turbo run build type-check lint test --filter=!storybook --filter=!docs --filter=!e2e
+```
+
+### Known-good baseline (after Phase 0+1, 2026-07-30)
+
+Build, type-check, lint and unit tests are **all green**: **216 unit tests pass**
+(core 133, ai 37, analytics 32, react 14); `@guideflow/core` measures **12.13 kB gzip against a
+12.5 kB limit**. If any of these regress, you broke it — do not paper over it.
+
+> The size budget was raised from 12 kB to 12.5 kB in Phase 1 to accommodate seven correctness
+> fixes (see `.changeset/tidy-jars-repeat.md`). 370 B of headroom remains. Do not raise it again
+> without saying so out loud.
+
+Note that green CI is *still* not evidence of correctness here: `vue` has zero tests behind
+`--passWithNoTests`, `svelte` and `cli` have no `test` script at all, and the Playwright e2e suite
+has never actually executed. See `.claude/docs/TESTING-STRATEGY.md`.
+
+---
+
+## 4. Code conventions
+
+These are enforced by ESLint + `tsconfig.base.json` and are non-negotiable.
+
+- **TypeScript strict, plus** `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
+  `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`, `isolatedModules`,
+  `noImplicitOverride`.
+  - `exactOptionalPropertyTypes` is why you see the conditional-spread idiom everywhere:
+    ```ts
+    ...(step.padding !== undefined && { padding: step.padding })
+    ```
+    Use it. Do not "fix" it into `padding: step.padding`.
+  - `noPropertyAccessFromIndexSignature` is why index-signature reads use brackets:
+    `process.env['OPENAI_API_KEY']`, `item['title']`.
+- **`@typescript-eslint/no-explicit-any` is an error.** The two existing `any` casts
+  ([packages/core/src/index.ts:213](packages/core/src/index.ts#L213),
+  [packages/core/src/compat/intro-compat.ts:56](packages/core/src/compat/intro-compat.ts#L56)) carry
+  explicit disable comments and a rationale. Match that bar or don't add the cast.
+- **`no-console` is a warning, and `--max-warnings 0` turns warnings into failures.** Only
+  `console.warn` and `console.error` are allowed. Debug logging goes through the internal `_log()`
+  helpers gated on `config.debug`.
+- **`import/order` with alphabetised groups and blank lines between groups.** `type` imports must
+  use `import type` (`consistent-type-imports`).
+- **ESM-first with explicit `.js` extensions on relative imports** (`./engine/tour.js`) even in
+  TypeScript source. Required by `verbatimModuleSyntax` + node16-style resolution in consumers.
+- 2-space indent, no semicolons in `core`/`react`/`vue`/`svelte`, **semicolons in `ai`/`analytics`**.
+  This is inconsistent but intentional-by-accident: match the file you are editing, and let
+  Prettier decide.
+- Section banner comments (`// ── Public API ────`) are the house style for long modules. Keep them.
+
+### SSR safety
+
+Anything touching `document`/`window` must be guarded by `isBrowser()` from
+`packages/core/src/utils/ssr.ts`, and must never run at module scope. `core` is imported by Nuxt,
+Next and SvelteKit users.
+
+### CSP
+
+All injected `<style>` tags flow through `injectStyles(css, id, nonce)` in
+`packages/core/src/utils/styles.ts` and must honour `config.nonce`. Never write a raw
+`document.head.appendChild(style)`.
+
+---
+
+## 5. Architecture you must understand before editing `core`
+
+### 5.1 The `Object.assign(engine, {...})` instance pattern
+
+`createGuideFlow()` does **not** wrap a `TourEngine` — it *mutates* one:
+
+```ts
+const engine = new TourEngine<TContext>({ ... })
+const instance = Object.assign(engine as any, { start(){...}, next(){...}, ... })
+```
+
+So `instance === engine`. Consequences that have already caused bugs:
+
+1. Methods defined in the object literal **shadow** the `TourEngine` prototype methods of the same
+   name. Any wrapper that wants the original must capture a bound reference *before* the
+   `Object.assign` — that is what the `_engineStart` / `_engineNext` / … constants are for.
+   Calling `engine.next()` inside the `next()` wrapper would recurse infinitely.
+2. Prototype members **not** shadowed (`pause`, `resume`, `skip`, `isActive`, `currentStepId`,
+   `currentStepIndex`, `totalSteps`, `currentStep`, `currentContent`, `machine`, `flowId`) are
+   reachable on the instance for free. That is why they appear in `GuideFlowInstance` without
+   appearing in the literal.
+3. Event forwarding between `engine` and `instance` would be self-referential. Do not add
+   `engine.on(x, () => instance.emit(x))` — it loops.
+
+If you refactor this, refactor it *deliberately* into explicit composition, update
+`GuideFlowInstance`, and add tests. Do not partially untangle it.
+
+### 5.2 Flow = state machine
+
+```ts
+interface FlowDefinition {
+  id: string
+  initial: string
+  states: Record<string, { steps?: Step[]; on?: TransitionMap; onEntry?; onExit?; final?: boolean }>
+  context?: GuidanceContext
+}
+```
+
+`FlowMachine` tracks `(state, stepIndex)`. `next()` advances `stepIndex` within the current state;
+when the state's steps are exhausted it follows the transition table. A flow with **no `final: true`
+state never completes**. Flat `{ id, steps: [...] }` objects are **not** valid flows — that shape
+appears in `apps/e2e/fixtures/index.html` and is one reason the e2e suite is broken.
+
+### 5.3 Render pipeline
+
+`TourEngine._renderCurrentStep()` is async and guarded by a monotonic `_renderGeneration` counter.
+Every `await` boundary is followed by `if (gen !== this._renderGeneration) return`. **If you add an
+`await` in that method you must add the generation check after it**, or a fast next/prev will render
+a stale step.
+
+Order: evaluate `showIf` → resolve async `content` → resolve `target` → scroll + 150 ms settle →
+`spotlight.show()` → set `_currentStep`/`_currentContent` → emit `step:enter` →
+`renderer.renderStep()`.
+
+### 5.4 Renderer contract
+
+`core` never assumes the default renderer. Adapters and userland implement `RendererContract`. The
+default renderer builds a string and assigns `innerHTML` — **every interpolated value must be
+escaped** (`_esc`) or sanitised. See `.claude/docs/AUDIT.md` §SEC for the currently-known holes in
+`_sanitizeHTML`; when you fix it, fix it by parsing, not by adding another regex.
+
+### 5.5 i18n is instance-scoped (since Phase 1)
+
+`createGuideFlow()` builds its own `new I18nRegistry()`, exposes it as `instance.i18n`, and pushes it
+into the renderer via `renderer.setI18n(i18n)`. `DefaultRenderer` uses `this._i18n ?? defaultI18n`,
+so the module-level singleton is only a fallback.
+
+If you write a custom `RendererContract`, implement the optional `setI18n(registry)` hook or your
+strings will not respond to `gf.i18n.use(locale)`. Note that `@guideflow/react`'s `GuidePopover`
+still reads the `defaultI18n` singleton directly — that is AUDIT
+`react-guidepopover-ignores-instance-i18n`, scheduled for Phase 5.
+
+---
+
+## 6. Traps and gotchas (learned the hard way)
+
+- **A tour ends when there is nothing left to render, never because `isFinal` is true.** That
+  distinction is the whole of AUDIT `final-state-steps-never-rendered`: checking `isFinal` right after
+  a transition ended tours before their final state's steps had been shown, so the README quick-start
+  displayed 1 of its 2 steps. `next()`, `send()` and the `showIf` skip loop all test
+  `machine.currentStep === null` now. Keep it that way.
+- **`_saveProgress` writes `completed: false`, always.** It only runs while a tour is live. It used to
+  write `machine.isFinal`, which — now that final states render their steps — marked every mid-flow
+  save as complete and made tours un-resumable. Completion is recorded by clearing the snapshot in the
+  `tour:complete` handler.
+- **Windows is fine now.** Package scripts call `node ../../scripts/fsx.mjs rm|cp` instead of
+  `rm -rf` / `cp -r`, so they behave identically in PowerShell, cmd.exe and bash. Do not reintroduce a
+  shell builtin into a package script.
+- **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
+  that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
+  app" report is this.
+- **Two documentation sites exist.** `.github/workflows/docs.yml` publishes
+  `apps/docs/.vitepress/dist` to GitHub Pages. The root `docs/*.html` files are stale leftovers that
+  nothing builds — yet `docs.yml` still *triggers* on `docs/**`. Edit `apps/docs/`, never `docs/`.
+- **Identity strings are inconsistent.** Source-file headers in `core`, `react`, `vue`, `svelte`,
+  `ai` claim `github.com/johnmugabe` and a `@263tickets.co.zw` email; `repo.config.json` and the
+  manifests say `RealNerdZW`. `scripts/sync-repo-meta.mjs` does not rewrite source headers.
+- **Turbo is v1.** `turbo.json` uses the `pipeline` key. Do not rename it to `tasks` without also
+  upgrading the `turbo` devDependency.
+- **`--passWithNoTests` hides emptiness.** Adding it to a package makes a missing test suite look
+  green. Do not add it to new packages.
+- **`@guideflow/analytics` lists `@guideflow/core` in `peerDependencies` as `workspace:*`.** That
+  protocol is not publishable in a peer range; it must become a real semver range at publish time.
+
+---
+
+## 7. Working agreements for Claude
+
+1. **Verify, don't assume.** This repo's tests pass while real features are broken. Before reporting
+   a fix as done, run the relevant command and paste real output. `/verify` exists for this.
+2. **Respect the size budget.** Any change to `core` must keep `pnpm --filter @guideflow/core size`
+   under 12 kB gzip. If a fix needs more, say so explicitly rather than silently raising the limit.
+3. **One concern per changeset.** Run `pnpm changeset` for every user-visible change to a published
+   package. Releases are automated from changesets; a change without one ships silently.
+4. **Add a test with every bug fix.** The audit findings each name the missing test. Fixing a bug
+   without pinning it is how it came back the first time.
+5. **Do not add features to `docs/*.html`.** Do not add a runtime dep to `core`. Do not weaken a
+   tsconfig or ESLint rule to make an error go away — fix the code.
+6. **When a documented feature does not exist,** either implement it or correct the docs in the same
+   change. Leaving the claim standing is worse than either.
+7. **Prefer fixing the audit queue in order.** `.claude/docs/REMEDIATION-PLAN.md` is sequenced so
+   that earlier phases unblock later ones (e.g. the e2e harness must work before a11y fixes can be
+   verified).
+
+---
+
+## 8. Release process
+
+```bash
+pnpm changeset            # describe the change, pick affected packages + bump type
+pnpm version-packages     # apply bumps, write CHANGELOGs
+pnpm publish-packages     # build then `changeset publish`
+```
+
+CI (`.github/workflows/release.yml`) runs this automatically on `master` via
+`changesets/action@v1`. `devtools`, `docs`, `e2e`, `storybook` and `@guideflow/demo` are in the
+changesets `ignore` list and are never published.
