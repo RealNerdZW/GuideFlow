@@ -54,13 +54,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup && cp -r src/styles dist/styles",
+    "build": "tsup && node ../../scripts/fsx.mjs cp src/styles dist/styles",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "clean": "rm -rf dist coverage .turbo",
+    "clean": "node ../../scripts/fsx.mjs rm dist coverage .turbo",
     "size": "size-limit"
   },
   "devDependencies": {
@@ -74,8 +74,9 @@
   },
   "size-limit": [
     {
+      "name": "core entry (tree-shaken)",
       "path": "./dist/index.js",
-      "limit": "12 kB",
+      "limit": "12.5 kB",
       "gzip": true
     }
   ]

@@ -9,6 +9,9 @@ build
 .next
 out
 .svelte-kit
+# Storybook build output — untracked 2026-07-30 (was 29 committed files, ~7.8 MB,
+# rewritten by every `storybook build` and so permanently dirtying the tree).
+storybook-static
 
 # Coverage
 coverage
@@ -42,8 +45,11 @@ Thumbs.db
 *.swo
 .vscode/settings.json
 
-# Claude
-.claude
+# Claude — commit shared assets (docs/skills/agents/commands/settings.json),
+# ignore only per-developer local state.
+.claude/settings.local.json
+.claude/local/
+.claude/*.local.*
 
 # Test results
 test-results

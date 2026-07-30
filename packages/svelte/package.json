@@ -51,7 +51,7 @@
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "clean": "rm -rf dist .turbo"
+    "clean": "node ../../scripts/fsx.mjs rm dist .turbo"
   },
   "dependencies": {
     "@guideflow/core": "workspace:*"
