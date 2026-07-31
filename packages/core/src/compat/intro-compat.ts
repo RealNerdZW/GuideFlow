@@ -84,30 +84,42 @@ export function scanAttributeTour(
     }
   })
 
-  const stateSteps = steps.reduce<Record<string, { steps: Step[]; on: Record<string, string>; final?: boolean }>>(
-    (acc, step, idx) => {
-      const stateId = `step-${idx + 1}`
-      const isLast = idx === steps.length - 1
-      acc[stateId] = {
-        steps: [step],
-        on: isLast ? {} : { NEXT: `step-${idx + 2}` },
-        ...(isLast ? { final: true } : {}),
-      }
-      return acc
-    },
-    {},
-  )
-
+  // One state holding every step, so intra-state navigation drives the tour and
+  // the renderer sees flow-wide totals.
+  //
+  // This used to emit one state per step, which made `totalSteps` 1 for every
+  // step: the renderer then treated each step as both first and last, hiding
+  // the Back button and the progress bar and labelling the primary button
+  // "Done" with an `end` action — so the second step was unreachable.
+  // See AUDIT `attribute-tour-one-step-per-state`.
   return {
     id: flowId,
-    initial: 'step-1',
-    states: stateSteps,
+    initial: 'tour',
+    states: {
+      tour: { steps, on: {}, final: true },
+    },
   }
+}
+
+/** Elements GuideFlow injects into the page itself. */
+const GF_OWNED = '[data-gf-overlay],[data-gf-spotlight-cutout],[class^="gf-"]'
+
+/** True when a mutation record was caused by GuideFlow's own DOM writes. */
+function isSelfInflicted(record: MutationRecord): boolean {
+  const nodes = [...record.addedNodes, ...record.removedNodes]
+  if (nodes.length === 0) return false
+  return nodes.every((n) => !(n instanceof Element) || n.closest(GF_OWNED) !== null)
 }
 
 /**
  * Watch for dynamically added attribute-tour elements using MutationObserver.
- * Debounced to prevent re-triggering from GuideFlow's own DOM mutations.
+ *
+ * Two filters keep this from feeding on itself: mutation records caused by
+ * GuideFlow's own injected nodes are dropped, and the callback only fires when
+ * the resulting step set actually differs from the last one emitted. A debounce
+ * alone was not enough — it delays, it does not filter — so appending the
+ * popover re-triggered the scan and restarted the tour in a loop.
+ * See AUDIT `watch-attribute-tour-self-trigger-loop`.
  */
 export function watchAttributeTour(
   callback: (flow: FlowDefinition) => void,
@@ -118,9 +130,12 @@ export function watchAttributeTour(
   const target = root ?? document.body
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let scanning = false
+  let lastSignature: string | null = null
 
-  const obs = new MutationObserver(() => {
-    // Debounce rapid DOM mutations (e.g. GuideFlow's own spotlight/popover creation)
+  const obs = new MutationObserver((records) => {
+    if (records.every(isSelfInflicted)) return
+
+    // Debounce rapid DOM mutations (e.g. a framework re-render)
     if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
       if (scanning) return
@@ -128,7 +143,16 @@ export function watchAttributeTour(
       try {
         // Pass `root` so only the scoped subtree is scanned, not the whole document
         const flow = scanAttributeTour(root)
-        if (flow) callback(flow)
+        if (!flow) return
+
+        const signature = Object.values(flow.states)
+          .flatMap((state) => state.steps ?? [])
+          .map((step) => step.id)
+          .join('|')
+        if (signature === lastSignature) return
+
+        lastSignature = signature
+        callback(flow)
       } finally {
         scanning = false
       }

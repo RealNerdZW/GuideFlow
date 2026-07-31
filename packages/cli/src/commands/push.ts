@@ -19,9 +19,15 @@ export interface PushOptions {
  * overridden with `--endpoint` for self-hosted setups.
  */
 export const pushCommand = new Command('push')
-  .description('Push a flow JSON file to GuideFlow Cloud or a custom endpoint')
+  // "GuideFlow Cloud" does not exist. The default endpoint is a placeholder;
+  // this is only usable against your own API via --endpoint.
+  .description('POST a flow JSON file to your own flow-hosting endpoint (experimental)')
   .argument('[file]', 'Path to the flow JSON file', 'my-tour.flow.json')
-  .requiredOption('-k, --api-key <key>', 'API key (or set GUIDEFLOW_API_KEY env var)')
+  // NOT requiredOption: commander rejects the invocation before the action
+  // body runs, so the GUIDEFLOW_API_KEY fallback below was unreachable dead
+  // code (AUDIT `push-requiredoption-kills-env-var`). Prefer the env var — a
+  // key on the command line lands in shell history and process listings.
+  .option('-k, --api-key <key>', 'API key. Prefer the GUIDEFLOW_API_KEY env var.')
   .option('-e, --endpoint <url>', 'API endpoint', 'https://api.guideflow.dev/v1/flows')
   .option('--env <env>', 'Deployment environment (production | staging | preview)', 'production')
   .action(async (file: string, opts: PushOptions & { apiKey: string }) => {

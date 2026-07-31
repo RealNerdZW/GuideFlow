@@ -19,7 +19,8 @@ export const exportCommand = new Command('export')
   .argument('[file]', 'Path to the flow file (.ts, .js, or .json)', 'my-tour.ts')
   .option('-o, --output <file>', 'Output JSON file path')
   .option('--pretty', 'Pretty-print output JSON', false)
-  .action((file: string, opts: { output?: string; pretty: boolean }) => {
+  .option('--force', 'Overwrite the output file if it already exists', false)
+  .action((file: string, opts: { output?: string; pretty: boolean; force: boolean }) => {
     const src = resolve(file);
 
     if (!existsSync(src)) {
@@ -56,7 +57,29 @@ export const exportCommand = new Command('export')
       process.exit(1);
     }
 
-    const outPath = opts.output ?? src.replace(/\.(ts|js)$/, '.flow.json');
+    // `src.replace(/\.(ts|js)$/, '.flow.json')` does not match a `.json` input,
+    // so `guideflow export flow.json` used to resolve the output to the input
+    // and silently overwrite the user's own file — minified, if --pretty was
+    // omitted (AUDIT `export-overwrites-json-source-file`). Strip whatever
+    // extension is actually there.
+    const outPath = opts.output ?? src.replace(/\.[^./\\]+$/, '') + '.flow.json';
+
+    if (resolve(outPath) === src) {
+      console.error(
+        chalk.red(`\n  Error: refusing to overwrite the input file — ${src}`),
+        chalk.dim('\n  Pass -o <file> to choose a different destination.\n'),
+      );
+      process.exit(1);
+    }
+
+    if (existsSync(outPath) && !opts.force) {
+      console.error(
+        chalk.red(`\n  Error: ${outPath} already exists.`),
+        chalk.dim('\n  Pass --force to overwrite it, or -o <file> to write elsewhere.\n'),
+      );
+      process.exit(1);
+    }
+
     const json = opts.pretty ? JSON.stringify(flowJson, null, 2) : JSON.stringify(flowJson);
     writeFileSync(outPath, json, 'utf-8');
 

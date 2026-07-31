@@ -164,6 +164,7 @@ export default defineConfig({
             { text: 'Introduction', link: '/guide/' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
+            { text: 'CDN / script tag', link: '/guide/cdn' },
           ],
         },
         {
@@ -173,6 +174,8 @@ export default defineConfig({
             { text: 'State Machine', link: '/guide/state-machine' },
             { text: 'Spotlight & Popover', link: '/guide/spotlight-popover' },
             { text: 'Persistence', link: '/guide/persistence' },
+            { text: 'Accessibility', link: '/guide/accessibility' },
+            { text: 'Privacy', link: '/guide/privacy' },
             { text: 'i18n', link: '/guide/i18n' },
           ],
         },
@@ -189,6 +192,7 @@ export default defineConfig({
           text: 'AI Features',
           items: [
             { text: 'Overview', link: '/guide/ai' },
+            { text: 'Running AI on your server', link: '/guide/ai-proxy' },
             { text: 'Auto-generate tours', link: '/guide/ai-generate' },
             { text: 'Intent detection', link: '/guide/ai-intent' },
             { text: 'Conversational help', link: '/guide/ai-chat' },
@@ -236,6 +240,7 @@ export default defineConfig({
           items: [
             { text: 'GuideFlowPlugin', link: '/api/vue/guide-flow-plugin' },
             { text: 'useTour()', link: '/api/vue/use-tour' },
+            { text: 'useHotspot()', link: '/api/vue/use-hotspot' },
           ],
         },
         {
@@ -307,7 +312,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: `Copyright © ${new Date().getFullYear()} GuideFlow Contributors`,
+      copyright: `Copyright © ${new Date().getFullYear()} John Mugabe`,
     },
 
     search: { provider: 'local' },

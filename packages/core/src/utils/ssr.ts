@@ -22,6 +22,19 @@ export function browserOnly<T>(fn: () => T, fallback: T): T {
   return isBrowser() ? fn() : fallback
 }
 
+/**
+ * Whether the user has asked the OS to minimise animation.
+ *
+ * Read on every call rather than cached — the setting can change mid-session,
+ * and a tour may outlive the change. Returns `false` when `matchMedia` is
+ * missing (SSR, or a test DOM that does not implement it), which keeps the
+ * existing animated behaviour as the default.
+ */
+export function prefersReducedMotion(): boolean {
+  if (!isBrowser() || typeof window.matchMedia !== 'function') return false
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 /** requestAnimationFrame with SSR fallback */
 export const raf = (fn: FrameRequestCallback): number => {
   if (isBrowser()) {

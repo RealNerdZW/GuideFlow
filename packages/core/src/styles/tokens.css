@@ -7,8 +7,13 @@
   --gf-popover-border: rgba(0, 0, 0, 0.08);
   --gf-popover-width: 320px;
 
-  /* Accent */
-  --gf-accent-color: #6366f1;
+  /* Accent.
+   * indigo-600, not indigo-500. White on #6366f1 measures 4.46:1 — axe fails
+   * the primary button at 13px, which needs 4.5:1 (AUDIT
+   * `accent-fails-contrast`). #4f46e5 measures 6.3:1 and is otherwise the same
+   * hue. Any override of this token has to clear 4.5:1 against
+   * --gf-accent-fg. */
+  --gf-accent-color: #4f46e5;
   --gf-accent-fg: #ffffff;
 
   /* Overlay */
@@ -21,6 +26,15 @@
 
   /* Shadow */
   --gf-shadow: 0 8px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  /* De-emphasis.
+   * These are the lowest opacities that still clear WCAG 1.4.3 against the
+   * default palette. `#111827` at 0.5 over white measures 3.4:1 — below the
+   * 4.5:1 required for body text, and the "Skip tour" button and step counter
+   * were both set there (AUDIT `muted-text-fails-contrast`). 0.72 measures
+   * 6.6:1. Override these rather than restyling `.gf-btn-ghost` directly. */
+  --gf-muted-opacity: 0.72;
+  --gf-body-opacity: 0.88;
 
   /* Typography */
   --gf-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

@@ -6,6 +6,7 @@ import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@g
 
 import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
 
+import { warnIfBrowserKey } from './browser-guard.js';
 import type { AIProvider, PageContext } from './interface.js';
 
 export interface AnthropicProviderOptions {
@@ -29,6 +30,7 @@ export class AnthropicProvider implements AIProvider {
       model: opts.model ?? 'claude-3-haiku-20240307',
       maxTokens: opts.maxTokens ?? 2048,
     };
+    warnIfBrowserKey('AnthropicProvider', this.opts.apiKey);
   }
 
   private async client() {

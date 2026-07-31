@@ -2,10 +2,13 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
+  "fixed": [["@guideflow/*", "!@guideflow/demo", "!@guideflow/storybook"]],
   "linked": [],
   "access": "public",
   "baseBranch": "master",
   "updateInternalDependencies": "patch",
-  "ignore": ["docs", "e2e", "storybook", "@guideflow/demo", "@guideflow/devtools"]
+  "ignore": ["docs", "e2e", "@guideflow/storybook", "@guideflow/demo"],
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true
+  }
 }

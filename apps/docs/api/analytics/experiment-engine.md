@@ -5,7 +5,15 @@ keywords: ExperimentEngine, A/B testing, GuideFlow experiments, @guideflow/analy
 
 # ExperimentEngine
 
-A deterministic, client-side A/B testing engine. Variant assignment is derived from a `djb2` hash of `userId + experimentId`, so the same user always receives the same variant — no server round-trip required.
+A deterministic, client-side A/B testing engine. Variant assignment is derived from a `djb2` hash of
+`userId + ':' + experimentId`, so the same user always receives the same variant — no server
+round-trip required.
+
+::: warning Assignment only
+Nothing in GuideFlow reads the result. There is no `theme` option on `createGuideFlow()`, no
+experiment hook in `AnalyticsCollector`, and no exposure event. Applying the variant and recording it
+are both application code — see [A/B Testing](../../guide/ab-testing) for the wiring.
+:::
 
 ## Constructor
 
@@ -19,11 +27,17 @@ new ExperimentEngine(userId: string)
 
 ### `assign(experiment)`
 
-Assigns the user to a variant and caches the result. Subsequent calls for the same `experiment.id` return the cached assignment.
+Assigns the user to a variant and caches the result. Subsequent calls for the same `experiment.id`
+return the cached assignment — **including when the variant list has changed**, so bump the
+experiment id whenever you change the variants.
 
 ```ts
 assign<T>(experiment: Experiment<T>): ExperimentResult<T>
 ```
+
+The bucket is `djb2(userId + ':' + experimentId) % totalWeight`, walked against cumulative weights.
+Weights are relative integers (default `1`), not percentages, and fractional weights do not bucket
+correctly.
 
 ```ts
 const engine = new ExperimentEngine('user-abc123')
@@ -103,25 +117,31 @@ interface ExperimentResult<T = string> {
 
 ## Full Example
 
+`value` is generic, so the cleanest use is to make the variant *be* the flow:
+
 ```ts
 import { createGuideFlow } from '@guideflow/core'
 import { ExperimentEngine } from '@guideflow/analytics'
 
+const gf = createGuideFlow()
 const engine = new ExperimentEngine(currentUser.id)
 
-// Assign to a theme experiment
-const { value: theme } = engine.assign({
-  id: 'onboarding-theme',
+const { variantId, value: flow } = engine.assign({
+  id: 'onboarding-shape',
   variants: [
-    { id: 'control',   value: 'minimal', weight: 2 },  // 2/3 of users
-    { id: 'treatment', value: 'bold',    weight: 1 },  // 1/3 of users
+    { id: 'control',   value: shortOnboardingFlow, weight: 2 }, // 2/3 of users
+    { id: 'treatment', value: longOnboardingFlow,  weight: 1 }, // 1/3 of users
   ],
 })
 
-const gf = createGuideFlow({ theme })
+await gf.start(flow)
+
+// Record the assignment yourself — there is no automatic exposure event.
+collector.attach(gf) // with globalProperties: { experiment_onboarding: variantId }
 ```
 
 ## See Also
 
+- [A/B Testing](../../guide/ab-testing) — applying and tracking a variant
 - [AnalyticsCollector](./analytics-collector)
 - [Transports](./transports)

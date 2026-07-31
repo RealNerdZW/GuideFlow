@@ -342,7 +342,7 @@ function App() {
       <div style={S.statusBar(state.detected)}>
         <div style={S.dot(state.detected)} />
         <span>{state.detected ? 'GuideFlow detected on this page' : 'GuideFlow not detected'}</span>
-        <span style={{ marginLeft: 'auto', color: '#45475a' }}>v0.2.0</span>
+        <span style={{ marginLeft: 'auto', color: '#45475a' }}>v{__GF_VERSION__}</span>
       </div>
 
       <div style={S.body}>
@@ -495,10 +495,10 @@ function App() {
 
       {/* Footer */}
       <div style={S.footer}>
-        <span>GuideFlow DevTools v0.2.0</span>
+        <span>GuideFlow DevTools v{__GF_VERSION__}</span>
         <a
           style={S.link}
-          href="https://guideflow.dev"
+          href="https://realnerdzw.github.io/GuideFlow/"
           target="_blank"
           rel="noreferrer"
         >Docs</a>

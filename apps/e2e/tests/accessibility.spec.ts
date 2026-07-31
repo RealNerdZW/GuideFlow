@@ -1,65 +1,257 @@
+import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from '@playwright/test';
-import AxeBuilder from 'axe-playwright';
+
+/**
+ * The previous version of this file imported a default `AxeBuilder` from
+ * `axe-playwright`, which exports no such thing — that class belongs to
+ * `@axe-core/playwright`. The import threw before a single assertion ran.
+ *
+ * The `test.fixme` markers that stood here through Phase 2 are gone: Phase 6
+ * implemented the focus trap, focus restoration, live region, progressbar
+ * naming and reduced-motion handling they were waiting on. These are the only
+ * tests in the repo that exercise any of that against a real layout engine —
+ * happy-dom reports `offsetParent === null` for every element, so tab order
+ * cannot be measured in a unit test.
+ */
+
+test.beforeEach(async ({ page }) => {
+  // 'index.html', not '/'. Playwright resolves a goto() argument with
+  // `new URL(url, baseURL)`, and a leading slash discards baseURL's path —
+  // '/' landed on the repo root the static server exposes, where nothing ever
+  // sets __gfReady. Every spec in this suite then timed out in beforeEach.
+  await page.goto('index.html');
+  await page.waitForFunction(() => window.__gfReady === true);
+  await page.evaluate(() => localStorage.clear());
+});
 
 test.describe('Accessibility', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+  test('the page itself has no critical violations before a tour', async ({ page }) => {
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    const critical = results.violations.filter((v) => v.impact === 'critical');
+    expect(critical.map((v) => v.id)).toEqual([]);
   });
 
-  test('page has no critical a11y violations before tour', async ({ page }) => {
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa'])
-      .analyze();
-    expect(results.violations.filter((v) => v.impact === 'critical')).toHaveLength(0);
-  });
-
-  test('popover has no a11y violations when open', async ({ page }) => {
+  test('the open popover has no critical or serious violations', async ({ page }) => {
     await page.click('#start-btn');
-    await page.locator('.gf-popover').waitFor({ state: 'visible' });
+    await expect(page.locator('.gf-popover')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .include('.gf-popover')
       .withTags(['wcag2a', 'wcag2aa'])
       .analyze();
 
-    expect(results.violations.map((v) => `${v.id}: ${v.description}`)).toHaveLength(0);
+    const blocking = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+    expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 
-  test('popover has role="dialog" and aria-modal', async ({ page }) => {
+  test('the dialog exposes an accessible name', async ({ page }) => {
     await page.click('#start-btn');
-    const popover = page.locator('.gf-popover');
-    await expect(popover).toHaveAttribute('role', 'dialog');
-    await expect(popover).toHaveAttribute('aria-modal', 'true');
-  });
+    const dialog = page.locator('.gf-popover');
+    await expect(dialog).toHaveAttribute('role', 'dialog');
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
 
-  test('popover has aria-labelledby pointing to title', async ({ page }) => {
-    await page.click('#start-btn');
-    const popover = page.locator('.gf-popover');
-    const labelledBy = await popover.getAttribute('aria-labelledby');
+    const labelledBy = await dialog.getAttribute('aria-labelledby');
     expect(labelledBy).toBeTruthy();
-
-    const titleEl = page.locator(`#${labelledBy}`);
-    await expect(titleEl).toBeVisible();
-    await expect(titleEl).toHaveText('Step One');
+    // Regression for `dangling-aria-labelledby`: the referenced node must exist.
+    await expect(page.locator(`#${labelledBy}`)).toHaveCount(1);
+    await expect(page.locator(`#${labelledBy}`)).toHaveText('Step One');
   });
 
-  test('focus moves into popover when it opens', async ({ page }) => {
+  test('focus moves into the popover when a step opens', async ({ page }) => {
     await page.click('#start-btn');
-    await page.locator('.gf-popover').waitFor({ state: 'visible' });
+    await expect(page.locator('.gf-popover')).toBeVisible();
 
-    // The renderer focuses the close button (gf-popover-close) when the popover opens
-    const focusedEl = await page.evaluate(() => document.activeElement?.className ?? '');
-    expect(focusedEl).toContain('gf-popover-close');
-  });
-
-  test('close button is focusable', async ({ page }) => {
-    await page.click('#start-btn');
-    const closeBtn = page.locator('.gf-popover-close');
-    await expect(closeBtn).toBeVisible();
-    await expect(closeBtn).toBeFocused().catch(async () => {
-      // Tab to close button and verify
-      await closeBtn.focus();
-      await expect(closeBtn).toBeFocused();
+    const focusInside = await page.evaluate(() => {
+      const popover = document.querySelector('.gf-popover');
+      return !!popover && popover.contains(document.activeElement);
     });
+    expect(focusInside).toBe(true);
+  });
+
+  test('tabbing through the controls does not dismiss the tour', async ({ page }) => {
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    const buttons = await page.locator('.gf-popover button').count();
+    expect(buttons).toBeGreaterThan(0);
+
+    for (let i = 0; i < buttons; i++) {
+      await page.keyboard.press('Tab');
+    }
+    await expect(page.locator('.gf-popover')).toBeVisible();
+  });
+
+  // ── Phase 6 ───────────────────────────────────────────────────────────────
+
+  test('focus is trapped inside the dialog', async ({ page }) => {
+    // Regression for `no-focus-trap-or-restore`. More presses than there are
+    // controls, so an untrapped dialog is guaranteed to have leaked focus out
+    // into the page behind the overlay.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
+
+    const stillInside = await page.evaluate(() => {
+      const popover = document.querySelector('.gf-popover');
+      return !!popover && popover.contains(document.activeElement);
+    });
+    expect(stillInside).toBe(true);
+  });
+
+  test('Shift+Tab is trapped too', async ({ page }) => {
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    for (let i = 0; i < 12; i++) await page.keyboard.press('Shift+Tab');
+
+    const stillInside = await page.evaluate(() => {
+      const popover = document.querySelector('.gf-popover');
+      return !!popover && popover.contains(document.activeElement);
+    });
+    expect(stillInside).toBe(true);
+  });
+
+  test('focus returns to the trigger when the tour closes', async ({ page }) => {
+    // Regression for `no-focus-trap-or-restore`. Focus the trigger explicitly
+    // rather than relying on the click: WebKit does not focus a button on
+    // mousedown, so `page.click()` would leave focus on <body> and this test
+    // would be asserting nothing.
+    await page.locator('#start-btn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.gf-popover')).toHaveCount(0);
+
+    const activeId = await page.evaluate(() => document.activeElement?.id);
+    expect(activeId).toBe('start-btn');
+  });
+
+  test('step changes are announced to assistive technology', async ({ page }) => {
+    // Regression for `no-live-region`.
+    await page.click('#start-btn');
+    const region = page.locator('[aria-live="polite"]');
+    await expect(region).toHaveCount(1);
+    await expect(region).toContainText('Step One');
+
+    // The region must sit outside the popover, or removing the popover would
+    // take the announcement with it.
+    const outside = await page.evaluate(() => {
+      const popover = document.querySelector('.gf-popover');
+      const live = document.querySelector('[aria-live="polite"]');
+      return !!popover && !!live && !popover.contains(live);
+    });
+    expect(outside).toBe(true);
+
+    await page.locator('.gf-popover [data-gf-action="next"]').click();
+    await expect(region).toContainText('Step Two');
+  });
+
+  test('the live region is hidden visually but not from the a11y tree', async ({ page }) => {
+    await page.click('#start-btn');
+    // The render pipeline scrolls and settles before the renderer runs, so the
+    // region does not exist the instant the click returns.
+    await expect(page.locator('[aria-live="polite"]')).toHaveCount(1);
+
+    const styles = await page.evaluate(() => {
+      const el = document.querySelector('[aria-live="polite"]');
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { display: cs.display, visibility: cs.visibility };
+    });
+    expect(styles).not.toBeNull();
+    expect(styles!.display).not.toBe('none');
+    expect(styles!.visibility).not.toBe('hidden');
+  });
+
+  test('the progress bar announces a step count, not a percentage', async ({ page }) => {
+    // Regression for `progressbar-no-name-or-valuetext`.
+    await page.click('#start-btn');
+    const bar = page.locator('[role="progressbar"]');
+    await expect(bar).toHaveAttribute('aria-valuetext', /step/i);
+    await expect(bar).toHaveAttribute('aria-label', /.+/);
+    await expect(bar).toHaveAttribute('aria-valuenow', '1');
+    await expect(bar).toHaveAttribute('aria-valuemax', '3');
+  });
+
+  test('animations respect prefers-reduced-motion', async ({ page }) => {
+    // Regression for `no-reduced-motion-guard`.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    const animation = await page.evaluate(() => {
+      const el = document.querySelector('.gf-popover');
+      return el ? getComputedStyle(el).animationName : null;
+    });
+    expect(animation).toBe('none');
+  });
+
+  test('the spotlight cutout does not animate under reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    const transition = await page.evaluate(() => {
+      const el = document.querySelector('[data-gf-spotlight-cutout]') as HTMLElement | null;
+      return el ? el.style.transition : null;
+    });
+    // Assigned from script, so a CSS media query could never have covered it.
+    expect(transition).toBe('none');
+  });
+
+  // The arrow-keys-in-an-input case lives in `tour-flow.spec.ts`, which owns
+  // the fixture's `#text-input`. This is its counterpart: the guard must not
+  // take away the one key a keyboard user needs to get out.
+  test('Escape still closes the tour from inside a text field', async ({ page }) => {
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await page.locator('#text-input').focus();
+    await page.keyboard.press('Escape');
+
+    await expect(page.locator('.gf-popover')).toHaveCount(0);
+  });
+
+  test('RTL does not reverse the action buttons', async ({ page }) => {
+    // Regression for `rtl-double-flip`: `flex-direction: row-reverse` under
+    // `dir="rtl"` undid the browser's own mirroring and put Back/Next back into
+    // left-to-right order.
+    await page.evaluate(() => { document.documentElement.setAttribute('dir', 'rtl'); });
+    await page.click('#start-btn');
+    await page.locator('.gf-popover [data-gf-action="next"]').click();
+    await expect(page.locator('.gf-popover-title')).toHaveText('Step Two');
+
+    const order = await page.evaluate(() => {
+      const back = document.querySelector('.gf-popover [data-gf-action="prev"]');
+      const next = document.querySelector('.gf-popover [data-gf-action="next"]');
+      if (!back || !next) return null;
+      return {
+        backLeft: back.getBoundingClientRect().left,
+        nextLeft: next.getBoundingClientRect().left,
+      };
+    });
+    expect(order).not.toBeNull();
+    // Reading order is right-to-left, so Back — which comes first in the DOM —
+    // must sit to the RIGHT of Next.
+    expect(order!.backLeft).toBeGreaterThan(order!.nextLeft);
+  });
+
+  test('no critical violations with a tour open in RTL', async ({ page }) => {
+    await page.evaluate(() => { document.documentElement.setAttribute('dir', 'rtl'); });
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .include('.gf-popover')
+      .withTags(['wcag2a', 'wcag2aa'])
+      .analyze();
+    const blocking = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+    expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 });

@@ -1,40 +1,40 @@
 ---
-description: GuideFlow Enterprise theme — a neutral, accessible tour popover theme designed for enterprise software and compliance-heavy environments. WCAG-friendly.
-keywords: GuideFlow enterprise theme, accessible tour theme, WCAG tour popover, enterprise onboarding
+description: GuideFlow Enterprise theme — a muted slate tour popover with a blue accent and an Inter-first font stack, activated with data-gf-theme="enterprise".
+keywords: GuideFlow enterprise theme, neutral tour popover, enterprise onboarding tour, data-gf-theme enterprise
 ---
 
 # Enterprise Theme
 
-A neutral, accessible theme designed for enterprise software and compliance-heavy environments.
-
-## Preview
-
-- Neutral gray palette
-- WCAG AA contrast ratios
-- Conservative border radius
-- System font stack
+A muted slate surface with a conservative radius and a blue primary accent.
 
 ## Usage
 
 ```ts
 import '@guideflow/core/styles'
-import '@guideflow/core/styles/themes/enterprise.css'
 ```
 
-## Design Tokens
+```html
+<html data-gf-theme="enterprise">
+```
+
+The bundle already contains this theme — there is no separate `enterprise.css` to import.
+
+## What it overrides
 
 | Token | Value |
 |-------|-------|
-| `--gf-popover-bg` | `#fafafa` |
-| `--gf-popover-color` | `#1f2937` |
-| `--gf-popover-border` | `1px solid #d1d5db` |
-| `--gf-popover-border-radius` | `4px` |
-| `--gf-popover-shadow` | `0 1px 2px rgba(0,0,0,0.05)` |
-| `--gf-btn-primary-bg` | `#2563eb` |
-| `--gf-btn-primary-color` | `#ffffff` |
+| `--gf-popover-bg` | `#f8fafc` |
+| `--gf-popover-text` | `#1e293b` |
+| `--gf-popover-border` | `#e2e8f0` |
+| `--gf-accent-color` | `#2563eb` |
+| `--gf-accent-fg` | `#ffffff` |
+| `--gf-shadow` | `0 4px 16px rgba(0, 0, 0, 0.10)` |
+| `--gf-border-radius` | `8px` |
+| `--gf-border-radius-sm` | `4px` |
+| `--gf-font-family` | `'Inter', system-ui, sans-serif` |
 
-## Accessibility
+## Notes
 
-- All color combinations meet WCAG AA contrast requirements
-- Focus indicators are visible and distinct
-- Typography uses system fonts for consistency
+This is the only built-in theme that changes typography, and it asks for **Inter** first.
+GuideFlow does not bundle or load that font — if Inter is not already available in your app, the
+stack falls back to `system-ui`.

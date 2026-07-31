@@ -1,34 +1,36 @@
 ---
-description: GuideFlow Bold theme — a vibrant, high-contrast tour popover theme with strong colors and prominent shadows. Ideal for consumer apps and marketing sites.
-keywords: GuideFlow bold theme, high-contrast tour, vibrant popover theme, marketing site tour
+description: GuideFlow Bold theme — a dark indigo tour popover with a violet accent and a coloured glow shadow, activated with data-gf-theme="bold".
+keywords: GuideFlow bold theme, dark tour popover, violet accent tour, data-gf-theme bold
 ---
 
 # Bold Theme
 
-A vibrant, high-contrast theme with strong colors and prominent shadows. Ideal for consumer apps and marketing sites.
-
-## Preview
-
-- Rich gradient backgrounds
-- Large, bold typography
-- Strong drop shadows
-- Generous padding
+A dark indigo popover surface with a violet accent and a coloured glow shadow.
 
 ## Usage
 
 ```ts
 import '@guideflow/core/styles'
-import '@guideflow/core/styles/themes/bold.css'
 ```
 
-## Design Tokens
+```html
+<html data-gf-theme="bold">
+```
+
+The bundle already contains this theme — there is no separate `bold.css` to import.
+
+## What it overrides
 
 | Token | Value |
 |-------|-------|
 | `--gf-popover-bg` | `#1e1b4b` |
-| `--gf-popover-color` | `#f8fafc` |
-| `--gf-popover-border` | `2px solid #6366f1` |
-| `--gf-popover-border-radius` | `16px` |
-| `--gf-popover-shadow` | `0 20px 40px rgba(99,102,241,0.3)` |
-| `--gf-btn-primary-bg` | `#6366f1` |
-| `--gf-btn-primary-color` | `#ffffff` |
+| `--gf-popover-text` | `#f1f5f9` |
+| `--gf-popover-border` | `rgba(255, 255, 255, 0.1)` |
+| `--gf-accent-color` | `#a78bfa` |
+| `--gf-accent-fg` | `#1e1b4b` |
+| `--gf-shadow` | `0 12px 40px rgba(99, 102, 241, 0.35)` |
+| `--gf-border-radius` | `12px` |
+| `--gf-progress-bg` | `rgba(255, 255, 255, 0.15)` |
+
+The theme changes colour, radius and shadow only — font size, weight and padding are the
+defaults.

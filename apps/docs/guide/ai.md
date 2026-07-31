@@ -1,105 +1,147 @@
 ---
-description: GuideFlow AI features overview — auto-generate tour steps from your DOM, detect user intent in real-time, and answer questions with an embedded conversational AI.
+description: GuideFlow AI features overview — generate tour steps from your DOM, classify user intent, and answer page questions with @guideflow/ai.
 keywords: AI product tour, auto-generate tour, GuideFlow AI, AI onboarding library, @guideflow/ai
 ---
 
 # AI Features
 
-`@guideflow/ai` is the primary differentiator of GuideFlow — no other tour library has built-in AI capabilities.
+`@guideflow/ai` adds three things to a GuideFlow instance: step generation from the live DOM,
+an intent classifier over recent user events, and a page-aware question answerer.
+
+Read [Running AI through your own server](./ai-proxy) first. Every provider except `ProxyProvider`
+and `OllamaProvider` holds an API key, and a key in browser code is public by construction.
 
 ## Providers
 
-| Provider | Package | Notes |
-|----------|---------|-------|
-| `OpenAIProvider` | `openai` peer dep | GPT-4o-mini by default |
-| `AnthropicProvider` | `@anthropic-ai/sdk` peer dep | claude-3-haiku by default |
-| `OllamaProvider` | none | HTTP to local Ollama instance |
-| `MockProvider` | none | Deterministic fake responses for testing |
+| Provider | Extra install | Notes |
+|----------|---------------|-------|
+| `ProxyProvider` | none | **Use this in a browser.** POSTs to an endpoint you run; holds no credential |
+| `OpenAIProvider` | `openai` optional peer dep | `gpt-4o-mini` by default. Server-side only |
+| `AnthropicProvider` | `@anthropic-ai/sdk` optional peer dep | `claude-3-haiku-20240307` by default. Server-side only |
+| `OllamaProvider` | none | HTTP to a local Ollama instance. No key |
+| `MockProvider` | none | Deterministic fixtures for tests. No network call |
+
+Full option tables: [Providers](../api/ai/providers).
 
 ## Setup
 
 ```ts
-import { createGuideFlow } from '@guideflow/core';
-import { createAI, OpenAIProvider } from '@guideflow/ai';
+import { createGuideFlow } from '@guideflow/core'
+import { createAI, ProxyProvider } from '@guideflow/ai'
 
-const gf = createGuideFlow();
-
-// Attach AI — augments gf with a .ai property
-createAI(
-  new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }),
-  gf,
-  { autoWatch: false }, // optional GuideBrain options
-);
+// createAI mutates the instance in place AND returns it, re-typed with `.ai`.
+// Keep the return value — the original binding is not widened, so `.ai` on it
+// is a type error.
+const gf = createAI(
+  new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
+  createGuideFlow(),
+  { autoWatch: false }, // optional GuideBrainOptions
+)
 ```
 
-## Auto-generate Steps
+## Generate steps
+
+`generate()` takes a prompt and an optional **root `Element`** to scope the DOM capture. It returns
+`Step[]` — you still have to put those steps into a flow.
 
 ```ts
-// Generate a full tour from the current page
-const steps = await gf.ai.generate('Walk the user through the checkout flow');
-gf.start({ id: 'ai-checkout', steps });
+const steps = await gf.ai.generate('Walk the user through the checkout flow')
 
-// Scope generation to a specific section
-const steps = await gf.ai.generate('Explain this form', document.querySelector('#payment-form'));
+await gf.start({
+  id: 'ai-checkout',
+  initial: 'main',
+  states: { main: { steps, final: true } },
+})
 ```
 
-## Intent Detection
+```ts
+// Scope generation to one section of the page.
+const steps = await gf.ai.generate('Explain this form', document.querySelector('#payment-form'))
+```
+
+::: warning A flat `{ id, steps }` object is not a flow
+`start()` expects a `FlowDefinition`. Passing `{ id, steps }` throws, because `initial` is missing
+from `states`. See [Flows and steps](./flows-and-steps).
+:::
+
+## Intent detection
+
+`watch()` buffers clicks, input, scroll and keydown events, and after `intentDebounceMs` of quiet
+asks the provider to classify them. It returns a cleanup function.
 
 ```ts
-// Start watching user behaviour
-const stopWatch = gf.ai.watch();
+const stopWatching = gf.ai.watch()
 
-// Listen for intent signals
 gf.ai.on('intent:detected', (signal) => {
-  if (signal.intent === 'checkout' && signal.confidence > 0.8) {
-    gf.start({ id: 'checkout-help', steps: [...] });
+  // signal.type is one of: 'confused' | 'stuck' | 'exploring' | 'engaged'
+  if (signal.type === 'confused' && signal.confidence > 0.8) {
+    void gf.start(helpFlow)
   }
-});
+})
 
-// Stop watching when no longer needed
-stopWatch();
+stopWatching()
 ```
 
-## Adaptive Step Compression
+::: warning Nothing is triggered for you
+The signal is emitted and that is all. GuideFlow does not start, branch or suppress any flow in
+response to an intent signal — the `gf.start(...)` above is yours to write. See
+[Intent detection](./ai-intent).
+:::
 
-Skip steps the user has already mastered:
+## Adaptive step compression
+
+`compress()` needs the GuideFlow instance as its second argument, and an optional `userId` to enable
+the persistence lookup.
 
 ```ts
-const allSteps = [...]; // your full step list
-const relevant = await gf.ai.compress(allSteps, gf);
-gf.start({ id: 'smart-tour', steps: relevant });
+const relevant = await gf.ai.compress(allSteps, gf, currentUser.id)
+
+await gf.start({
+  id: 'smart-tour',
+  initial: 'main',
+  states: { main: { steps: relevant, final: true } },
+})
 ```
 
-## Conversational Help
+## Conversational help
+
+`chat()` returns a `GuidedAnswer`: `{ text, highlights, confidence?, suggestedSteps? }`.
 
 ```ts
-const answer = await gf.ai.chat('How do I add a promo code?');
-console.log(answer.answer);          // natural language explanation
-console.log(answer.highlightSelector); // CSS selector to highlight
+const answer = await gf.ai.chat('How do I add a promo code?')
 
-// Highlight the element automatically
-if (answer.highlightSelector) {
-  document.querySelector(answer.highlightSelector)?.scrollIntoView();
-}
+console.log(answer.text)        // natural-language explanation
+console.log(answer.highlights)  // string[] of CSS selectors
+
+answer.highlights.forEach((selector) => {
+  document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+})
 ```
 
-## Using the Mock Provider (testing)
+## Testing without a model
 
 ```ts
-import { createAI, MockProvider } from '@guideflow/ai';
+import { createAI, MockProvider } from '@guideflow/ai'
 
-createAI(new MockProvider(0), gf); // 0ms delay for fast tests
-const steps = await gf.ai.generate('test');
-expect(steps.length).toBeGreaterThan(0);
+// The constructor arg is artificial latency in ms (default 120).
+const gf = createAI(new MockProvider(0), createGuideFlow())
+
+const steps = await gf.ai.generate('test')
+expect(steps.length).toBeGreaterThan(0)
 ```
 
-## Using Ollama (local / offline)
+## Local models
 
 ```ts
-import { createAI, OllamaProvider } from '@guideflow/ai';
+import { createAI, OllamaProvider } from '@guideflow/ai'
 
-createAI(
+const gf = createAI(
   new OllamaProvider({ baseUrl: 'http://localhost:11434', model: 'llama3' }),
-  gf,
-);
+  createGuideFlow(),
+)
 ```
+
+## What leaves the page
+
+Every AI call ships a DOM snapshot to a model. See [Privacy](./privacy) for exactly what
+`serializeDOM()` captures and how to hold data back with `data-gf-private`.

@@ -7,6 +7,27 @@
  *  - Maintain ephemeral tab state (detection, events, active tours)
  *  - Manage context menu items
  *  - Update the action badge based on detection status
+ *
+ * ── Provenance ──────────────────────────────────────────────────────────────
+ *
+ * This is the privileged end of the pipeline: it owns chrome.storage. Every
+ * `onMessage` is therefore classified by *where it came from* before it is
+ * acted upon (`.claude/docs/SECURITY-MODEL.md` §5 rule 3):
+ *
+ *  - `sender.id !== chrome.runtime.id` → another extension. Dropped outright.
+ *  - `sender.tab?.id != null`          → one of our content scripts, in a real
+ *                                        tab. May report tab state and may be
+ *                                        relayed to that tab's panel, and
+ *                                        nothing else. In particular it may
+ *                                        NOT touch storage.
+ *  - `sender.tab === undefined`        → one of our own extension pages (the
+ *                                        DevTools panel or the action popup).
+ *                                        These are the only senders allowed to
+ *                                        read or write saved flows.
+ *
+ * A page-forged message cannot reach here at all now (the content script
+ * allowlists four read-only types), but the split is what makes that a
+ * defence in depth rather than a single point of failure.
  */
 
 // ---------------------------------------------------------------------------
@@ -21,6 +42,39 @@ const activeTours = new Map<
   number,
   { flowId: string; stepIndex: number; totalSteps: number }
 >();
+
+// ---------------------------------------------------------------------------
+// Message provenance
+// ---------------------------------------------------------------------------
+
+/**
+ * Types a content script is allowed to send. Mirrors `RELAYABLE` in
+ * content/inspector.ts plus the types the content script raises on its own
+ * behalf (inspection and recording lifecycle). All are read-only reports; none
+ * touches storage.
+ */
+const TAB_MESSAGES = new Set([
+  'GF_DETECTED',
+  'GF_FLOWS_LIST',
+  'GF_TOUR_EVENT',
+  'GF_ACTIVE_TOUR_STATE',
+  'GF_ELEMENT_SELECTED',
+  'GF_QUICK_TOUR_ELEMENT',
+  'GF_RECORDED_STEP',
+  'GF_RECORDING_STARTED',
+  'GF_RECORDING_STOPPED',
+  'GF_INSPECT_STARTED',
+  'GF_INSPECT_STOPPED',
+]);
+
+/** Namespace every saved flow lives under in chrome.storage.local. */
+const FLOW_KEY_PREFIX = 'gf_flow_';
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
 
 // ---------------------------------------------------------------------------
 // Badge helpers
@@ -101,17 +155,28 @@ chrome.runtime.onConnect.addListener((port) => {
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener(
-  (message: { type: string; payload?: unknown }, sender, sendResponse) => {
+  (message: { type?: unknown; payload?: unknown } | undefined, sender, sendResponse) => {
+    // --- Provenance gate (see the header comment) ---
+    if (sender.id !== chrome.runtime.id) return undefined;
+    if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
+      return undefined;
+    }
+    const type = message.type;
+
     const tabId = sender.tab?.id;
+    /** A content script of ours, running in a real tab. */
+    const fromContentScript = tabId !== undefined && TAB_MESSAGES.has(type);
+    /** One of our own extension pages — the DevTools panel or the popup. */
+    const fromExtensionPage = sender.tab === undefined;
 
     // --- Track state from content script messages ---
-    if (tabId !== undefined) {
-      if (message.type === 'GF_DETECTED') {
+    if (fromContentScript && tabId !== undefined) {
+      if (type === 'GF_DETECTED') {
         detectedTabs.add(tabId);
         updateBadge(tabId);
       }
 
-      if (message.type === 'GF_TOUR_EVENT') {
+      if (type === 'GF_TOUR_EVENT') {
         const prev = eventCounts.get(tabId) ?? 0;
         eventCounts.set(tabId, prev + 1);
 
@@ -146,17 +211,25 @@ chrome.runtime.onMessage.addListener(
         }
       }
 
-      // Route content-script messages to the connected DevTools panel
+      // Route content-script messages to the connected DevTools panel.
+      // Only allowlisted types reach this line, so the panel can never be
+      // driven by a type it does not expect.
       const panel = devtoolsPorts.get(tabId);
       if (panel) {
-        panel.postMessage(message);
+        panel.postMessage({ type, payload: message.payload });
       }
     }
 
+    // --- Everything below is reachable only from our own extension pages ---
+    // A content script must never be able to read or mutate saved flows; that
+    // was the write primitive in AUDIT `devtools-content-script-relays-any-
+    // message-type`.
+    if (!fromExtensionPage) return undefined;
+
     // --- Handle GF_GET_STATE from popup ---
-    if (message.type === 'GF_GET_STATE') {
-      const reqTabId = (message.payload as { tabId?: number })?.tabId;
-      if (reqTabId !== undefined) {
+    if (type === 'GF_GET_STATE') {
+      const reqTabId = (message.payload as { tabId?: number } | undefined)?.tabId;
+      if (typeof reqTabId === 'number') {
         sendResponse({
           detected: detectedTabs.has(reqTabId),
           eventCount: eventCounts.get(reqTabId) ?? 0,
@@ -170,30 +243,39 @@ chrome.runtime.onMessage.addListener(
     }
 
     // --- Storage operations (async sendResponse) ---
-    if (message.type === 'GF_SAVE_FLOW') {
-      const payload = message.payload as { id?: string } | undefined;
-      const key = `gf_flow_${payload?.id ?? Date.now()}`;
-      void chrome.storage.local.set({
-        [key]: { ...(typeof payload === 'object' && payload !== null ? payload : {}), savedAt: Date.now() },
-      }, () => {
+    if (type === 'GF_SAVE_FLOW') {
+      const payload = message.payload;
+      if (!isPlainObject(payload)) {
+        sendResponse({ ok: false });
+        return undefined;
+      }
+      const rawId = payload['id'];
+      const id =
+        typeof rawId === 'string' && rawId.length > 0 && rawId.length <= 128
+          ? rawId
+          : String(Date.now());
+      const key = `${FLOW_KEY_PREFIX}${id}`;
+      void chrome.storage.local.set({ [key]: { ...payload, savedAt: Date.now() } }, () => {
         sendResponse({ ok: true, key });
       });
       return true; // Keep channel open for async sendResponse
     }
 
-    if (message.type === 'GF_LOAD_FLOWS') {
+    if (type === 'GF_LOAD_FLOWS') {
       void chrome.storage.local.get(null, (items) => {
         const flows: unknown[] = Object.entries(items)
-          .filter(([k]) => k.startsWith('gf_flow_'))
+          .filter(([k]) => k.startsWith(FLOW_KEY_PREFIX))
           .map(([, v]) => v as unknown);
         sendResponse({ flows });
       });
       return true; // Keep channel open for async sendResponse
     }
 
-    if (message.type === 'GF_DELETE_FLOW') {
-      const key = (message.payload as { key?: string })?.key;
-      if (key) {
+    if (type === 'GF_DELETE_FLOW') {
+      const key = (message.payload as { key?: string } | undefined)?.key;
+      // Confine deletion to the saved-flow namespace so a malformed key cannot
+      // wipe `gf_settings` or anything else we later keep in local storage.
+      if (typeof key === 'string' && key.startsWith(FLOW_KEY_PREFIX)) {
         void chrome.storage.local.remove(key, () => {
           sendResponse({ ok: true });
         });

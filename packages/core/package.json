@@ -24,7 +24,9 @@
   },
   "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
   "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -34,9 +36,17 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./global": {
+      "default": "./dist/index.global.js"
     },
     "./styles": {
       "import": "./dist/styles/index.css"
@@ -54,13 +64,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup && cp -r src/styles dist/styles",
+    "build": "tsup && node ../../scripts/fsx.mjs cp src/styles dist/styles",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "clean": "rm -rf dist coverage .turbo",
+    "clean": "node ../../scripts/fsx.mjs rm dist coverage .turbo",
     "size": "size-limit"
   },
   "devDependencies": {
@@ -74,9 +84,12 @@
   },
   "size-limit": [
     {
+      "name": "core entry (tree-shaken)",
       "path": "./dist/index.js",
-      "limit": "12 kB",
+      "limit": "14.5 kB",
       "gzip": true
     }
-  ]
+  ],
+  "unpkg": "./dist/index.global.js",
+  "jsdelivr": "./dist/index.global.js"
 }

@@ -1,11 +1,15 @@
+'use client'
+
 // ---------------------------------------------------------------------------
-// <TourStep> — declarative step component
-// Register a DOM element as a tour target and optionally render custom content
+// <TourStep> — visibility switch keyed on a step id
+// Renders its children only while that step is on screen. It does not draw a
+// popover and does not register a step with the engine.
 // ---------------------------------------------------------------------------
 
-import React, { useEffect, type ReactNode } from 'react'
+import React, { type ReactNode } from 'react'
 
 import { useGuideFlow } from '../context.js'
+import { useTourStep } from '../hooks/use-tour-step.js'
 
 export interface TourStepProps {
   /**
@@ -17,28 +21,21 @@ export interface TourStepProps {
 }
 
 /**
- * Declaratively define a tour step in JSX. The component registers the
- * step with the nearest <TourProvider> and renders children when active.
+ * Render content while a named step is active.
+ *
+ * A paused tour reports its step as inactive, so children are hidden by
+ * `gf.pause()` and shown again by `gf.resume()`.
  *
  * @example
  * ```tsx
- * <TourStep id="dashboard-header" target="#header" title="Welcome!" body="This is your dashboard">
+ * <TourStep id="dashboard-header">
  *   {({ next }) => <button onClick={next}>Continue</button>}
  * </TourStep>
  * ```
  */
 export function TourStep({ id, children }: TourStepProps): React.JSX.Element | null {
-
   const gf = useGuideFlow()
-  const [isActive, setIsActive] = React.useState(false)
-
-  useEffect(() => {
-    const offEnter = gf.on('step:enter', ({ stepId }) => setIsActive(stepId === id))
-    const offExit = gf.on('step:exit', ({ stepId }) => { if (stepId === id) setIsActive(false) })
-    const offAbort = gf.on('tour:abandon', () => setIsActive(false))
-    const offDone = gf.on('tour:complete', () => setIsActive(false))
-    return () => { offEnter(); offExit(); offAbort(); offDone() }
-  }, [gf, id])
+  const { isActive } = useTourStep(id)
 
   if (!isActive || !children) return null
 

@@ -2,9 +2,8 @@
  * @guideflow/vue
  *
  * @author  John Mugabe
- * @email   jonesmugabe@263tickets.co.zw
  * @country Zimbabwe
- * @github  https://github.com/johnmugabe
+ * @github  https://github.com/RealNerdZW
  * @license MIT
  *
  * Copyright (c) 2026 John Mugabe. All rights reserved.
@@ -22,6 +21,8 @@ export type { GuideFlowPluginOptions } from './plugin.js'
 // Composables
 export { useTour } from './composables/use-tour.js'
 export type { UseTourReturn } from './composables/use-tour.js'
+export { useHotspot } from './composables/use-hotspot.js'
+export type { UseHotspotReturn, HotspotTarget } from './composables/use-hotspot.js'
 
 // Re-export core types for convenience
 export type {

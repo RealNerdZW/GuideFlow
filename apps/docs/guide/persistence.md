@@ -1,37 +1,65 @@
 ---
-description: Persist GuideFlow tour progress across sessions using localStorage, IndexedDB, or a custom backend adapter. Users resume where they left off after page reloads.
+description: Persist GuideFlow tour progress across sessions using localStorage, IndexedDB, or a custom driver. Users resume where they left off after a page reload.
 keywords: GuideFlow persistence, tour progress storage, localStorage product tour, IndexedDB tour state
 ---
 
 # Persistence
 
-GuideFlow can persist tour progress so users resume where they left off, even across page reloads or browser tabs.
+GuideFlow can persist tour progress so users resume where they left off after a
+reload.
 
-## Configuration
+## Requires a user id
+
+Persistence is keyed by user and is **completely inert without
+`context.userId`**. No snapshot is written, no completed/dismissed record is
+read, and no cross-tab channel is opened.
 
 ```ts
 const gf = createGuideFlow({
   persistence: {
-    driver: 'localStorage',  // or 'indexedDB' or a custom driver
-    ttl: 30 * 24 * 60 * 60 * 1000,  // 30 days
+    driver: 'localStorage',          // or 'indexedDB', or your own driver
+    ttl: 30 * 24 * 60 * 60 * 1000,   // 30 days
   },
   context: { userId: 'user-123' },
 })
 ```
+
+`gf.configure({ persistence })` re-applies the whole persistence config at
+runtime; `gf.configure({ context })` merges a context patch, which is how you set
+`userId` once the user has signed in.
 
 ### Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `driver` | `'localStorage' \| 'indexedDB' \| PersistenceDriver` | `'localStorage'` | Storage backend |
-| `key` | `(userId: string) => string` | Built-in | Custom storage key factory |
-| `ttl` | `number` | `2592000000` (30 days) | Progress expiry in milliseconds |
+| `key` | `(userId: string) => string` | `` (userId) => `gf:${userId}:progress` `` | Key prefix factory |
+| `ttl` | `number` | `2592000000` (30 days) | Expiry in milliseconds |
+
+The prefix returned by `key` is suffixed per record —
+`…:<flowId>:snapshot`, `…:<flowId>:dismissed`, `…:completed` — so one user's
+data shares a prefix and `gf.progress.resetUser(userId)` can clear it in one go.
+
+## What gets written, and when
+
+- **On every navigation** (`start`, `next`, `prev`, `goTo`, `send`) and on
+  abandonment, a snapshot of `{ flowId, currentState, stepIndex }` is saved. The
+  snapshot's `completed` field is always `false` — it only exists while a tour is
+  live.
+- **On `tour:complete`**, the flow id is added to the completed list and the
+  snapshot is deleted.
+- **On dismissal**, if the flow opted in with `persistDismissal`.
+
+On the next `gf.start(flow)` the engine, in order: returns early if the flow was
+dismissed, returns early if it was completed, otherwise restores the snapshot and
+re-renders at the saved step.
 
 ## Drivers
 
 ### localStorage (default)
 
-Simple synchronous storage. Works everywhere but limited to ~5 MB.
+Synchronous, JSON-serialised, ~5 MB. Values that do not survive `JSON.stringify`
+round-tripping are not supported.
 
 ```ts
 persistence: { driver: 'localStorage' }
@@ -39,47 +67,108 @@ persistence: { driver: 'localStorage' }
 
 ### IndexedDB
 
-Asynchronous storage with larger capacity. Good for complex progress data.
+Asynchronous, larger capacity, structured-clone storage. Database `guideflow`,
+object store `progress`.
 
 ```ts
 persistence: { driver: 'indexedDB' }
 ```
 
+Both built-in drivers no-op outside the browser, so SSR renders are safe.
+
 ### Custom Driver
 
-Implement the `PersistenceDriver` interface for custom backends (e.g., a server API):
-
 ```ts
+import type { PersistenceDriver } from '@guideflow/core'
+
 const serverDriver: PersistenceDriver = {
-  async get(key: string) {
-    const res = await fetch(`/api/progress/${key}`)
-    return res.json()
+  async get<T>(key: string): Promise<T | null> {
+    const res = await fetch(`/api/progress/${encodeURIComponent(key)}`)
+    return res.ok ? ((await res.json()) as T) : null
   },
-  async set(key: string, value: unknown) {
-    await fetch(`/api/progress/${key}`, {
+  async set<T>(key: string, value: T): Promise<void> {
+    await fetch(`/api/progress/${encodeURIComponent(key)}`, {
       method: 'PUT',
       body: JSON.stringify(value),
     })
   },
-  async remove(key: string) {
-    await fetch(`/api/progress/${key}`, { method: 'DELETE' })
+  async remove(key: string): Promise<void> {
+    await fetch(`/api/progress/${encodeURIComponent(key)}`, { method: 'DELETE' })
+  },
+  // Optional, but resetUser() needs it to enumerate what to delete — without it
+  // a custom driver's records are never cleared. Both built-in drivers have it.
+  async keys(): Promise<string[]> {
+    return (await (await fetch('/api/progress')).json()) as string[]
   },
 }
 
 const gf = createGuideFlow({
   persistence: { driver: serverDriver },
+  context: { userId: 'user-123' },
 })
 ```
 
+Values handed to `set` are `{ value, expiresAt }` wrappers. Expiry is enforced by
+GuideFlow on read, not by the driver.
+
 ## Cross-Tab Sync
 
-GuideFlow uses `BroadcastChannel` to sync tour state across browser tabs. When a user completes a step in one tab, all other tabs update automatically.
+When `context.userId` is set and the browser supports `BroadcastChannel`,
+GuideFlow publishes each saved snapshot on the `guideflow:progress` channel.
 
-This works out of the box with no configuration required.
+A receiving tab acts on the message **only if** it belongs to the same user *and*
+that tab is currently running the same flow — it then restores the position and
+re-renders. Tabs that are idle, or running a different tour, ignore it: nothing
+is queued and no tour is started remotely. Since a message is only published when
+a snapshot is written, sync happens on step changes, not on arbitrary UI events.
+
+```ts
+const gf = createGuideFlow({ context: { userId: 'user-123' } })
+```
+
+## Don't Show Again
+
+Set `persistDismissal: true` on a flow to permanently suppress it once the user
+dismisses it — via <kbd>Escape</kbd>, the Skip button, or a backdrop click:
+
+```ts
+await gf.start({
+  id: 'welcome',
+  initial: 'main',
+  persistDismissal: true,
+  states: { main: { steps: [/* ... */], final: true } },
+})
+```
+
+This is **off by default**: closing a tour once usually means "not now", not
+"never again". It also requires `context.userId`.
+
+To implement your own policy, listen for `tour:dismiss` — emitted only on a user
+dismissal, never on a programmatic `stop()`:
+
+```ts
+gf.on('tour:dismiss', ({ flowId, stepId, stepIndex }) => {
+  if (stepIndex > 2) void gf.progress.markDismissed('user-123', flowId)
+})
+```
+
+## Reading and clearing progress yourself
+
+`gf.progress` is the live `ProgressStore`:
+
+```ts
+await gf.progress.isCompleted('user-123', 'welcome')     // boolean
+await gf.progress.getCompletedFlows('user-123')          // string[]
+await gf.progress.isDismissed('user-123', 'welcome')     // boolean
+await gf.progress.clearDismissed('user-123', 'welcome')  // let it run again
+await gf.progress.loadSnapshot('user-123', 'welcome')    // FlowSnapshot | null
+await gf.progress.clearSnapshot('user-123', 'welcome')   // restart from step 0
+await gf.progress.resetUser('user-123')                  // clear everything
+```
+
+Every method is async, including with the localStorage driver.
 
 ## Custom Storage Keys
-
-Override the default key generation:
 
 ```ts
 persistence: {
@@ -90,7 +179,8 @@ persistence: {
 
 ## TTL (Time to Live)
 
-Progress data expires after the TTL period. Once expired, users restart the tour from the beginning:
+Records carry an absolute expiry stamped at write time. Once expired they are
+removed on the next read and the tour restarts from the beginning:
 
 ```ts
 persistence: {
@@ -98,4 +188,6 @@ persistence: {
 }
 ```
 
-Set `ttl: 0` to disable expiry (progress persists indefinitely).
+`ttl: 0` — or any non-positive value, or `Infinity` — means **never expires**.
+The expiry applies to dismissals and the completed list as well as to snapshots,
+so a short TTL makes "don't show again" temporary.

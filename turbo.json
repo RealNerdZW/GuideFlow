@@ -21,6 +21,12 @@
       "passThroughEnv": ["CI"]
     },
     "lint": {
+      // ESLint runs type-aware rules (parserOptions.project), so it resolves
+      // imports through each dependency's emitted .d.ts. Without ^build a
+      // cold-cache lint races the builds it depends on and fails in whichever
+      // package happens to be scheduled first — intermittently, which is worse
+      // than failing every time. Found by the Phase 4 docs verification.
+      "dependsOn": ["^build"],
       "outputs": []
     },
     "type-check": {

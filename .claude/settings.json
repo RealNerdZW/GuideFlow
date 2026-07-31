@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm type-check:*)",
+      "Bash(pnpm size:*)",
+      "Bash(pnpm turbo run:*)",
+      "Bash(pnpm --filter:*)",
+      "Bash(pnpm changeset:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(npx size-limit:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(node -e:*)",
+      "Read(**)",
+      "Glob(**)",
+      "Grep(**)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(pnpm publish:*)",
+      "Bash(pnpm publish-packages:*)",
+      "Bash(pnpm version-packages:*)",
+      "Bash(npm publish:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh release:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.npmrc)",
+      "Bash(rm -rf /:*)",
+      "Bash(git push --force:*)"
+    ]
+  }
+}

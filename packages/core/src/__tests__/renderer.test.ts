@@ -140,7 +140,13 @@ describe('DefaultRenderer', () => {
 
     const progressBar = document.querySelector('.gf-progress-bar')
     expect(progressBar).not.toBeNull()
-    expect(progressBar?.getAttribute('aria-valuenow')).toBe('20')
+    // A step number, not a percentage. "20 percent" told a screen-reader user
+    // nothing useful; see the fuller assertions in a11y.test.ts.
+    expect(progressBar?.getAttribute('aria-valuenow')).toBe('1')
+    expect(progressBar?.getAttribute('aria-valuemax')).toBe('5')
+    // The bar itself is still 20% wide.
+    expect(progressBar?.querySelector('.gf-progress-bar-fill')?.getAttribute('style'))
+      .toContain('20%')
   })
 
   it('sets correct ARIA attributes on popover', () => {

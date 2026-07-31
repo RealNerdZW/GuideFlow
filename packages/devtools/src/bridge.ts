@@ -6,10 +6,30 @@
  * is loaded via a `<script>` tag so it executes in the page's own JS
  * context.  It subscribes to every GuideFlow event and relays them to the
  * content script through `window.postMessage`.
+ *
+ * ── Security ────────────────────────────────────────────────────────────────
+ *
+ * This file runs with page privileges, on the hostile side of the boundary
+ * described in `.claude/docs/SECURITY-MODEL.md` §5. Two rules follow:
+ *
+ *  1. Every message carries the per-page-load nonce that the content script put
+ *     on this script tag, and every inbound message must carry it too. The
+ *     nonce is NOT a secret — any page script that watched the injection can
+ *     read the `data-gf-nonce` attribute off the DOM, and any script can listen
+ *     on `window` for what we post. It stops *blind* forgery from scripts that
+ *     did not observe the injection; it does not make the channel private.
+ *  2. Consequently, never put anything on this channel that the page must not
+ *     see. Everything here is tour metadata the page already owns.
+ *
+ * This bundle must stay import-free: the content script loads it as a CLASSIC
+ * script (so `document.currentScript` is non-null) and vite.config.ts wraps it
+ * in an IIFE, which an ESM `import` statement would break.
  */
 
 // Force TypeScript to treat this as a module (isolated scope)
 export {};
+
+import { toCloneable } from './cloneable.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +37,7 @@ export {};
 
 interface BridgeMessage {
   source?: string;
+  nonce?: string;
   type?: string;
   payload?: unknown;
 }
@@ -48,6 +69,17 @@ const BRIDGE_SOURCE = '__gf_bridge__';
 /** Sentinel used by content → bridge direction. */
 const CONTENT_SOURCE = '__gf_content__';
 
+/**
+ * Concrete `targetOrigin` for every post. Both ends live in this document, so
+ * its own origin is the correct target on ordinary http(s) pages. Documents
+ * with an opaque or exotic origin (sandboxed frames, `data:`, `file:`) cannot
+ * be addressed by a serialised origin, so those fall back to `'*'` — still
+ * confined to this window, because both listeners require
+ * `event.source === window`.
+ */
+const PAGE_ORIGIN = window.location.origin;
+const TARGET_ORIGIN = /^https?:\/\//i.test(PAGE_ORIGIN) ? PAGE_ORIGIN : '*';
+
 /** All GuideFlow events that should be relayed to the DevTools panel. */
 const EVENTS = [
   'tour:start',
@@ -66,8 +98,57 @@ const EVENTS = [
 ];
 
 // ---------------------------------------------------------------------------
+// Per-page-load nonce
+// ---------------------------------------------------------------------------
+
+/**
+ * Read the nonce the content script stamped on the `<script>` tag that loaded
+ * this bundle.
+ */
+function readNonce(): string {
+  // `document.currentScript` is the element currently executing, which the page
+  // cannot substitute. It is only non-null for classic scripts, which is why
+  // inspector.ts injects this bundle without `type="module"`.
+  const current = document.currentScript;
+  if (current instanceof HTMLScriptElement) {
+    const fromCurrent = current.dataset['gfNonce'];
+    if (fromCurrent) return fromCurrent;
+  }
+
+  // Fallback for the module-script case. A page could plant a decoy tag here,
+  // which desynchronises the nonce and silently disables the relay — a denial
+  // of service against the DevTools panel, never a privilege escalation.
+  const tags = document.querySelectorAll<HTMLScriptElement>('script[data-gf-nonce]');
+  for (const tag of tags) {
+    if (tag.src.startsWith('chrome-extension://')) {
+      const value = tag.dataset['gfNonce'];
+      if (value) return value;
+    }
+  }
+
+  return '';
+}
+
+const NONCE = readNonce();
+
+// ---------------------------------------------------------------------------
 // Relay logic
 // ---------------------------------------------------------------------------
+
+function post(type: string, payload: unknown): void {
+  // Belt and braces: even with toCloneable, a payload shape nobody anticipated
+  // must not be able to throw inside a page event handler and abort the tour.
+  // The extension failing to observe something is always preferable to the
+  // extension breaking the page it is observing.
+  try {
+    window.postMessage(
+      { source: BRIDGE_SOURCE, nonce: NONCE, type, payload: toCloneable(payload) },
+      TARGET_ORIGIN,
+    );
+  } catch (err) {
+    console.warn('[GuideFlow bridge] dropped an unpostable message:', type, err);
+  }
+}
 
 /**
  * Track which GF instance we've already subscribed to.
@@ -80,23 +161,13 @@ function relay(): void {
   if (!gf?.on) return;
 
   // Always re-send GF_DETECTED so a freshly-opened panel gets it
-  window.postMessage(
-    {
-      source: BRIDGE_SOURCE,
-      type: 'GF_DETECTED',
-      payload: { version: gf.version ?? 'unknown' },
-    },
-    '*',
-  );
+  post('GF_DETECTED', { version: gf.version ?? 'unknown' });
 
   // Send the list of registered flows (if any)
   try {
     const flows = gf.listFlows?.();
     if (flows && flows.length > 0) {
-      window.postMessage(
-        { source: BRIDGE_SOURCE, type: 'GF_FLOWS_LIST', payload: flows },
-        '*',
-      );
+      post('GF_FLOWS_LIST', flows);
     }
   } catch {
     // listFlows may not exist on older versions
@@ -107,10 +178,7 @@ function relay(): void {
     subscribedInstance = gf;
     EVENTS.forEach((evt) => {
       gf.on(evt, (...args: unknown[]) => {
-        window.postMessage(
-          { source: BRIDGE_SOURCE, type: 'GF_TOUR_EVENT', payload: { event: evt, args } },
-          '*',
-        );
+        post('GF_TOUR_EVENT', { event: evt, args });
       });
     });
   }
@@ -120,16 +188,21 @@ function relay(): void {
 // Handle commands from content script → page
 // ---------------------------------------------------------------------------
 
-window.addEventListener('message', (e: MessageEvent) => {
+function onContentMessage(e: MessageEvent): void {
   if (e.source !== window) return;
-  const data = e.data as BridgeMessage | undefined;
-  if (data?.source !== CONTENT_SOURCE) return;
+  const data = e.data as BridgeMessage | null | undefined;
+  if (!data || typeof data !== 'object') return;
+  if (data.source !== CONTENT_SOURCE) return;
+  if (data.nonce !== NONCE) return;
 
   const gf = (window as unknown as WindowWithGF).__guideflow;
   if (!gf) return;
 
   switch (data.type) {
     case 'GF_START_TOUR':
+      // `payload` originates in the DevTools panel, but the page can forge it
+      // too. It is handed to the page's own GuideFlow instance, so the blast
+      // radius is a tour the page could have started itself.
       if (gf.start) {
         try {
           gf.start(data.payload);
@@ -139,14 +212,9 @@ window.addEventListener('message', (e: MessageEvent) => {
       }
       break;
 
-    case 'GF_LIST_FLOWS': {
-      const flows = gf.listFlows?.() ?? [];
-      window.postMessage(
-        { source: BRIDGE_SOURCE, type: 'GF_FLOWS_LIST', payload: flows },
-        '*',
-      );
+    case 'GF_LIST_FLOWS':
+      post('GF_FLOWS_LIST', gf.listFlows?.() ?? []);
       break;
-    }
 
     case 'GF_PROBE':
       // Re-run detection — the DevTools panel just opened and needs a
@@ -156,20 +224,15 @@ window.addEventListener('message', (e: MessageEvent) => {
       relay();
       break;
 
-    case 'GF_GET_ACTIVE_TOUR': {
+    case 'GF_GET_ACTIVE_TOUR':
       // Return current tour state to caller
-      const tourState = {
+      post('GF_ACTIVE_TOUR_STATE', {
         isActive: gf.isActive ?? false,
         currentStepId: gf.currentStepId ?? null,
         currentStepIndex: gf.currentStepIndex ?? 0,
         totalSteps: gf.totalSteps ?? 0,
-      };
-      window.postMessage(
-        { source: BRIDGE_SOURCE, type: 'GF_ACTIVE_TOUR_STATE', payload: tourState },
-        '*',
-      );
+      });
       break;
-    }
 
     case 'GF_PAUSE_TOUR':
       gf.pause?.();
@@ -183,7 +246,7 @@ window.addEventListener('message', (e: MessageEvent) => {
       gf.stop?.();
       break;
   }
-});
+}
 
 // ---------------------------------------------------------------------------
 // Retry — GuideFlow may initialise after this script runs
@@ -203,4 +266,17 @@ function tryRelay(): void {
   }
 }
 
-tryRelay();
+// ---------------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------------
+
+if (NONCE) {
+  window.addEventListener('message', onContentMessage);
+  tryRelay();
+} else {
+  // Without a nonce nothing we post would be accepted anyway, so stay inert
+  // rather than leaking tour events onto the page bus for no benefit.
+  console.warn(
+    '[GuideFlow bridge] No nonce found on the injected script tag — DevTools relay disabled.',
+  );
+}

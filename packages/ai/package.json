@@ -24,7 +24,9 @@
   },
   "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
   "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -34,9 +36,14 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "main": "./dist/index.cjs",
@@ -50,16 +57,14 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "clean": "rm -rf dist .turbo"
-  },
-  "dependencies": {
-    "@guideflow/core": "workspace:*"
+    "clean": "node ../../scripts/fsx.mjs rm dist .turbo"
   },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.17.0",
+    "@guideflow/core": ">=0.1.9 <1.0.0",
     "openai": ">=4.0.0"
   },
   "peerDependenciesMeta": {
@@ -71,6 +76,7 @@
     }
   },
   "devDependencies": {
+    "@guideflow/core": "workspace:*",
     "happy-dom": "^13.6.2",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3",

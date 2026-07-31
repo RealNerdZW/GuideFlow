@@ -12,6 +12,10 @@ export interface Locale {
   done: string
   openHint: string
   closeHint: string
+  /** Accessible name for the popover when a step supplies no title. */
+  dialogLabel: string
+  /** Accessible name for the progress indicator. */
+  progressLabel: string
 }
 
 const EN: Locale = {
@@ -23,6 +27,8 @@ const EN: Locale = {
   done: 'Done',
   openHint: 'Open hint',
   closeHint: 'Close hint',
+  dialogLabel: 'Product tour',
+  progressLabel: 'Tour progress',
 }
 
 export class I18nRegistry {
@@ -46,7 +52,9 @@ export class I18nRegistry {
     let str = locale[key] ?? EN[key]
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {
-        str = str.replace(`{${k}}`, String(v))
+        // Replace every occurrence — `String.replace` with a string pattern
+        // only replaces the first, so "{n} of {n}" used to render half-filled.
+        str = str.split(`{${k}}`).join(String(v))
       }
     }
     return str

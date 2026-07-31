@@ -3,7 +3,24 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 import { copyFileSync, mkdirSync, readdirSync, renameSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
+// The extension version lives in exactly one place: this package's
+// package.json. It is written into dist/manifest.json by the plugin below and
+// substituted into the panel and popup UIs through the `__GF_VERSION__` define
+// (declared for TypeScript in src/version.d.ts).
+const PKG_VERSION = (
+  JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')) as { version: string }
+).version;
+
+// Chrome's `version` accepts one to four dot-separated integers and nothing
+// else, so a prerelease or build suffix — `0.2.0-beta.1`, which Changesets can
+// produce — has to be stripped. `version_name` carries the full string for
+// display in chrome://extensions.
+const MANIFEST_VERSION = PKG_VERSION.split(/[-+]/)[0] ?? PKG_VERSION;
+
 export default defineConfig({
+  define: {
+    __GF_VERSION__: JSON.stringify(PKG_VERSION),
+  },
   plugins: [
     react(),
     // Copy static files to dist after build
@@ -13,10 +30,17 @@ export default defineConfig({
         const dist = resolve(__dirname, 'dist');
         mkdirSync(dist, { recursive: true });
 
-        // manifest.json
-        copyFileSync(
-          resolve(__dirname, 'manifest.json'),
+        // manifest.json — the source file deliberately carries no `version`
+        // key; it is injected here so package.json cannot drift out of sync
+        // with the manifest Chrome actually loads.
+        const manifest = JSON.parse(
+          readFileSync(resolve(__dirname, 'manifest.json'), 'utf-8'),
+        ) as Record<string, unknown>;
+        manifest['version'] = MANIFEST_VERSION;
+        if (MANIFEST_VERSION !== PKG_VERSION) manifest['version_name'] = PKG_VERSION;
+        writeFileSync(
           resolve(dist, 'manifest.json'),
+          `${JSON.stringify(manifest, null, 2)}\n`,
         );
 
         // devtools.html bootstrap page (not processed by Vite)
@@ -56,6 +80,30 @@ export default defineConfig({
         // Clean up the now-empty src/ tree
         if (existsSync(resolve(dist, 'src'))) {
           rmSync(resolve(dist, 'src'), { recursive: true, force: true });
+        }
+
+        // bridge.js is injected into the PAGE world as a *classic* script (see
+        // src/content/inspector.ts `injectBridge`) so that
+        // `document.currentScript` is non-null and the per-page-load nonce can
+        // be read off the tag that is actually executing — inside a module
+        // script `document.currentScript` is always null.
+        //
+        // Rollup emits ESM, whose top-level bindings are module-scoped; as a
+        // classic script those same bindings would land in the page's global
+        // lexical scope and could collide with the host app. Wrap the bundle in
+        // a strict-mode IIFE to restore module-like isolation. This is only
+        // sound while bridge.ts imports nothing, so fail the build loudly if
+        // that ever changes.
+        const bridgeFile = resolve(dist, 'bridge.js');
+        if (existsSync(bridgeFile)) {
+          const code = readFileSync(bridgeFile, 'utf-8');
+          if (/(?:^|[;\n])\s*(?:import|export)\b/.test(code)) {
+            throw new Error(
+              'dist/bridge.js contains ESM syntax. bridge.ts must stay import-free so it can be ' +
+                'injected as a classic script; move any shared helper back into bridge.ts.',
+            );
+          }
+          writeFileSync(bridgeFile, `(function(){'use strict';\n${code}\n})();\n`);
         }
 
         // Icon assets

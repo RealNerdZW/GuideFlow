@@ -3,13 +3,14 @@
 // XState-compatible API surface for optional adapter compatibility
 // ---------------------------------------------------------------------------
 
-import type { GuidanceContext, FlowDefinition } from '../types/index.js'
+import type { GuidanceContext, FlowDefinition, FlowTransition, StateNode } from '../types/index.js'
 
 import type { MachineContext, MachineListener } from './types.js'
 
 export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
   private _ctx: MachineContext<TContext>
   private _listeners = new Set<MachineListener<TContext>>()
+  private _pathCache: string[] | null = null
 
   constructor(flow: FlowDefinition<TContext>, context?: TContext) {
     // Validate that the initial state exists in the flow definition
@@ -58,8 +59,89 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return this._ctx.flow.states[this._ctx.currentState]?.final === true
   }
 
+  /** Steps in the current state only. */
   get totalSteps(): number {
     return this.currentSteps.length
+  }
+
+  /**
+   * The states a plain next()-only run visits, in order, starting from
+   * `initial`.
+   *
+   * Computed once and cached: a flow definition is immutable for the life of a
+   * machine, and `_renderCurrentStep` reads the progress counters on every step.
+   * The walk follows each state's `NEXT` transition — or its single outgoing
+   * transition, if it has exactly one — and stops at a final state, at a state
+   * with no unambiguous successor, or on revisiting a state (a loop has no
+   * finite length).
+   */
+  private get _defaultPath(): string[] {
+    if (this._pathCache) return this._pathCache
+
+    const path: string[] = []
+    const seen = new Set<string>()
+    let state = this._ctx.flow.initial as string | undefined
+
+    while (state !== undefined && !seen.has(state)) {
+      seen.add(state)
+      path.push(state)
+      state = this._defaultSuccessor(state)
+    }
+
+    this._pathCache = path
+    return path
+  }
+
+  /**
+   * The state a plain next() would land in from `from`, or `undefined` if
+   * next() would end the tour there instead.
+   *
+   * `NEXT` only, deliberately. `nextStep()` falls back to exactly `send('NEXT')`
+   * when a state's steps run out, so a state reachable only by some other event
+   * — a `HELP` branch, a `JUMP` — is not on the path a next()-only run takes and
+   * must not be counted in it.
+   *
+   * A separate method rather than inline in the loop above: assigning the loop
+   * variable from an expression that reads `flow.states[state]` makes the whole
+   * chain self-referential, and TypeScript refuses to infer it (TS7022).
+   */
+  private _defaultSuccessor(from: string): string | undefined {
+    const node: StateNode<TContext> | undefined = this._ctx.flow.states[from]
+    if (!node || node.final === true) return undefined
+
+    const transition: string | FlowTransition<TContext> | undefined = node.on?.['NEXT']
+    const target: string | undefined =
+      typeof transition === 'string' ? transition : transition?.target
+    return target !== undefined && target in this._ctx.flow.states ? target : undefined
+  }
+
+  /**
+   * Steps across the whole flow, not just the current state.
+   *
+   * `totalSteps` counted the current state only, so a two-state flow announced
+   * "Step 1 of 1" in its first state and the renderer offered "Done" halfway
+   * through — AUDIT `total-steps-is-per-state`. Branching flows have no single
+   * honest total; the default path is the best available answer and degrades to
+   * `totalSteps` when the current state is not on it.
+   */
+  get flowTotalSteps(): number {
+    const path = this._defaultPath
+    if (!path.includes(this._ctx.currentState)) return this.currentSteps.length
+    return path.reduce(
+      (sum, name) => sum + (this._ctx.flow.states[name]?.steps?.length ?? 0),
+      0,
+    )
+  }
+
+  /** Zero-based position of the current step within {@link flowTotalSteps}. */
+  get flowStepIndex(): number {
+    const path = this._defaultPath
+    const at = path.indexOf(this._ctx.currentState)
+    if (at === -1) return this._ctx.stepIndex
+    return path
+      .slice(0, at)
+      .reduce((sum, name) => sum + (this._ctx.flow.states[name]?.steps?.length ?? 0), 0)
+      + this._ctx.stepIndex
   }
 
   // ── Transitions ───────────────────────────────────────────────────────────
@@ -76,13 +158,26 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
 
     if (guard && !guard(this._ctx.context)) return false
 
+    // A transition to a state that does not exist used to succeed, leaving the
+    // machine somewhere with no steps, `isFinal: false` and nothing to render —
+    // a tour that is "active" but frozen. See AUDIT `fsm-send-to-nonexistent-state`.
+    if (!(target in this._ctx.flow.states)) {
+      console.warn(`[GuideFlow] Unknown transition target "${target}" for event "${event}".`)
+      return false
+    }
+
+    this._enterState(target)
+    return true
+  }
+
+  /** Shared state-entry transition: exit hook, history, index reset, entry hook. */
+  private _enterState(target: string, stepIndex = 0): void {
     this._callExit(this._ctx.currentState)
     this._ctx.history.push(target)
     this._ctx.currentState = target
-    this._ctx.stepIndex = 0
+    this._ctx.stepIndex = stepIndex
     this._callEntry(target)
     this._notify()
-    return true
   }
 
   /** Advance to the next step within the current state. Returns false if at last step. */
@@ -97,13 +192,39 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return this.send('NEXT')
   }
 
-  /** Move to the previous step. Returns false if at first step. */
+  /**
+   * Move to the previous step, crossing back into the previous state when
+   * already at index 0.
+   *
+   * Back navigation used to be intra-state only: at index 0 this returned
+   * `false` and `TourEngine.prev()` re-rendered the same step anyway, emitting a
+   * duplicate `step:enter`. `history` was written and never read.
+   * See AUDIT `fsm-navigation-cannot-cross-states`.
+   */
   prevStep(): boolean {
     if (this._ctx.stepIndex > 0) {
       this._ctx.stepIndex--
       this._notify()
       return true
     }
+
+    // Walk back through history to the nearest previous state that has steps.
+    const history = this._ctx.history
+    for (let i = history.length - 2; i >= 0; i--) {
+      const candidate = history[i]
+      if (candidate === undefined) continue
+      const steps = this._ctx.flow.states[candidate]?.steps
+      if (!steps || steps.length === 0) continue
+
+      this._callExit(this._ctx.currentState)
+      history.length = i + 1
+      this._ctx.currentState = candidate
+      this._ctx.stepIndex = steps.length - 1
+      this._callEntry(candidate)
+      this._notify()
+      return true
+    }
+
     return false
   }
 
@@ -115,11 +236,27 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return true
   }
 
+  /**
+   * Jump to a step by id, anywhere in the flow.
+   *
+   * This used to search only the current state's steps, so `gf.goTo(id)` for a
+   * step in another state silently did nothing (and `TourEngine.goTo` ignored
+   * the `false` and re-rendered the step it was already on).
+   * See AUDIT `fsm-navigation-cannot-cross-states`.
+   */
   goToStepById(stepId: string): boolean {
-    const steps = this.currentSteps
-    const idx = steps.findIndex((s) => s.id === stepId)
-    if (idx === -1) return false
-    return this.goToStep(idx)
+    const localIdx = this.currentSteps.findIndex((s) => s.id === stepId)
+    if (localIdx !== -1) return this.goToStep(localIdx)
+
+    for (const [stateId, node] of Object.entries(this._ctx.flow.states)) {
+      if (stateId === this._ctx.currentState) continue
+      const idx = node.steps?.findIndex((s) => s.id === stepId) ?? -1
+      if (idx === -1) continue
+      this._enterState(stateId, idx)
+      return true
+    }
+
+    return false
   }
 
   updateContext(patch: Partial<TContext>): void {
@@ -136,12 +273,29 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     }
   }
 
-  restore(snapshot: { state: string; stepIndex: number; context?: TContext }): void {
-    if (!(snapshot.state in this._ctx.flow.states)) return
+  /**
+   * Restore a persisted position. Returns false when the snapshot does not fit
+   * this flow.
+   *
+   * Snapshots come from storage, which is untrusted — another script or the
+   * user can edit it, and a snapshot saved against an older build of the flow
+   * may name a step index the state no longer has. `stepIndex` used to be
+   * written verbatim, leaving `currentStep === null` and an active tour with
+   * nothing to render. See AUDIT `machine-restore-unvalidated`.
+   */
+  restore(snapshot: { state: string; stepIndex: number; context?: TContext }): boolean {
+    const node = this._ctx.flow.states[snapshot.state]
+    if (!node) return false
+
+    const stepCount = node.steps?.length ?? 0
+    const raw = Math.trunc(Number(snapshot.stepIndex))
+    const index = Number.isFinite(raw) ? Math.min(Math.max(0, raw), Math.max(0, stepCount - 1)) : 0
+
     this._ctx.currentState = snapshot.state
-    this._ctx.stepIndex = snapshot.stepIndex
+    this._ctx.stepIndex = index
     if (snapshot.context) this._ctx.context = snapshot.context
     this._notify()
+    return true
   }
 
   // ── Subscriptions ─────────────────────────────────────────────────────────

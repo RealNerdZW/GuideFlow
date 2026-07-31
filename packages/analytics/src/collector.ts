@@ -1,5 +1,6 @@
 import type { GuideFlowInstance } from '@guideflow/core';
 
+import { PrivacyPolicy, type PrivacyOptions } from './privacy.js';
 import type { AnalyticsTransport, AnalyticsEvent } from './transports/interface.js';
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,12 @@ export interface CollectorOptions {
   userId?: string;
   /** Additional static properties merged into every event. */
   globalProperties?: Record<string, unknown>;
+  /**
+   * Consent, Do Not Track, URL scrubbing, key redaction and sampling.
+   * Defaults are conservative — query strings and fragments are stripped from
+   * URLs, and DNT is honoured. See PrivacyOptions.
+   */
+  privacy?: PrivacyOptions;
 }
 
 /**
@@ -35,9 +42,21 @@ export class AnalyticsCollector {
   private opts: CollectorOptions;
   private cleanups: Array<() => void> = [];
   private stepStartTime: number | null = null;
+  private privacy: PrivacyPolicy;
 
   constructor(opts: CollectorOptions = {}) {
     this.opts = opts;
+    this.privacy = new PrivacyPolicy(opts.privacy);
+  }
+
+  /**
+   * Grant or withdraw consent at runtime.
+   *
+   * With `privacy: { consent: false }` nothing is collected until this is
+   * called with `true` — the shape a cookie banner needs.
+   */
+  setConsent(granted: boolean): void {
+    this.privacy.setConsent(granted);
   }
 
   /** Register a transport implementation. Returns `this` for chaining. */
@@ -100,14 +119,25 @@ export class AnalyticsCollector {
   }
 
   private send(event: string, properties: Record<string, unknown>): void {
+    // Consent, Do Not Track and sampling are checked before anything is built,
+    // so a suppressed event costs nothing and reaches no transport.
+    if (!this.privacy.allows()) return;
+
+    const merged: Record<string, unknown> = {
+      ...this.opts.globalProperties,
+      user_id: this.opts.userId,
+      ...properties,
+    };
+
+    // URLs carry more PII than any other field GuideFlow collects. Reduce them
+    // before redaction so a stripped query string cannot survive in `url`.
+    merged['url'] = this.privacy.scrubUrl(merged['url'] as string | undefined);
+    merged['referrer'] = this.privacy.scrubUrl(merged['referrer'] as string | undefined);
+
     const payload: AnalyticsEvent = {
       event,
       timestamp: new Date().toISOString(),
-      properties: {
-        ...this.opts.globalProperties,
-        user_id: this.opts.userId,
-        ...properties,
-      },
+      properties: this.privacy.scrubProperties(merged),
     };
 
     this.transports.forEach((t) => {
