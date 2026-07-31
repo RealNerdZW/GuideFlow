@@ -180,3 +180,48 @@ describe('clickThrough carves a hole rather than removing the overlay', () => {
     expect(dismissed).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('a detached target does not black out the page', () => {
+  let spotlight: SpotlightOverlay
+
+  afterEach(() => {
+    spotlight.destroy()
+    document.body.innerHTML = ''
+  })
+
+  it('falls back to modal mode when the target leaves the DOM', () => {
+    // `_update()` branched on `!this._currentTarget`, but a target removed
+    // mid-step is still a non-null Element — it just returns a zero rect. The
+    // cutout collapsed to 0x0 while keeping `box-shadow: 0 0 0 9999px`, which
+    // paints a fully black, click-blocking screen
+    // (AUDIT `detached-target-paints-black-screen`). A route change, a list
+    // re-render or a closing modal all do this.
+    const target = document.createElement('div')
+    target.getBoundingClientRect = () =>
+      ({ top: 10, left: 10, width: 100, height: 20, right: 110, bottom: 30, x: 10, y: 10 }) as DOMRect
+    document.body.appendChild(target)
+
+    spotlight = new SpotlightOverlay()
+    spotlight.show(target)
+
+    const cutout = document.querySelector<HTMLElement>('[data-gf-spotlight-cutout]')!
+    expect(cutout.style.width).toBe('116px')
+
+    target.remove()
+    window.dispatchEvent(new Event('scroll'))
+
+    // Modal mode: no cutout box and, critically, no 9999px shadow around a
+    // zero-sized element.
+    expect(cutout.style.boxShadow).toBe('none')
+    // happy-dom normalises '0' to '0px'; either is a zero-sized cutout.
+    expect(parseFloat(cutout.style.width)).toBe(0)
+  })
+
+  it('still treats a deliberate null target as modal mode', () => {
+    spotlight = new SpotlightOverlay()
+    spotlight.show(null)
+
+    const cutout = document.querySelector<HTMLElement>('[data-gf-spotlight-cutout]')!
+    expect(cutout.style.boxShadow).toBe('none')
+  })
+})

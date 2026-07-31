@@ -66,7 +66,17 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   /** True when step:exit has already been emitted for the active step (prevents double-emission). */
   private _stepExitEmitted = true
   private _paused = false
-  /** Monotonically increasing counter — used to cancel stale async _renderCurrentStep() calls. */
+  /**
+   * Monotonically increasing counter — used to cancel stale async
+   * _renderCurrentStep() calls.
+   *
+   * **Every entry point that starts a render must bump this first.** It used to
+   * be bumped only by rerender/start/pause/resume/_doEnd, so two next() calls
+   * inside the 150 ms settle — a double-click on Next, or keyboard autorepeat —
+   * captured the SAME generation, both passed every check, and the older render
+   * could land last (AUDIT `generation-not-bumped-on-navigation`). Harmless at
+   * 150 ms; not harmless once a step can wait seconds for a route to arrive.
+   */
   private _renderGeneration = 0
 
   constructor(options: TourEngineOptions<TContext>) {
@@ -191,6 +201,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       return
     }
 
+    this._renderGeneration++
     await this._renderCurrentStep()
   }
 
@@ -204,6 +215,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     if (!moved) return
 
     this._emitStepExit()
+    this._renderGeneration++
     await this._renderCurrentStep('backward')
   }
 
@@ -217,6 +229,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     }
 
     this._emitStepExit()
+    this._renderGeneration++
     await this._renderCurrentStep()
   }
 
@@ -234,6 +247,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       this._doEnd(true)
       return
     }
+    this._renderGeneration++
     await this._renderCurrentStep()
   }
 

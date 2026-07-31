@@ -225,7 +225,14 @@ export class SpotlightOverlay {
       ? 'top 200ms ease, left 200ms ease, width 200ms ease, height 200ms ease, border-radius 200ms ease'
       : 'none'
 
-    if (!this._currentTarget) {
+    // `isConnected`, not just null. A target removed mid-step — a route change,
+    // a list re-render, a modal closing — is still a non-null Element, but
+    // getBoundingClientRect() returns all zeros for it. The cutout then
+    // collapsed to 0x0 while keeping `box-shadow: 0 0 0 9999px`, painting a
+    // fully black, click-blocking screen (AUDIT
+    // `detached-target-paints-black-screen`). A deliberate `target: null` step
+    // takes this same branch, which is what it always did.
+    if (!this._currentTarget?.isConnected) {
       // Floating/modal mode — full overlay, no cutout.
       // Note: individual properties, not `cssText +=`, which appended to the
       // style string on every render and grew it without bound.

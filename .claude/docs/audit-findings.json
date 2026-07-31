@@ -6081,14 +6081,15 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "confirmed",
-      "status": "open",
+      "status": "resolved",
       "title": "A target removed mid-step collapses the cutout to 0x0 and blacks out the page",
       "file": "packages/core/src/engine/spotlight.ts",
       "line": 228,
       "evidence": "_update() branches on !this._currentTarget, then reads getBoundingClientRect(). A detached node returns all zeros, and the cutout keeps box-shadow: 0 0 0 9999px.",
       "impact": "Route change, list re-render or modal close during a step paints a fully black, click-blocking screen.",
       "fix": "Branch on !this._currentTarget?.isConnected instead — a deliberate target:null step takes the same branch.",
-      "effort": "S"
+      "effort": "S",
+      "resolvedIn": "Phase 7 — _update() branches on !this._currentTarget?.isConnected. Pinned by two spotlight tests."
     },
     {
       "id": "generation-not-bumped-on-navigation",
@@ -6096,14 +6097,15 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "confirmed",
-      "status": "open",
+      "status": "resolved",
       "title": "_renderGeneration is not bumped by next/prev/goTo/send",
       "file": "packages/core/src/engine/tour.ts",
       "line": 70,
       "evidence": "Bumped only in rerender (148), start (169), pause (269), resume (281), _doEnd (415). Two rapid next() calls capture the same gen and both pass every check.",
       "impact": "Today the blast radius is the 150ms settle; any longer wait (a route change) makes a stale render land last.",
       "fix": "A _bump() helper paired with an AbortController, called from every navigation entry point. Prerequisite for SPA route handling.",
-      "effort": "M"
+      "effort": "M",
+      "resolvedIn": "Phase 7 — next/prev/goTo/send each bump _renderGeneration before awaiting the render; no-op navigations deliberately do not. Pinned by three tour-engine tests."
     },
     {
       "id": "clickthrough-exposes-whole-page",
