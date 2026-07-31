@@ -52,7 +52,7 @@ scripts/
 
 `core` depends on nothing. Everything else depends on `core` via `workspace:*`. **Never** introduce
 a runtime dependency into `core`, and never make `core` import from a sibling package — the
-zero-dependency, 12.5 kB-gzip budget is a headline promise and is enforced by `size-limit`.
+zero-dependency, 13 kB-gzip budget is a headline promise and is enforced by `size-limit`.
 
 ---
 
@@ -80,11 +80,11 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (after Phases 0–2, 2026-07-30)
+### Known-good baseline (after Phases 0–3, 2026-07-31)
 
-Build, type-check, lint and unit tests are **all green**: **397 unit tests pass**, 17 skipped
-(core 190, ai 73, analytics 60, cli 30, vue 18, react 14, svelte 12). `@guideflow/core` measures
-**12.18 kB gzip against a 12.5 kB limit**. If any of these regress, you broke it — do not paper
+Build, type-check, lint and unit tests are **all green**: **443 unit tests pass**, 6 skipped
+(core 201, ai 90, analytics 78, cli 30, vue 18, react 14, svelte 12). `@guideflow/core` measures
+**12.62 kB gzip against a 13 kB limit**. If any of these regress, you broke it — do not paper
 over it.
 
 Every package now has a real `test` script; `--passWithNoTests` has been removed everywhere, so a
@@ -93,18 +93,22 @@ set as **ratchets** just below measured coverage — raise them as coverage impr
 them to make a build pass. The one remaining hole is `@guideflow/devtools`, which still has no
 tests (needs an extension harness; tracked in Phase 5.3).
 
-Each of the 17 skipped tests is deliberate and tagged with the audit finding that un-skips it —
-11 are the acceptance criteria for the Phase 3 sanitiser rewrite. They were each verified to fail
-when un-skipped, so none is trivially green.
+Six skipped tests remain, each tagged with the audit finding that un-skips it. The eleven that
+encoded the sanitiser bypasses are now ACTIVE and passing — see ADR-007.
 
 **The Playwright e2e suite has been rebuilt and wired into CI, but has not yet been executed** —
 browsers could not launch in the environment it was written in. Run
 `pnpm --filter e2e test:e2e` on a machine with browsers before trusting that job. See
 `.claude/docs/REMEDIATION-PLAN.md` 2.1 for exactly what was and was not verified.
 
-> The size budget was raised from 12 kB to 12.5 kB in Phase 1 to accommodate seven correctness
-> fixes (see `.changeset/tidy-jars-repeat.md`). 320 B of headroom remains. Do not raise it again
-> without saying so out loud.
+**The Phase 3 devtools hardening has also not been exercised in a browser** — the nonce handshake,
+the relay allowlist and `optional_host_permissions` were reasoned about by reading. A mismatch would
+present as *silence*, not an error. Run `/gf-extension-dev` before trusting the extension.
+
+> The size budget has been raised twice: 12 kB to 12.5 kB in Phase 1 (seven correctness fixes),
+> and 12.5 kB to 13 kB in Phase 3 (the parse-and-allowlist sanitiser — see ADR-007). ~380 B of
+> headroom remains. **Do not raise it a third time** without first moving `content.html` support
+> out of the default bundle into an opt-in subpath export.
 
 ---
 

@@ -10,7 +10,7 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **54 / 325 findings resolved** — Phases 0, 1 and 2 complete on branch `fix/phase-0-1-engine-correctness`. Remaining open: 15 P0, 90 P1, 124 P2, 42 P3.
+**Progress:** **69 / 325 findings resolved** — Phases 0–3 complete on branch `fix/phase-0-1-engine-correctness`. Remaining open: 12 P0, 86 P1, 116 P2, 42 P3.
 
 ---
 
@@ -200,7 +200,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
 
 ## Phase 3 — Security (2–3 days)
 
-- [ ] **3.1 Replace the HTML sanitiser.**
+- [x] **3.1 Replace the HTML sanitiser.**
       Closes `sanitize-html-regex-denylist-bypass`, `regex-html-sanitizer-bypass`.
       The regex denylist was defeated by **6 of 8** trivial payloads in a direct test. Do not add more
       regexes. Build the popover DOM with `createElement`/`textContent` instead of an `innerHTML`
@@ -209,14 +209,14 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       [`SECURITY-MODEL.md`](SECURITY-MODEL.md) §2.
       *Accept:* every payload class in `SECURITY-MODEL.md` §2 is a passing regression test.
 
-- [ ] **3.2 Escape every attribute interpolation.**
+- [x] **3.2 Escape every attribute interpolation.**
       Closes `unescaped-action-variant-attribute-injection`, `unescaped-i18n-strings-in-popover`,
       `unescaped-action-and-locale-attributes`.
       `step.actions[].action` and `.variant` land in `innerHTML` attributes with zero escaping, and a
       flow fetched from a server or the devtools recorder is untrusted input.
       *Accept:* a test asserting an `action` value containing `"><img onerror=…>` cannot break out.
 
-- [ ] **3.3 Fix the AI key story.**
+- [x] **3.3 Fix the AI key story.**
       Closes `api-keys-shipped-to-browser`, `ai-api-key-shipped-to-browser`, `openai-browser-throws`,
       `ai-openai-sdk-browser-throw`.
       Every documented example inlines an API key into the client bundle, and the documented `baseURL`
@@ -225,7 +225,14 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       examples.
       *Accept:* no documentation example ships a key to the client.
 
-- [ ] **3.4 Harden the extension bridge.**
+- [x] **3.4 Harden the extension bridge.**
+      **NOT VERIFIED IN A BROWSER.** The bundle builds and every manifest-referenced path is
+      present, and no code reads `tab.url`/`tab.title` (so dropping the `tabs` permission is
+      safe). But the nonce handshake, the four-type relay allowlist and the move to
+      `optional_host_permissions` were all reasoned about by reading, not by loading the
+      extension. Before trusting them, run `/gf-extension-dev` end to end — in particular check
+      that the panel still detects a page and receives step events, since a nonce mismatch or a
+      missing host permission would present as silence rather than an error.
       Closes `devtools-content-script-relays-any-message-type`, `devtools-overbroad-permissions`,
       `devtools-recording-captures-password-values`.
       The content script relays **any** page `postMessage` bearing the sentinel into the privileged
@@ -234,7 +241,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       `content_security_policy`, and never record input values from password fields.
       *Accept:* a forged page message cannot reach `chrome.storage`.
 
-- [ ] **3.5 Analytics privacy.**
+- [x] **3.5 Analytics privacy.**
       Closes `full-url-pii-leak`, `analytics-pii-no-consent-gate`, `ai-serializedom-pii-to-third-party`,
       `dom-context-pii-exfiltration`.
       Full URL and referrer ship on every event with no scrubbing or opt-out; `serializeDOM` sends page
@@ -243,7 +250,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       document exactly what leaves the browser.
       *Accept:* `SECURITY.md` enumerates every field sent, and consent gating is on by default.
 
-- [ ] **3.6 Supply chain.** Closes `release-no-provenance-no-audit`.
+- [x] **3.6 Supply chain.** Closes `release-no-provenance-no-audit`.
       Add `--provenance` + `id-token: write`, a dependency-review step, and Dependabot.
 
 ---
