@@ -174,6 +174,57 @@ jobs:
           path: apps/e2e/playwright-report/
           retention-days: 7
 
+  # ── Dependency audit ───────────────────────────────────────────────────────
+  # Split deliberately. The blocking check covers only what a consumer actually
+  # installs; dev tooling is reported but does not fail the build, because a
+  # gate that is red on day one is a gate people learn to ignore.
+  #
+  # Production was 8 advisories (3 high) until @guideflow/cli stopped shipping
+  # vite as a hard dependency — every one of them came from that single import.
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Blocking: anything high or critical that reaches a consumer.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+      # Reporting: dev tooling. Surfaced in the job summary, never blocking.
+      - name: Audit dev dependencies (advisory)
+        if: always()
+        continue-on-error: true
+        run: |
+          echo '### Dev-dependency advisories' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Not blocking — these do not ship to consumers. Track them down over time.' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          pnpm audit 2>&1 | tail -20 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  # GitHub's own dependency review on PRs — flags a newly introduced
+  # vulnerable dependency at the point it is added, which an audit of the whole
+  # tree cannot distinguish from pre-existing debt.
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+
   # ── Changeset gate ─────────────────────────────────────────────────────────
   # A change to a published package without a changeset ships silently — no
   # version bump, no CHANGELOG entry. Advisory on PRs from forks.

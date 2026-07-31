@@ -89,9 +89,17 @@ describe('studioCommand', () => {
 
     expect(vite.createServer).toHaveBeenCalledTimes(1);
     expect(viteConfig()?.root).toBe(resolve('.'));
-    expect(viteConfig()?.server).toEqual({ port: 4747, open: false });
+    // Loopback by default: this serves the user's entire project directory, so
+    // it must not be reachable from the network unless they ask for that.
+    expect(viteConfig()?.server).toEqual({ port: 4747, open: false, host: '127.0.0.1' });
     expect(spinner.succeed).toHaveBeenCalled();
     expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it('binds elsewhere only when --host is given explicitly', async () => {
+    await runStudio(['--host', '0.0.0.0']);
+
+    expect(viteConfig()?.server).toEqual({ port: 4747, open: false, host: '0.0.0.0' });
   });
 
   it('honours --port and --root', async () => {
