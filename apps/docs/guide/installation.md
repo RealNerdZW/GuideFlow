@@ -43,16 +43,20 @@ pnpm add @guideflow/core @guideflow/svelte
 
 :::
 
+Every GuideFlow package declares `@guideflow/core` as a **peer dependency** rather than bundling
+it, so always install core alongside the package you want. That is what keeps a single copy of the
+engine in your app — two copies would mean two independent tour states.
+
 ## Optional packages
 
 ```bash
 # AI capabilities (pick your provider)
-pnpm add @guideflow/ai openai          # OpenAI
-pnpm add @guideflow/ai @anthropic-ai/sdk  # Anthropic
-pnpm add @guideflow/ai                 # Ollama (no extra dep)
+pnpm add @guideflow/core @guideflow/ai openai             # OpenAI
+pnpm add @guideflow/core @guideflow/ai @anthropic-ai/sdk  # Anthropic
+pnpm add @guideflow/core @guideflow/ai                    # Ollama (no extra dep)
 
 # Analytics & A/B testing
-pnpm add @guideflow/analytics
+pnpm add @guideflow/core @guideflow/analytics
 
 # CLI tools
 pnpm add -D @guideflow/cli

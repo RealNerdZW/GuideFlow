@@ -63,17 +63,20 @@ npm install @guideflow/core @guideflow/react
 yarn add @guideflow/core @guideflow/react
 ```
 
+Every package takes `@guideflow/core` as a peer dependency, so install it alongside whichever
+package you add — that keeps a single copy of the engine in your app.
+
 For AI features:
 
 ```bash
-pnpm add @guideflow/ai openai          # OpenAI
-pnpm add @guideflow/ai @anthropic-ai/sdk  # Anthropic
+pnpm add @guideflow/core @guideflow/ai openai             # OpenAI
+pnpm add @guideflow/core @guideflow/ai @anthropic-ai/sdk  # Anthropic
 ```
 
 For analytics:
 
 ```bash
-pnpm add @guideflow/analytics
+pnpm add @guideflow/core @guideflow/analytics
 ```
 
 ---

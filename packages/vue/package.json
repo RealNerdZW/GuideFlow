@@ -55,13 +55,12 @@
     "lint": "eslint src --max-warnings 0",
     "clean": "node ../../scripts/fsx.mjs rm dist .turbo"
   },
-  "dependencies": {
-    "@guideflow/core": "workspace:*"
-  },
   "peerDependencies": {
+    "@guideflow/core": ">=0.1.9 <1.0.0",
     "vue": "^3.0.0"
   },
   "devDependencies": {
+    "@guideflow/core": "workspace:*",
     "@vitejs/plugin-vue": "^5.0.4",
     "@vue/test-utils": "^2.4.4",
     "happy-dom": "^13.6.2",

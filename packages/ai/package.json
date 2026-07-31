@@ -55,11 +55,9 @@
     "lint": "eslint src --max-warnings 0",
     "clean": "node ../../scripts/fsx.mjs rm dist .turbo"
   },
-  "dependencies": {
-    "@guideflow/core": "workspace:*"
-  },
   "peerDependencies": {
     "@anthropic-ai/sdk": ">=0.17.0",
+    "@guideflow/core": ">=0.1.9 <1.0.0",
     "openai": ">=4.0.0"
   },
   "peerDependenciesMeta": {
@@ -71,6 +69,7 @@
     }
   },
   "devDependencies": {
+    "@guideflow/core": "workspace:*",
     "happy-dom": "^13.6.2",
     "tsup": "^8.0.2",
     "typescript": "^5.3.3",
