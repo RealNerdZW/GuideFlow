@@ -63,7 +63,7 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 | Task | Command |
 |---|---|
 | Install | `pnpm install` |
-| Build everything publishable | `pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e` |
+| Build everything publishable | `pnpm turbo run build --filter=!@guideflow/storybook --filter=!docs --filter=!e2e` |
 | Build one package | `pnpm --filter @guideflow/core build` |
 | Type-check | `pnpm type-check` |
 | Lint (zero-warning policy) | `pnpm lint` |
@@ -77,7 +77,7 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 **Full local verification before claiming done** — use the `/verify` command, or:
 
 ```bash
-pnpm turbo run build type-check lint test --filter=!storybook --filter=!docs --filter=!e2e
+pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
 ### Known-good baseline (after Phases 0–3, 2026-07-31)
