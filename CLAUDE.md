@@ -52,7 +52,7 @@ scripts/
 
 `core` depends on nothing. Everything else depends on `core` via `workspace:*`. **Never** introduce
 a runtime dependency into `core`, and never make `core` import from a sibling package — the
-zero-dependency, 13 kB-gzip budget is a headline promise and is enforced by `size-limit`.
+zero-dependency, ~14 kB-gzip budget is a headline promise and is enforced by `size-limit`.
 
 ---
 
@@ -80,14 +80,14 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (after Phases 0–6, 2026-07-31)
+### Known-good baseline (Phases 0–6 complete, Phase 7 in progress, 2026-07-31)
 
-Build, type-check, lint and unit tests are **all green**: **644 unit tests pass**, 2 skipped
-(core 291, react 114, ai 90, analytics 78, vue 47, cli 37, svelte 34). `@guideflow/core` measures
-**14.29 kB gzip against a 14.5 kB limit**. If any of these regress, you broke it — do not paper
-over it.
+Build, type-check, lint and unit tests are **all green**: **735 unit tests pass**, 2 skipped
+(core 272, ai 153, react 114, analytics 78, vue 47, cli 37, svelte 34). `@guideflow/core` measures
+**14.13 kB gzip against a 14.5 kB limit**, and `@guideflow/core/html` a further **767 B against its
+own 1 kB limit**. If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 156/156 across chromium, firefox, webkit and Mobile
+**The Playwright e2e suite now actually runs: 176/176 across chromium, firefox, webkit and Mobile
 Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -99,9 +99,10 @@ pnpm --filter e2e test:e2e
 
 That suite is the only place in the repo where layout, tab order and `getComputedStyle` are real.
 happy-dom reports `offsetParent === null` for every element and has no layout engine, so both
-geometry P0s and every focus-order defect were structurally invisible to unit tests. **When you
-touch positioning, focus or CSS, run the e2e suite — a green `pnpm test` proves nothing about any
-of them.**
+geometry P0s and every focus-order defect were structurally invisible to unit tests. It is also the
+only place `clip-path` hit-testing is real, which is what `clickThrough` now depends on. **When you
+touch positioning, focus, pointer capture or CSS, run the e2e suite — a green `pnpm test` proves
+nothing about any of them.**
 
 Every package has a real `test` script; `--passWithNoTests` has been removed everywhere. Six
 packages carry coverage thresholds set as **ratchets** just below measured coverage — raise them as
