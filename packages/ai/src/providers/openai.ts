@@ -10,6 +10,7 @@ import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@g
 
 import { validateSteps, validateIntentSignal, validateGuidedAnswer } from '../validation.js';
 
+import { warnIfBrowserKey } from './browser-guard.js';
 import type { AIProvider, PageContext } from './interface.js';
 
 export interface OpenAIProviderOptions {
@@ -38,6 +39,7 @@ export class OpenAIProvider implements AIProvider {
       temperature: opts.temperature ?? 0.2,
       maxTokens: opts.maxTokens ?? 2048,
     };
+    warnIfBrowserKey('OpenAIProvider', this.opts.apiKey);
   }
 
   private async client() {

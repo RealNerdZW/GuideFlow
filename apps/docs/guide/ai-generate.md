@@ -11,10 +11,10 @@ GuideFlow's AI module can generate tour steps from a plain-English prompt by ana
 
 ```ts
 import { createGuideFlow } from '@guideflow/core'
-import { createAI, OpenAIProvider } from '@guideflow/ai'
+import { createAI, ProxyProvider } from '@guideflow/ai'
 
 const gf = createGuideFlow()
-createAI(new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }), gf)
+createAI(new ProxyProvider({ endpoint: '/api/guideflow-ai' }), gf)
 ```
 
 ## Generate Steps

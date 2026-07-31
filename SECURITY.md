@@ -56,14 +56,21 @@ puts a few responsibilities on the integrator.
 
 ### `content.html`
 
-`StepContent.html` is rendered as HTML. The default renderer applies a **best-effort** sanitizer, but
-it is a regex denylist and is known to be bypassable — do not rely on it as a security boundary.
+`StepContent.html` is rendered as HTML. It is parsed into an inert `<template>` and reduced to an
+explicit **allowlist** of elements, attributes and URL schemes — anything unrecognised is dropped
+rather than patched, so a vector nobody anticipated fails closed.
 
-**Only pass HTML you fully control.** If step content can be influenced by end users, a CMS, or a
-model, use `content.body` (which is entity-escaped) or sanitise with a real sanitizer such as
-DOMPurify before handing it to GuideFlow.
+**Permitted:** common text and structural elements, plus `<a>`, `<img>` and tables.
 
-Hardening the sanitizer to an allowlist parser is tracked work.
+**Removed:** `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<base>`, `<svg>`,
+`<math>`, every `on*` handler, every namespaced attribute (`xlink:href`, `xml:*`), the `style`
+attribute, and any `href`/`src` whose scheme is not `https`, `http`, `mailto`, `tel` or relative.
+Anchors with `target="_blank"` gain `rel="noopener noreferrer"`.
+
+This replaced a regex denylist that a direct test defeated with 6 of 8 trivial payloads.
+
+It is still defence in depth, not a licence: prefer `content.body`, which is entity-escaped, for
+anything a user, a CMS or a model can influence.
 
 ### Content Security Policy
 
@@ -78,22 +85,35 @@ If you would rather manage styles yourself, set `injectStyles: false` and import
 
 ### API keys and `@guideflow/ai`
 
-**Do not ship an LLM API key to the browser.** Provider options accept an `apiKey`, and some
-documentation examples read it from a client-side bundle variable — that pattern exposes the key to
-every visitor.
+**Do not ship an LLM API key to the browser.** A key in client code is compiled into your bundle and
+readable by every visitor. No configuration changes that.
 
-Run the provider on your server, or point it at a proxy you control that holds the key and enforces
-rate limits and spend caps.
+Use `ProxyProvider`, which holds no credential and POSTs to an endpoint you run:
 
-Also be aware that `serializeDOM()` sends a snapshot of the current page — structure and text — to
-your chosen LLM provider. On any page containing personal or regulated data, that is a data-processing
+```ts
+createAI(new ProxyProvider({ endpoint: '/api/guideflow-ai' }), gf)
+```
+
+Your endpoint holds the key and can enforce authentication, rate limits and spend caps. Constructing
+`OpenAIProvider` or `AnthropicProvider` with a key in a browser logs a one-time warning. See
+[the guide](apps/docs/guide/ai-proxy.md).
+
+`serializeDOM()` sends a snapshot of the current page — structure and text, though **not** input
+values — to your chosen provider. Exclude anything sensitive with `data-gf-private`; password inputs
+are always excluded. On any page containing personal or regulated data this is a data-processing
 decision you must make deliberately, with the appropriate legal basis and disclosure.
 
 ### `@guideflow/analytics`
 
-Events include the current `url` and `referrer`, which routinely carry identifiers and tokens in query
-strings. There is currently no built-in consent gate or PII scrubbing — gate collection behind your
-own consent mechanism and strip sensitive parameters before they reach a transport.
+Events include `url` and `referrer`, which routinely carry identifiers and tokens in query strings.
+Defaults are now conservative: **query strings and fragments are stripped** (`urlMode: 'path'`), Do
+Not Track is honoured, and sensitive property keys are redacted. Gate collection behind your consent
+mechanism with `privacy: { consent: false }` plus `collector.setConsent(true)`.
+
+`WebhookTransport`'s `apiKey` is sent from the browser and is therefore public by construction —
+treat it as a low-privilege ingest token, never a real API key.
+
+See [the privacy guide](apps/docs/guide/privacy.md) for the full field-by-field breakdown.
 
 ### The devtools extension
 

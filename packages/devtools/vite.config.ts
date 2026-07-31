@@ -58,6 +58,30 @@ export default defineConfig({
           rmSync(resolve(dist, 'src'), { recursive: true, force: true });
         }
 
+        // bridge.js is injected into the PAGE world as a *classic* script (see
+        // src/content/inspector.ts `injectBridge`) so that
+        // `document.currentScript` is non-null and the per-page-load nonce can
+        // be read off the tag that is actually executing — inside a module
+        // script `document.currentScript` is always null.
+        //
+        // Rollup emits ESM, whose top-level bindings are module-scoped; as a
+        // classic script those same bindings would land in the page's global
+        // lexical scope and could collide with the host app. Wrap the bundle in
+        // a strict-mode IIFE to restore module-like isolation. This is only
+        // sound while bridge.ts imports nothing, so fail the build loudly if
+        // that ever changes.
+        const bridgeFile = resolve(dist, 'bridge.js');
+        if (existsSync(bridgeFile)) {
+          const code = readFileSync(bridgeFile, 'utf-8');
+          if (/(?:^|[;\n])\s*(?:import|export)\b/.test(code)) {
+            throw new Error(
+              'dist/bridge.js contains ESM syntax. bridge.ts must stay import-free so it can be ' +
+                'injected as a classic script; move any shared helper back into bridge.ts.',
+            );
+          }
+          writeFileSync(bridgeFile, `(function(){'use strict';\n${code}\n})();\n`);
+        }
+
         // Icon assets
         const assetsDir = resolve(__dirname, 'assets');
         const distAssets = resolve(dist, 'assets');

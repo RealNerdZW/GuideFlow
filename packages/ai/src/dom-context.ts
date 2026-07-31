@@ -105,6 +105,26 @@ const INTERESTING_ROLES = new Set([
   'banner', 'contentinfo', 'heading', 'form',
 ]);
 
+/**
+ * Elements the page has marked as not for AI capture.
+ *
+ * `serializeDOM` ships page text — labels, headings, table cells — to a
+ * third-party model. On a real application page that routinely includes names,
+ * balances, order numbers and email addresses, and there was previously no way
+ * to hold any of it back (AUDIT `ai-serializedom-pii-to-third-party`,
+ * `dom-context-pii-exfiltration`).
+ *
+ * `data-gf-private` on an element excludes that element and everything inside
+ * it. Password inputs are always excluded — there is no legitimate reason to
+ * describe one to a model, and their surrounding labels are usually enough to
+ * identify an account.
+ */
+function isPrivate(el: Element): boolean {
+  if (el.closest('[data-gf-private]') !== null) return true;
+  if (el instanceof HTMLInputElement && el.type === 'password') return true;
+  return false;
+}
+
 function isInteresting(el: Element): boolean {
   const tag = el.tagName.toLowerCase();
   if (INTERESTING_TAGS.has(tag)) return true;
@@ -126,7 +146,9 @@ export function serializeDOM(root?: Element | null, maxElements = 80): DOMContex
   }
 
   const rootEl = root ?? document.body;
-  const all = Array.from(rootEl.querySelectorAll('*')).filter(isInteresting);
+  const all = Array.from(rootEl.querySelectorAll('*'))
+    .filter(isInteresting)
+    .filter((el) => !isPrivate(el));
   const capped = all.slice(0, maxElements);
 
   const elements: DOMContext['elements'] = capped.map((el) => {

@@ -98,15 +98,29 @@ State that must survive belongs in `chrome.storage.session`, not a module-level 
 
 ## Security invariants — check on every change
 
-- `window.postMessage(msg, '*')` broadcasts to **every** script on the page, and the receiving
-  listener trusts only a string sentinel on `data.source`. Any page script can both read the tour
-  stream and forge commands. Do not add new message types to this channel without reading
-  `.claude/docs/SECURITY-MODEL.md` §extension first.
+Read `.claude/docs/SECURITY-MODEL.md` §5 before touching the message path. Since Phase 3.4:
+
+- The bridge → content relay is **allowlisted**: only `GF_DETECTED`, `GF_FLOWS_LIST`,
+  `GF_TOUR_EVENT` and `GF_ACTIVE_TOUR_STATE` cross into `chrome.runtime`, each after a per-type
+  shape check in `sanitizeRelayed()`. **Adding a message type to this channel means adding a
+  validator** — an unlisted type is silently dropped, which is exactly how a "my new event never
+  reaches the panel" bug will present.
+- Both directions carry a **per-page-load nonce** (`data-gf-nonce` on the injected `<script>` tag)
+  and post to a concrete `targetOrigin`. The nonce is not a secret — a page script that watched the
+  injection can read it. Never put anything on this channel the page must not see.
+- `bridge.js` is injected as a **classic** script and `vite.config.ts` wraps it in an IIFE, because
+  `document.currentScript` is null inside module scripts. **bridge.ts must stay import-free**; the
+  build throws if ESM syntax appears in `dist/bridge.js`.
 - Never render page-derived strings into panel/popup DOM via `innerHTML` or
   `dangerouslySetInnerHTML`. The panel runs with extension privileges.
-- `chrome.runtime.onMessage` handlers must validate `sender.tab` / `sender.id`.
-- Keep `host_permissions` as narrow as the feature allows; `<all_urls>` is the current, overly broad
-  setting and is an audit finding.
+- `chrome.runtime.onMessage` handlers validate `sender.id` and then split on `sender.tab`: content
+  scripts may report tab state, only extension pages may touch `chrome.storage`.
+- The manifest requests `activeTab`, `contextMenus`, `storage` and nothing else;
+  `<all_urls>` is `optional_host_permissions` only. The `<all_urls>` **content script** is
+  deliberate and justified in `src/content/inspector.ts`'s header. Do not add `tabs` back —
+  `tabs.query`/`tabs.sendMessage`/`tabs.onRemoved` need no permission for what this extension does.
+- The recorder must never capture password/hidden input values, credential-`autocomplete` fields, or
+  anything under `[data-gf-private]`; those record `'[redacted]'`.
 
 ## Firefox / Edge
 

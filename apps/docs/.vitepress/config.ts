@@ -173,6 +173,7 @@ export default defineConfig({
             { text: 'State Machine', link: '/guide/state-machine' },
             { text: 'Spotlight & Popover', link: '/guide/spotlight-popover' },
             { text: 'Persistence', link: '/guide/persistence' },
+            { text: 'Privacy', link: '/guide/privacy' },
             { text: 'i18n', link: '/guide/i18n' },
           ],
         },
@@ -189,6 +190,7 @@ export default defineConfig({
           text: 'AI Features',
           items: [
             { text: 'Overview', link: '/guide/ai' },
+            { text: 'Running AI on your server', link: '/guide/ai-proxy' },
             { text: 'Auto-generate tours', link: '/guide/ai-generate' },
             { text: 'Intent detection', link: '/guide/ai-intent' },
             { text: 'Conversational help', link: '/guide/ai-chat' },

@@ -31,7 +31,14 @@ interface RecordedStep {
   label: string;
   tagName: string;
   ts: number;
+  /** `'[redacted]'` when the source field was sensitive — see `redacted`. */
   value?: string;
+  /**
+   * True when the content script refused to capture the real value (password
+   * or hidden input, credential/OTP/payment autocomplete token, or an element
+   * inside a `[data-gf-private]` subtree).
+   */
+  redacted?: boolean;
 }
 
 interface ActiveTourState {

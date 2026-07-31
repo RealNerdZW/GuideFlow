@@ -26,12 +26,12 @@ npm install @guideflow/core @guideflow/ai
 
 ```ts
 import { createGuideFlow } from '@guideflow/core'
-import { createAI, OpenAIProvider } from '@guideflow/ai'
+import { createAI, ProxyProvider } from '@guideflow/ai'
 
 const gf = createGuideFlow()
 
 createAI(
-  new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }),
+  new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
   gf,
 )
 
@@ -48,7 +48,7 @@ await gf.start({
 Passively watch user behaviour and trigger help flows:
 
 ```ts
-createAI(new OpenAIProvider({ apiKey: '...' }), gf, { autoWatch: false })
+createAI(new ProxyProvider({ endpoint: '/api/guideflow-ai' }), gf, { autoWatch: false })
 
 const stopWatch = gf.ai.watch()
 
@@ -74,8 +74,8 @@ stopWatch()
 ### Anthropic
 
 ```ts
-import { AnthropicProvider } from '@guideflow/ai'
-createAI(new AnthropicProvider({ apiKey: '...' }), gf)
+import { ProxyProvider } from '@guideflow/ai'
+createAI(new ProxyProvider({ endpoint: '/api/guideflow-ai' }), gf)
 ```
 
 ### Local Ollama

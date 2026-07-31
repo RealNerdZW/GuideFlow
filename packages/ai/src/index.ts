@@ -27,6 +27,10 @@
  */
 
 export type { AIProvider, PageContext } from './providers/interface.js';
+// ProxyProvider first: it is the one to reach for in a browser. Every provider
+// below it holds an API key, which in client code is public by construction.
+export { ProxyProvider } from './providers/proxy.js';
+export type { ProxyProviderOptions } from './providers/proxy.js';
 export { MockProvider } from './providers/mock.js';
 export { OpenAIProvider } from './providers/openai.js';
 export type { OpenAIProviderOptions } from './providers/openai.js';

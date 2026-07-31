@@ -107,46 +107,65 @@ not.
 
 ### The bridge is a public channel
 
-`bridge.ts` runs in the **page world** and communicates with `window.postMessage(msg, '*')`. Its
-listener accepts anything whose `data.source` equals the string `'__gf_content__'`.
+`bridge.ts` runs in the **page world**. It shares `window`'s message bus with every other script on
+the page, so the channel is public by construction — a string sentinel on `data.source` is not
+authentication, and it never will be.
 
-Both directions are therefore open to any script on the page:
+Before Phase 3.4 that was the *whole* of the access control: the content script relayed anything
+bearing `'__gf_bridge__'` straight into `chrome.runtime`, which gave any page a write primitive into
+`chrome.storage` via `GF_SAVE_FLOW`.
 
-```js
-// any third-party script, ad, or injected payload on the host page:
-window.addEventListener('message', e => {
-  if (e.data?.source === '__gf_bridge__') exfiltrate(e.data);   // read every tour event
-});
-window.postMessage({ source: '__gf_content__', type: 'GF_START_TOUR',
-                     payload: attackerFlow }, '*');             // forge commands
-```
+### What is enforced now (Phase 3.4)
 
-A string constant is not authentication.
+1. **Type allowlist.** `content/inspector.ts` relays exactly four types — `GF_DETECTED`,
+   `GF_FLOWS_LIST`, `GF_TOUR_EVENT`, `GF_ACTIVE_TOUR_STATE`. Every other type is dropped before
+   `chrome.runtime.sendMessage`. Adding a type means adding a validator.
+2. **Per-type shape validation.** Each payload is checked (plain object / bounded array / bounded
+   event name) and then round-tripped through JSON, so only acyclic, size-bounded, prototype-free
+   data crosses. A freshly-built object is forwarded, never the page's own reference.
+3. **Per-page-load nonce.** The content script mints a random nonce, stamps it on the injected
+   `<script>` tag as `data-gf-nonce`, and both ends require it on every message. bridge.js reads it
+   from `document.currentScript` — which is why the bridge is injected as a *classic* script and
+   `vite.config.ts` wraps the bundle in an IIFE.
+4. **Concrete `targetOrigin`.** Both directions post to `window.location.origin` (falling back to
+   `'*'` only for opaque/exotic origins, where no serialised origin exists).
+5. **Sender provenance in the background.** `chrome.runtime.onMessage` drops anything where
+   `sender.id !== chrome.runtime.id`, then splits by origin: content scripts (`sender.tab?.id`) may
+   only report tab state and be relayed to that tab's panel; extension pages (`sender.tab ===
+   undefined`) are the only senders permitted to touch `chrome.storage`. Flow deletion is confined
+   to the `gf_flow_` key namespace.
+6. **Manifest.** `host_permissions: ["<all_urls>"]` and the unused `tabs` permission are gone —
+   `optional_host_permissions` replaces the former, and a
+   `content_security_policy.extension_pages` of `script-src 'self'; object-src 'self'` is declared.
+   The `<all_urls>` **content script** stays: a tour library has no fixed origin set, and the
+   reasoning is written down in `content/inspector.ts`'s header.
 
-### Rules
+### Residual risk — read this before relaxing anything
 
-1. **Assume everything from the bridge is hostile.** Validate shape and type on arrival; never pass a
-   payload straight into a privileged API.
-2. **Never render page-derived strings into the panel or popup via `innerHTML` /
-   `dangerouslySetInnerHTML` / an `href` or `src` sink.** The panel is extension-privileged; XSS
-   there is privilege escalation.
-3. **Validate `sender` in every `chrome.runtime.onMessage` handler** — check `sender.tab` and
-   `sender.id`.
-4. **Never `chrome.scripting.executeScript` a page-derived string.**
-5. Narrow `host_permissions`. `<all_urls>` plus a content script on `<all_urls>` plus `tabs` is the
-   maximum-blast-radius configuration; scope it to `activeTab` + explicit user action where possible.
-6. Declare a `content_security_policy` in the manifest.
+The nonce **raises the bar; it does not make the channel private.** A page script that observes the
+injection can read `data-gf-nonce` off the DOM, and any script can listen on `window` for what the
+bridge posts. So:
 
-### Hardening the channel
+- **Never put anything on this channel that the page must not see.** Today that holds: everything
+  crossing it is tour metadata the page already owns.
+- **Assume everything from the bridge is hostile** anyway. Validate shape and type on arrival; never
+  pass a payload straight into a privileged API.
+- **Never render page-derived strings into the panel or popup via `innerHTML` /
+  `dangerouslySetInnerHTML` / an `href` or `src` sink.** The panel is extension-privileged; XSS
+  there is privilege escalation.
+- **Never `chrome.scripting.executeScript` a page-derived string.**
 
-Ordered by effort:
+The end state — a `MessageChannel` transferred once at injection time, which the page cannot join
+after the fact — is tracked as `devtools-bridge-postmessage-wildcard-exfiltration` (P3) and is the
+only thing that actually closes the read side.
 
-- Use a concrete `targetOrigin` instead of `'*'` on every post.
-- Have the injector generate a per-page-load random nonce, pass it to the bridge via the script tag's
-  `data-` attribute, and require it on every message. This stops forgery from scripts that load
-  later, though not from a script that can read the DOM.
-- Ultimately, treat the page as untrusted regardless — the nonce raises the bar, it does not make the
-  channel private. Never send anything through it that the page should not see.
+### Recording and PII
+
+The recorder writes to `chrome.storage`, so it is a data-retention surface. It must never capture
+the value of a `password` or `hidden` input, a field whose `autocomplete` names a credential, OTP or
+payment card, or anything inside a `[data-gf-private]` subtree; those record `'[redacted]'` plus a
+`redacted: true` flag instead. Element *labels* inside a private subtree are redacted the same way,
+and `buildSelector` will not embed an `aria-label` from a private subtree into a selector.
 
 ---
 

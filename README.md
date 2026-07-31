@@ -241,12 +241,12 @@ import is included in your bundle.
 
 ```ts
 import { createGuideFlow } from '@guideflow/core'
-import { createAI, OpenAIProvider } from '@guideflow/ai'
+import { createAI, ProxyProvider } from '@guideflow/ai'
 
 const gf = createGuideFlow()
 
 createAI(
-  new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }),
+  new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
   gf,
 )
 
@@ -258,10 +258,10 @@ await gf.start({ id: 'ai-tour', initial: 'main', states: { main: { steps, final:
 ### Anthropic
 
 ```ts
-import { AnthropicProvider } from '@guideflow/ai'
+import { ProxyProvider } from '@guideflow/ai'
 
 createAI(
-  new AnthropicProvider({ apiKey: import.meta.env.VITE_ANTHROPIC_KEY }),
+  new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
   gf,
 )
 ```
@@ -279,7 +279,7 @@ createAI(new OllamaProvider({ model: 'llama3', baseUrl: 'http://localhost:11434'
 Passively watch user behaviour and trigger help flows automatically:
 
 ```ts
-createAI(new OpenAIProvider({ apiKey: '...' }), gf, { autoWatch: false })
+createAI(new ProxyProvider({ endpoint: '/api/guideflow-ai' }), gf, { autoWatch: false })
 
 const stopWatch = gf.ai.watch()
 

@@ -35,12 +35,12 @@ The same `instance` reference (mutated in place), typed to include an `.ai: Guid
 
 ```ts
 import { createGuideFlow } from '@guideflow/core'
-import { createAI, OpenAIProvider } from '@guideflow/ai'
+import { createAI, ProxyProvider } from '@guideflow/ai'
 
 const gf = createGuideFlow({ theme: 'minimal' })
 
 const gfWithAI = createAI(
-  new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }),
+  new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
   gf,
   { autoWatch: true },
 )

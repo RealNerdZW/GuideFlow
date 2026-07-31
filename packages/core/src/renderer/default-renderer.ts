@@ -15,6 +15,7 @@ import type {
   GuideFlowConfig,
   PopoverPlacement,
 } from '../types/index.js'
+import { sanitizeHTML } from '../utils/sanitize.js'
 import { isBrowser } from '../utils/ssr.js'
 import { injectStyles, gfId } from '../utils/styles.js'
 
@@ -193,19 +194,19 @@ export class DefaultRenderer implements RendererContract {
       ` : ''}
       <div class="gf-popover-header">
         ${content.title ? `<h2 class="gf-popover-title" id="${this._popoverId}-title">${this._esc(content.title)}</h2>` : '<span></span>'}
-        <button class="gf-popover-close" data-gf-action="end" aria-label="${i18n.t('close')}" type="button">×</button>
+        <button class="gf-popover-close" data-gf-action="end" aria-label="${this._esc(i18n.t('close'))}" type="button">×</button>
       </div>
       ${content.body
         ? `<p class="gf-popover-body" id="${this._popoverId}-body">${this._esc(content.body)}</p>`
         : content.html
-          ? `<div class="gf-popover-body" id="${this._popoverId}-body">${this._sanitizeHTML(content.html)}</div>`
+          ? `<div class="gf-popover-body" id="${this._popoverId}-body">${sanitizeHTML(content.html)}</div>`
           : ''}
       <div class="gf-popover-footer">
-        ${total > 1 ? `<span class="gf-popover-step-info">${i18n.t('stepOf', { current: index + 1, total })}</span>` : '<span></span>'}
+        ${total > 1 ? `<span class="gf-popover-step-info">${this._esc(i18n.t('stepOf', { current: index + 1, total }))}</span>` : '<span></span>'}
         <div class="gf-popover-actions">
-          <button class="gf-btn gf-btn-ghost" data-gf-action="skip" type="button">${i18n.t('skip')}</button>
+          <button class="gf-btn gf-btn-ghost" data-gf-action="skip" type="button">${this._esc(i18n.t('skip'))}</button>
           ${actions.map((a) => `
-            <button class="gf-btn gf-btn-${a.variant ?? 'primary'}" data-gf-action="${a.action}" type="button">
+            <button class="gf-btn gf-btn-${this._esc(a.variant ?? 'primary')}" data-gf-action="${this._esc(a.action)}" type="button">
               ${this._esc(a.label)}
             </button>
           `).join('')}
@@ -304,19 +305,5 @@ export class DefaultRenderer implements RendererContract {
    * Strips <script>, <style>, <iframe>, <object>, <embed>, <form>, <base>,
    * on* event handlers, and javascript:/data: URLs in href/src/action.
    */
-  private _sanitizeHTML(html: string): string {
-    return html
-      // Remove dangerous tags entirely (including content)
-      .replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '')
-      .replace(/<\s*style[^>]*>[\s\S]*?<\s*\/\s*style\s*>/gi, '')
-      .replace(/<\s*iframe[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, '')
-      .replace(/<\s*object[^>]*>[\s\S]*?<\s*\/\s*object\s*>/gi, '')
-      .replace(/<\s*embed[^>]*\/?>/gi, '')
-      .replace(/<\s*form[^>]*>[\s\S]*?<\s*\/\s*form\s*>/gi, '')
-      .replace(/<\s*base[^>]*\/?>/gi, '')
-      // Remove on* event handlers from any tag
-      .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-      // Remove javascript: and data: from href, src, action attributes
-      .replace(/(href|src|action)\s*=\s*["']\s*(?:javascript|data)\s*:/gi, '$1="')
-  }
+
 }

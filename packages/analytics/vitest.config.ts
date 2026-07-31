@@ -12,8 +12,8 @@ export default defineConfig({
       // Ratchet at just below current. All five transports plus the collector and
       // ExperimentEngine are covered.
       thresholds: {
-        statements: 83,
-        lines: 83,
+        statements: 86,
+        lines: 86,
         branches: 85,
         functions: 90,
       },

@@ -20,13 +20,13 @@ keywords: AI product tour, auto-generate tour, GuideFlow AI, AI onboarding libra
 
 ```ts
 import { createGuideFlow } from '@guideflow/core';
-import { createAI, OpenAIProvider } from '@guideflow/ai';
+import { createAI, ProxyProvider } from '@guideflow/ai';
 
 const gf = createGuideFlow();
 
 // Attach AI — augments gf with a .ai property
 createAI(
-  new OpenAIProvider({ apiKey: import.meta.env.VITE_OPENAI_KEY }),
+  new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
   gf,
   { autoWatch: false }, // optional GuideBrain options
 );

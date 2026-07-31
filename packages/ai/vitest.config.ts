@@ -12,8 +12,8 @@ export default defineConfig({
       // Ratchet at just below current. All three real providers are now covered;
       // the gap is index.ts/createAI and parts of dom-context.
       thresholds: {
-        statements: 80,
-        lines: 80,
+        statements: 83,
+        lines: 83,
         branches: 75,
         functions: 88,
       },

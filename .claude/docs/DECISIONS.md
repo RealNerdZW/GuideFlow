@@ -136,3 +136,35 @@ per-developer state: `settings.local.json`, `local/`, `*.local.*`.
 - `.claude/docs/AUDIT.md` is a public statement of known defects. That is deliberate — it is honest,
   and it is a contribution roadmap. Do not put unfixed exploit payloads in it; those belong in a
   private advisory (see `SECURITY.md`).
+
+---
+
+## ADR-007 — A correct sanitiser is worth 500 bytes; the budget moves to 13 kB
+2026-07-31 · Status: Accepted · Amends ADR-002
+
+**Context.** `content.html` was sanitised by a regex denylist that a direct test defeated with
+6 of 8 trivial payloads (AUDIT `sanitize-html-regex-denylist-bypass`) — unquoted `javascript:`
+schemes, unclosed tags, entity-encoded schemes, `xlink:href`, `style` URLs. Regex denylists cannot
+be fixed incrementally: they run before the HTML parser, so they never see what the parser will
+actually produce.
+
+The replacement parses into an inert `<template>` and keeps only an explicit allowlist of elements,
+attributes and URL schemes. That costs **~440 B gzip**, taking `@guideflow/core` from 12.18 kB to
+12.62 kB — 122 B over the 12.5 kB limit set in Phase 1.
+
+Restructuring the allowlists to space-delimited strings recovered only 4 B; gzip already collapses
+that redundancy. There is no cheap saving here.
+
+**Decision.** Raise the `size-limit` budget to **13 kB gzip**. This is the *second* raise (12 → 12.5
+in Phase 1, 12.5 → 13 here) and it is deliberate: a working XSS in a library that injects markup
+into other people's pages is not a defensible trade for 122 bytes.
+
+**Consequences.**
+- ~380 B of headroom remains. The README's "~12 kB" claim is now wrong in the other direction and is
+  corrected as part of Phase 4.4.
+- The rejected alternatives, for the record: DOMPurify (~20 kB, and ADR-002 forbids a runtime
+  dependency in core); shipping `content.html` support behind an opt-in subpath export so the
+  default bundle does not pay for it. **The subpath option remains the right answer if the budget
+  ever binds again** — it is a breaking change, so it belongs in a major, not a patch.
+- Do not raise this number a third time without moving `content.html` out of the default bundle
+  first.

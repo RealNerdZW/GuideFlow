@@ -44,6 +44,8 @@
  */
 
 export { AnalyticsCollector } from './collector.js';
+export { PrivacyPolicy } from './privacy.js';
+export type { PrivacyOptions } from './privacy.js';
 export type { CollectorOptions } from './collector.js';
 
 export type { AnalyticsEvent, AnalyticsTransport } from './transports/interface.js';
