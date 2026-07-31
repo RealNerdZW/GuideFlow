@@ -10,7 +10,7 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **69 / 325 findings resolved** — Phases 0–3 complete on branch `fix/phase-0-1-engine-correctness`. Remaining open: 12 P0, 86 P1, 116 P2, 42 P3.
+**Progress:** **70 / 325 findings resolved** — Phases 0–3 complete on branch `fix/phase-0-1-engine-correctness`. Remaining open: 12 P0, 86 P1, 115 P2, 42 P3.
 
 ---
 
@@ -250,8 +250,21 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       document exactly what leaves the browser.
       *Accept:* `SECURITY.md` enumerates every field sent, and consent gating is on by default.
 
-- [x] **3.6 Supply chain.** Closes `release-no-provenance-no-audit`.
-      Add `--provenance` + `id-token: write`, a dependency-review step, and Dependabot.
+- [x] **3.6 Supply chain.** Closes `release-no-provenance-no-audit`,
+      `cli-ships-vite-as-runtime-dependency`.
+      *Done:* provenance and Dependabot landed in 2.4; the **audit** half was missed and this box was
+      ticked prematurely. Finishing it meant first measuring what a gate would report — 34 advisories,
+      3 critical, 12 high — and splitting production from dev showed that **all 8 production
+      advisories, including every high, came from `@guideflow/cli` importing `vite` at module scope**.
+      Vite is now an optional peer imported lazily inside the `studio` action: production advisories
+      8 → 1, highs 3 → 0. The remaining one is `@anthropic-ai/sdk`, an optional peer whose version the
+      consumer chooses.
+      CI gains a blocking `pnpm audit --prod --audit-level high` (passes today) plus a **non-blocking**
+      dev-dependency report, and GitHub's `dependency-review` on PRs. The split is deliberate: a gate
+      that is red on day one is a gate people learn to ignore, and dev tooling does not reach
+      consumers.
+      `guideflow studio` also now binds to `127.0.0.1` rather than Vite's default — it serves the
+      user's whole project directory, so network exposure should be an explicit `--host` choice.
 
 ---
 
