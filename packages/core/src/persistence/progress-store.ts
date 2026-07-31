@@ -115,6 +115,39 @@ export class ProgressStore {
     await this._driver.remove(key)
   }
 
+  // ── Auxiliary records ─────────────────────────────────────────────────────
+
+  /**
+   * Read an arbitrary record from this user's namespace.
+   *
+   * `suffix` is appended to the same prefix `resetUser()` sweeps, so anything
+   * stored here is cleared for free when a user resets. Use a **single-segment**
+   * suffix (`'caps'`): every flow-scoped key carries a second segment
+   * (`:<flowId>:snapshot`), so a single-segment suffix cannot collide with a
+   * flow id.
+   *
+   * This exists so `@guideflow/core/targeting` can persist frequency caps
+   * without building a second driver and asking the user to configure
+   * persistence twice.
+   */
+  async getRecord<T>(userId: string, suffix: string): Promise<T | null> {
+    const key = `${this._keyFn(userId)}:${suffix}`
+    const entry = await this._driver.get<{ value: T; expiresAt: number }>(key)
+    if (!entry) return null
+    if (isExpired(entry)) {
+      await this._driver.remove(key)
+      return null
+    }
+    return entry.value
+  }
+
+  async setRecord<T>(userId: string, suffix: string, value: T): Promise<void> {
+    await this._driver.set(`${this._keyFn(userId)}:${suffix}`, {
+      value,
+      expiresAt: this._expiry(),
+    })
+  }
+
   // ── Completed flows ───────────────────────────────────────────────────────
 
   async markCompleted(userId: string, flowId: string): Promise<void> {

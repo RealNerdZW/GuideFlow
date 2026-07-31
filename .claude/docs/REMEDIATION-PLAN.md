@@ -514,13 +514,26 @@ the budget could not absorb it**, so the packaging change had to come first.
       `step:timeout`, `isWaiting` across all three adapters, `rerender()` declared, progress saved
       when the machine moves rather than when the render lands.
       31 unit tests plus 11 e2e specs driving a real `pushState` router.
-- [ ] **7.3 Flow versioning** — `no-flow-versioning-stale-snapshot-resume`. ~162 B.
-      Note the audit was **wrong** on one point: `FlowMachine.restore` *does* already clamp
-      `stepIndex`. What it gets wrong is returning `true` for a state with zero steps, and ignoring
-      step identity entirely.
-- [ ] **7.4 Targeting, scheduling and frequency capping** — `no-targeting-or-audience-rules`,
-      `no-frequency-capping-or-flow-orchestration`. ~130 B in core, the rest in a
-      `@guideflow/core/targeting` subpath.
+- [x] **7.3 Flow versioning — DONE.** Closed `no-flow-versioning-stale-snapshot-resume`.
+      Two gates, cheapest first: `stepId` on every snapshot, preferred over `stepIndex` and
+      **rejected rather than clamped** when it no longer exists; then `FlowDefinition.version`.
+      `@guideflow/core/versioning` (336 B) derives one from a flow's structure, ignoring everything
+      cosmetic so a typo fix does not restart anybody's tour. `progress:discard` names which gate
+      rejected. `restore()` also now refuses a state with zero steps — it used to return `true` and
+      leave an "active" tour with nothing painted.
+      *The audit was **wrong** that `restore()` does not clamp `stepIndex`. It always did.*
+      **Still open, by design:** `isCompleted` is version-blind (keyed on flowId, no
+      `clearCompleted`), so shipping v2 never re-shows to anyone who completed v1.
+- [x] **7.4 Targeting, scheduling and frequency capping — DONE.** Closed
+      `no-targeting-or-audience-rules` and `no-frequency-capping-or-flow-orchestration`.
+      **Data in core (types, 0 bytes), policy in `@guideflow/core/targeting` (2.18 kB).** The one
+      core addition is `ProgressStore.getRecord`/`setRecord` (~130 B), which puts cap state under
+      the prefix `resetUser()` already sweeps.
+      Modelled as the third scope of a guard the FSM already has — transition, step, flow — so
+      every rule compiles to the same shape and `evaluate()` can name the guard that rejected
+      (`blockedBy`). Guard order is load-bearing: free checks before storage reads.
+      **Known limitation, documented:** the cap record is read-modify-write with no lock, so two
+      tabs starting tours in the same instant can lose one increment.
 - [ ] **7.5 Make A/B testing able to change something** — `experiment-variant-cannot-affect-any-tour`.
       Lands in `@guideflow/analytics` (no size gate) as `startVariant`. The brief argues `theme` in
       core is **not** needed: `RendererContract.onInit?(config)` already lets a renderer read config

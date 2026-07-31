@@ -234,6 +234,28 @@ export interface FlowDefinition<TContext = GuidanceContext> {
    * once is rarely what you want. Requires `context.userId` to be set.
    */
   persistDismissal?: boolean
+  /**
+   * Opaque revision marker for this flow's *structure*.
+   *
+   * Persisted onto every snapshot. When a returning user's snapshot carries a
+   * different value the snapshot is discarded and the tour restarts, rather
+   * than resuming into a coordinate that no longer means what it did — a
+   * renamed state, a deleted step, a reordered sequence.
+   *
+   * Leave it unset and resume falls back to the structural checks in
+   * `FlowMachine.restore` (the step id must still exist). Derive one with
+   * `flowFingerprint()` from `@guideflow/core/versioning`.
+   */
+  version?: string | number
+  /**
+   * Who sees this flow, where, and how often.
+   *
+   * **Inert on its own.** `@guideflow/core` never reads this field — install
+   * `@guideflow/core/targeting` and call `createTargeting(gf)` to enforce it.
+   * Keeping the data here and the policy there is what lets a flow stay a
+   * plain serialisable object.
+   */
+  targeting?: FlowTargeting<TContext>
 }
 
 export interface FlowSnapshot {
@@ -242,6 +264,82 @@ export interface FlowSnapshot {
   stepIndex: number
   completed: boolean
   timestamp: number
+  /**
+   * Id of the step the user was on. Preferred over `stepIndex` on resume — an
+   * index means nothing after a step is inserted above it.
+   *
+   * Optional because snapshots already sitting in users' storage predate it.
+   */
+  stepId?: string
+  /** `FlowDefinition.version` at write time. */
+  version?: string | number
+}
+
+/** Why a persisted resume point was thrown away. */
+export type SnapshotDiscardReason = 'version' | 'structure'
+
+// ── Targeting ────────────────────────────────────────────────────────────────
+//
+// Types only. Every runtime rule lives in `@guideflow/core/targeting`, so a
+// flow stays a plain serialisable object and the engine stays small.
+
+export type AudienceValue = string | number | boolean
+
+/**
+ * Declarative audience rule.
+ *
+ * Prefer this over the predicate form: it survives `JSON.stringify` in
+ * `guideflow export` and the devtools panel's structured clone. A predicate
+ * does not.
+ */
+export interface AudienceRule {
+  /** Any-of against `context.roles`. */
+  roles?: string[]
+  /** All-of: every named flag must be `true` in `context.featureFlags`. */
+  flags?: string[]
+  /**
+   * Shallow match against `context`. A primitive compares with `===`; an array
+   * is any-of.
+   */
+  where?: Record<string, AudienceValue | AudienceValue[]>
+}
+
+export interface FlowSchedule {
+  /** ISO-8601 string or epoch ms. Never a `Date` — that does not round-trip JSON. */
+  startsAt?: string | number
+  endsAt?: string | number
+}
+
+export interface FlowFrequency {
+  /** Max shows in one session (a 30-minute idle gap). */
+  maxPerSession?: number
+  /** Max shows ever, for this user. */
+  maxTotal?: number
+  /** Minimum gap between two shows of this flow. */
+  cooldownMs?: number
+}
+
+/** How a flow becomes a candidate for auto-start. */
+export type StartTrigger = 'manual' | 'load' | 'selector' | 'event'
+
+export interface FlowTargeting<TContext = GuidanceContext> {
+  /**
+   * Glob. `*` matches within a path segment, `**` across segments. A pattern
+   * starting with `/` matches `location.pathname`; anything else matches the
+   * full href. A `RegExp` is tested against the href and does not serialise.
+   */
+  urlPattern?: string | RegExp
+  audience?: AudienceRule | ((context: TContext) => boolean)
+  schedule?: FlowSchedule
+  frequency?: FlowFrequency
+  /** Higher wins when several flows are eligible. Default 0. */
+  priority?: number
+  /** Default `'manual'` — today's behaviour, and never auto-started. */
+  startTrigger?: StartTrigger
+  /** For `startTrigger: 'selector'`. */
+  selector?: string
+  /** For `startTrigger: 'event'` — the name passed to `targeting.send(name)`. */
+  event?: string
 }
 
 // ── Spotlight ────────────────────────────────────────────────────────────────
@@ -363,6 +461,11 @@ export interface TourEvents {
   'hotspot:close': { id: string }
   'hint:click': { id: string }
   'progress:sync': { snapshot: FlowSnapshot }
+  /**
+   * A saved resume point was rejected and deleted; the tour started from the
+   * beginning instead. The tour is already running at step 0 when this fires.
+   */
+  'progress:discard': { flowId: string; reason: SnapshotDiscardReason }
 }
 
 // ── Renderer Contract (headless interface) ────────────────────────────────────

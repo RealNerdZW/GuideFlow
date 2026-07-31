@@ -43,6 +43,36 @@ export default defineConfig([{
     js: '/* GuideFlow core/navigation — MIT License — https://guideflow.dev */',
   },
 }, {
+  // @guideflow/core/versioning — derive FlowDefinition.version from a flow's
+  // shape. Purely computational; no DOM, no browser globals.
+  entry: { versioning: 'src/versioning.ts' },
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  clean: false,
+  treeshake: true,
+  splitting: false,
+  minify: false,
+  target: 'es2020',
+  outDir: 'dist',
+  platform: 'browser',
+  banner: { js: '/* GuideFlow core/versioning — MIT License */' },
+}, {
+  // @guideflow/core/targeting — who sees a flow, where, and how often. The
+  // data lives in core as types; every rule that acts on it lives here.
+  entry: { 'targeting/index': 'src/targeting/index.ts' },
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  clean: false,
+  treeshake: true,
+  splitting: false,
+  minify: false,
+  target: 'es2020',
+  outDir: 'dist',
+  platform: 'browser',
+  banner: { js: '/* GuideFlow core/targeting — MIT License */' },
+}, {
   // @guideflow/core/html — opt-in `content.html` sanitisation. Evicted from the
   // default bundle per ADR-008's condition; see src/html.ts for the rationale.
   entry: { html: 'src/html.ts' },

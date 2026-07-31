@@ -26,6 +26,7 @@ import { ProgressStore } from './persistence/progress-store.js'
 import { DefaultRenderer } from './renderer/default-renderer.js'
 import type {
   NavigationAdapter,
+  SnapshotDiscardReason,
   GuideFlowConfig,
   FlowDefinition,
   GuidanceContext,
@@ -51,6 +52,13 @@ export type {
   StepAction,
   RoutePattern,
   TimeoutReason,
+  SnapshotDiscardReason,
+  FlowTargeting,
+  AudienceRule,
+  AudienceValue,
+  FlowSchedule,
+  FlowFrequency,
+  StartTrigger,
   NavigationAdapter,
   ResolveTargetRequest,
   ResolveTargetResult,
@@ -131,6 +139,14 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   readonly isActive: boolean
   /** Whether the active tour is paused. `false` once the tour ends. */
   readonly isPaused: boolean
+  /**
+   * The guidance context predicates see — the running machine's while a tour is
+   * live, the configured default otherwise.
+   *
+   * A prototype getter on `TourEngine`, so it must NOT be added to the
+   * `Object.assign` literal.
+   */
+  readonly context: TContext
   /** Current step id */
   readonly currentStepId: string | null
   /** Current step index (0-based), counted across the whole flow. */
@@ -363,7 +379,9 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       }
 
       const userId = _config.context?.userId
-      let restorePoint: { state: string; stepIndex: number } | null = null
+      let restorePoint:
+        | { state: string; stepIndex: number; stepId?: string }
+        | null = null
 
       if (userId) {
         // Suppress flows the user has dismissed or already finished. The
@@ -374,7 +392,19 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
         const snapshot = await progress.loadSnapshot(userId, flow.id)
         if (snapshot && !snapshot.completed) {
-          restorePoint = { state: snapshot.currentState, stepIndex: snapshot.stepIndex }
+          // `?? null` on both sides deliberately: a snapshot written before the
+          // flow declared a version, and a flow that has since dropped one, are
+          // both mismatches. Resuming across a structural change is the whole
+          // thing this gate exists to prevent.
+          if ((snapshot.version ?? null) === (flow.version ?? null)) {
+            restorePoint = {
+              state: snapshot.currentState,
+              stepIndex: snapshot.stepIndex,
+              ...(snapshot.stepId !== undefined && { stepId: snapshot.stepId }),
+            }
+          } else {
+            await _discardSnapshot(userId, flow.id, 'version')
+          }
         }
 
         // Cross-tab sync belongs to the instance, not to the resume path — it
@@ -388,8 +418,15 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
       // Restoring must be followed by a re-render: _engineStart has already
       // painted step 0, and FlowMachine.restore only moves the machine.
-      if (restorePoint && engine.machine?.restore(restorePoint) === true) {
-        await _engineRerender()
+      if (restorePoint) {
+        if (engine.machine?.restore(restorePoint) === true) {
+          await _engineRerender()
+        } else if (userId) {
+          // The version matched but the position did not survive — a renamed
+          // state, or a step id that no longer exists. Same outcome, different
+          // reason, and the caller deserves to know which.
+          await _discardSnapshot(userId, flow.id, 'structure')
+        }
       }
 
       // Persist immediately so abandoning on the very first step is remembered.
@@ -492,10 +529,32 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     _broadcastSync = new BroadcastSync(userId)
     _broadcastSync.on('progress:sync', ({ snapshot: snap }) => {
       if (snap.flowId !== engine.flowId) return
-      if (engine.machine?.restore({ state: snap.currentState, stepIndex: snap.stepIndex }) === true) {
+      // stepId forwarded, but no version check: both tabs are the same build,
+      // so a mismatch is impossible by construction.
+      if (engine.machine?.restore({
+        state: snap.currentState,
+        stepIndex: snap.stepIndex,
+        ...(snap.stepId !== undefined && { stepId: snap.stepId }),
+      }) === true) {
         void _engineRerender()
       }
     })
+  }
+
+  /**
+   * Throw away a resume point that can no longer be honoured, and say so.
+   *
+   * The alternative — resuming anyway — puts the user at a coordinate that
+   * means something different than it did when it was written, which is worse
+   * than restarting and much harder to diagnose.
+   */
+  async function _discardSnapshot(
+    userId: string,
+    flowId: string,
+    reason: SnapshotDiscardReason,
+  ): Promise<void> {
+    await progress.clearSnapshot(userId, flowId)
+    engine.emit('progress:discard', { flowId, reason })
   }
 
   async function _saveProgress(): Promise<void> {
@@ -517,6 +576,11 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       // tour un-resumable.
       completed: false,
       timestamp: Date.now(),
+      // `engine.currentStepId` reads the same machine position as
+      // `machine.stepIndex` above — not the post-render `_currentStep` — so the
+      // two can never disagree.
+      ...(engine.currentStepId !== null && { stepId: engine.currentStepId }),
+      ...(_activeFlow?.version !== undefined && { version: _activeFlow.version }),
     }
     await progress.saveSnapshot(userId, snapshot)
     _broadcastSync?.broadcast({ type: 'snapshot', flowId, snapshot })

@@ -43,16 +43,70 @@ data shares a prefix and `gf.progress.resetUser(userId)` can clear it in one go.
 ## What gets written, and when
 
 - **On every navigation** (`start`, `next`, `prev`, `goTo`, `send`) and on
-  abandonment, a snapshot of `{ flowId, currentState, stepIndex }` is saved. The
-  snapshot's `completed` field is always `false` — it only exists while a tour is
-  live.
+  abandonment, a snapshot of `{ flowId, currentState, stepIndex, stepId, version }`
+  is saved. The snapshot's `completed` field is always `false` — it only exists
+  while a tour is live.
 - **On `tour:complete`**, the flow id is added to the completed list and the
   snapshot is deleted.
 - **On dismissal**, if the flow opted in with `persistDismissal`.
 
-On the next `gf.start(flow)` the engine, in order: returns early if the flow was
-dismissed, returns early if it was completed, otherwise restores the snapshot and
-re-renders at the saved step.
+The write happens the moment the **machine** moves, not when the render lands. With
+[route waiting](/guide/routing) a render can take seconds, and a tab closed mid-wait
+would otherwise lose the advance.
+
+On the next `gf.start(flow)` the engine, in order:
+
+1. returns early if the flow was dismissed;
+2. returns early if it was completed;
+3. **discards the snapshot if `version` does not match the flow's** — see below;
+4. otherwise restores, preferring `stepId` over `stepIndex`, and re-renders.
+
+## Versioning a flow
+
+A stored `{ state, stepIndex }` is a coordinate into a structure. Rename a state,
+delete a step or reorder two, redeploy — and every returning user resumes into a
+position that means something different than it did when it was written.
+
+Two independent gates prevent that, cheapest first.
+
+**`stepId` is preferred over `stepIndex`.** An index means nothing once a step has
+been inserted above it. If the stored step id no longer exists anywhere in that
+state, the resume is **rejected** rather than clamped — there is no honest
+coordinate to fall back to.
+
+**An explicit `version` catches the rest**, including a renamed state:
+
+```ts
+gf.start({ id: 'onboarding', version: 'v2', initial: 'intro', states: { /* … */ } })
+```
+
+Or derive one from the flow's own shape, so you cannot forget to bump it:
+
+```ts
+import { withFingerprint } from '@guideflow/core/versioning'
+
+const flow = withFingerprint({ id: 'onboarding', initial: 'intro', states: { /* … */ } })
+```
+
+`flowFingerprint` hashes only what changes the meaning of a coordinate — `initial`,
+state names, `final` flags, step ids **in order**, and the transition table. It
+ignores everything cosmetic: content, target, placement, padding, media, `showIf`,
+`onEntry`/`onExit`, `context`, `targeting`, and the flow id itself. Fixing a typo
+does not restart anybody's tour.
+
+When a snapshot is thrown away, the tour starts from the beginning and emits:
+
+```ts
+gf.on('progress:discard', ({ flowId, reason }) => {
+  // reason: 'version'   — the flow's version changed
+  //       | 'structure' — the version matched but the position did not survive
+})
+```
+
+::: warning `isCompleted` is version-blind
+Completion is keyed on `flowId` alone, and there is no `clearCompleted`. Shipping
+v2 of a flow will never re-show it to anyone who completed v1.
+:::
 
 ## Drivers
 

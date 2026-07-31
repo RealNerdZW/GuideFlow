@@ -95,6 +95,10 @@ const EVENTS = [
   'hotspot:close',
   'hint:click',
   'progress:sync',
+  'progress:discard',
+  'step:target-missing',
+  'step:waiting',
+  'step:timeout',
 ];
 
 // ---------------------------------------------------------------------------

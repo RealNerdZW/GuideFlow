@@ -154,6 +154,18 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   }
 
   /** Expose the internal FSM for snapshot/restore operations. */
+  /**
+   * The guidance context predicates see.
+   *
+   * The running machine's context while a tour is live, and the configured
+   * default otherwise — so a caller can read `context.userId` without having to
+   * start a tour first. `@guideflow/core/targeting` needs exactly that to
+   * evaluate audience rules before anything has started.
+   */
+  get context(): TContext {
+    return this._machine?.context ?? (this._options.context ?? ({} as TContext))
+  }
+
   get machine(): FlowMachine<TContext> | null {
     return this._machine
   }

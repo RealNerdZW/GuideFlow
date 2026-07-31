@@ -84,10 +84,11 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **770 unit tests pass**, 2 skipped
-(core 307, ai 153, react 114, analytics 78, vue 47, cli 37, svelte 34). Size, all gated
-independently: `@guideflow/core` **14.72 kB / 15 kB**, `@guideflow/core/navigation` **1.55 kB / 2 kB**,
-`@guideflow/core/html` **767 B / 1 kB**. If any of these regress, you broke it — do not paper over it.
+Build, type-check, lint and unit tests are **all green**: **837 unit tests pass**, 2 skipped
+(core 374, ai 153, react 114, analytics 78, vue 47, cli 37, svelte 34). Five bundles, each gated
+independently: `@guideflow/core` **14.93 kB / 15 kB**, `./targeting` **2.18 kB / 2.5 kB**,
+`./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
+If any of these regress, you broke it — do not paper over it.
 
 **The Playwright e2e suite now actually runs: 217 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
@@ -125,9 +126,11 @@ marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOve
 > deliberately did *not* raise the limit at the same time: the eviction freed enough on its own, and
 > raising pre-emptively for unwritten code is the silent bump the rule exists to prevent.
 >
-> Core is at **14.72 kB with 280 B of headroom**. **The next lever is a
-> `@guideflow/core/targeting` subpath**, which the Phase 7.4 design already assumes — take it before
-> raising a sixth time. Any docs figure quoting a bundle size must say **~14.7 kB**.
+> Core is at **14.93 kB with 70 B of headroom** — which is not a budget, it is a tripwire.
+> **The next core addition of any size needs either a real saving or a sixth raise with an ADR.**
+> The targeting lever has already been pulled: 7.4 put its ~1.75 kB of rules in
+> `@guideflow/core/targeting` and landed only 130 B of driver access in core. What remains to move
+> is smaller and harder. Any docs figure quoting a bundle size must say **~14.9 kB**.
 
 ## 4. Code conventions
 
@@ -264,6 +267,17 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
   that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
   app" report is this.
+- **`targeting` and `route` and `sanitizeHTML` are all inert without their subpath.** Core carries
+  the *types* so a flow stays serialisable, and reads none of them. A `targeting` block with no
+  `createTargeting()` silently does nothing, and core cannot afford a dev-mode warning to say so.
+- **`FlowMachine.restore` prefers `stepId` and rejects a miss.** It does not clamp to a neighbour: a
+  step id that no longer exists means there is no honest coordinate to resume to. It also refuses a
+  state with zero steps, which used to return `true` and leave an active tour with nothing painted.
+- **Targeting guard order is load-bearing.** trigger, url, audience, schedule (all free) before
+  completed, dismissed and every frequency check (all storage reads). Reordering makes a `selector`
+  trigger issue a storage read per DOM mutation, and no test will catch it.
+- **A throwing audience predicate means "not eligible", not a crash** — deliberately unlike
+  `Step.showIf`. Targeting evaluates every registered flow; one bad rule must not take down the rest.
 - **`route` goes on `StateNode`, never on `Step` and never as a transition.**
   `FlowMachine._defaultPath` walks `NEXT` only, so a `ROUTE` transition puts the target state off
   that path and silently reverts `flowStepIndex`/`flowTotalSteps` to per-state numbering — the bug

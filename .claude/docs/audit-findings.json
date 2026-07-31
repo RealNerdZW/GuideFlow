@@ -2259,7 +2259,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "UNVERIFIED",
-      "status": "open",
+      "status": "resolved",
       "title": "FlowDefinition and FlowSnapshot carry no version, so editing a flow resumes returning users into a stale state/step index",
       "file": "packages/core/src/types/index.ts",
       "line": 111,
@@ -2267,7 +2267,8 @@
       "impact": "ProgressStore keys snapshots on `${keyFn(userId)}:${flowId}:snapshot` (packages/core/src/persistence/progress-store.ts:36) with no version, hash, or step-count fingerprint. A developer who renames a state, deletes a step, or reorders steps and redeploys will have every returning user restored via machine.restore({ state, stepIndex }) into a state that may no longer exist or a stepIndex past the end of the new steps array — producing the stuck, invisible tour already noted as machine-restore-unvalidated, but now triggered by an ordinary content edit rather than tampering. Every competitor versions flows precisely because tour content churns weekly. There is also no way to migrate, expire, or invalidate progress on publish.",
       "fix": "Add `version?: string | number` to FlowDefinition and persist it (plus a derived step-count/state-name fingerprint) on FlowSnapshot. In createGuideFlow's resume path (packages/core/src/index.ts:243-256), discard the snapshot and start fresh when the stored version/fingerprint does not match the flow being started.",
       "effort": "M",
-      "verifierNote": null
+      "verifierNote": null,
+      "resolvedIn": "Phase 7.3 — FlowSnapshot carries stepId and version; the resume gate compares versions and discards on mismatch; FlowMachine.restore prefers stepId and REJECTS a miss rather than clamping, and now refuses a state with zero steps (it used to return true and leave an active tour with nothing painted). @guideflow/core/versioning (336 B) derives a version from a flow structure. progress:discard says which gate rejected. 22 versioning tests plus create-guide-flow coverage."
     },
     {
       "id": "no-frequency-capping-or-flow-orchestration",
@@ -2275,7 +2276,7 @@
       "severity": "P1",
       "kind": "gap",
       "verdict": "UNVERIFIED",
-      "status": "open",
+      "status": "resolved",
       "title": "No scheduling, frequency capping, cooldown, or cross-flow orchestration — nothing stops several tours firing at once",
       "file": "packages/core/src/persistence/progress-store.ts",
       "line": 36,
@@ -2283,7 +2284,8 @@
       "impact": "ProgressStore is strictly per-flow: it records a snapshot, a completed flag, and a dismissed flag for one flowId. There is no global 'last tour shown at' timestamp, no per-session counter, no cooldown, no start/end date on a flow, and no queue or priority when two flows both want to start. Calling start() twice silently abandons the running tour (per docs-tour-engine-start-throws). A product team running four onboarding tours has no way to say 'at most one per session' or 'not within 7 days of the last one' — the standard frequency-capping controls in every commercial tool — so shipping more than one or two flows produces an unusable experience.",
       "fix": "Add global (not per-flow) counters to ProgressStore — lastShownAt, sessionShownCount — and a `frequency` block on FlowDefinition (maxPerSession, cooldownMs, startsAt/endsAt). Have createGuideFlow's start() consult them before _engineStart, and add an orchestrator that resolves competing flows by priority.",
       "effort": "L",
-      "verifierNote": null
+      "verifierNote": null,
+      "resolvedIn": "Phase 7.4 — FlowFrequency (maxPerSession/maxTotal/cooldownMs) plus cross-flow globals, backed by ProgressStore.getRecord/setRecord (~130 B in core) under the prefix resetUser() already sweeps. Sessions are a 30-minute idle gap derived from history — no sessionStorage, SSR-safe, shared across tabs. autoStart() resolves competing flows by priority and never interrupts a running tour."
     },
     {
       "id": "no-targeting-or-audience-rules",
@@ -2291,7 +2293,7 @@
       "severity": "P1",
       "kind": "gap",
       "verdict": "UNVERIFIED",
-      "status": "open",
+      "status": "resolved",
       "title": "Flows have no targeting, audience, URL, or trigger model — every tour must be started by imperative application code",
       "file": "packages/core/src/types/index.ts",
       "line": 104,
@@ -2299,7 +2301,8 @@
       "impact": "There is no `audience`, `segment`, `urlPattern`, `trigger`, or `priority` field anywhere on FlowDefinition, and createGuideFlow exposes no rule evaluator — the only conditional mechanism in the whole engine is per-step `showIf`. Deciding *who* sees a tour, *where*, and *when* is therefore entirely the host application's problem, hand-written at every call site. Targeting rules are the primary product of Userpilot, Appcues, Pendo and Chameleon; without them GuideFlow is a tour renderer, not an onboarding platform, and cannot be adopted by the growth/PM buyer it markets to.",
       "fix": "Add an optional `targeting` block to FlowDefinition (urlPattern, audience predicate over GuidanceContext, startTrigger: 'manual' | 'load' | 'selector' | 'event') and a `gf.evaluate()` / `gf.autoStart()` entry point that picks the highest-priority matching flow. Document it as a first-class guide page.",
       "effort": "L",
-      "verifierNote": null
+      "verifierNote": null,
+      "resolvedIn": "Phase 7.4 — FlowTargeting on FlowDefinition (types only, 0 runtime bytes) plus @guideflow/core/targeting (2.18 kB): urlPattern, audience (declarative or predicate), schedule, priority, startTrigger. evaluate() reports blockedBy so \"why did my tour not show\" is an API call. 45 tests."
     },
     {
       "id": "persistence-inert-without-caller-supplied-userid",

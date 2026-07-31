@@ -175,6 +175,7 @@ export default defineConfig({
             { text: 'Spotlight & Popover', link: '/guide/spotlight-popover' },
             { text: 'Routing & SPAs', link: '/guide/routing' },
             { text: 'Persistence', link: '/guide/persistence' },
+            { text: 'Targeting & frequency', link: '/guide/targeting' },
             { text: 'Accessibility', link: '/guide/accessibility' },
             { text: 'Privacy', link: '/guide/privacy' },
             { text: 'i18n', link: '/guide/i18n' },

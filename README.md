@@ -45,7 +45,7 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 
 | Package | Description | Size |
 |---|---|---|
-| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 14.72 kB gzip |
+| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 14.93 kB gzip |
 | [`@guideflow/react`](packages/react) | `TourProvider`, `useTour`, `useTourStep`, `useHotspot`, `TourStep`, `GuidePopover`, `ConversationalPanel` | — |
 | [`@guideflow/vue`](packages/vue) | `GuideFlowPlugin`, `useTour` composable (no components) | — |
 | [`@guideflow/svelte`](packages/svelte) | `createTourStore`, `Readable` stores (no components) | — |
@@ -55,10 +55,11 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 | [`@guideflow/devtools`](packages/devtools) | MV3 browser extension — flow inspector and step recorder. Not published to npm: build it from source and load it unpacked | — |
 
 The core size is what `size-limit` reports for `dist/index.js` bundled, minified and gzipped
-(`pnpm --filter @guideflow/core size`) — **14.72 kB against a 15 kB budget**. The published file itself
-is unminified, so what you ship depends on your bundler. Two opt-in subpaths sit outside that number
-and cost nothing unless imported: `@guideflow/core/html` (767 B) and `@guideflow/core/navigation`
-(1.55 kB).
+(`pnpm --filter @guideflow/core size`) — **14.93 kB against a 15 kB budget**. The published file itself
+is unminified, so what you ship depends on your bundler. Four opt-in subpaths sit outside that number
+and cost nothing unless imported: `@guideflow/core/targeting` (2.18 kB),
+`@guideflow/core/navigation` (1.55 kB), `@guideflow/core/html` (767 B) and
+`@guideflow/core/versioning` (336 B).
 
 > The devtools panel discovers a page through the `window.__guideflow` global. The library never sets it —
 > assign your instance to it yourself if you want the extension to see your app.

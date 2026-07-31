@@ -55,6 +55,26 @@
         "default": "./dist/navigation/index.cjs"
       }
     },
+    "./targeting": {
+      "import": {
+        "types": "./dist/targeting/index.d.ts",
+        "default": "./dist/targeting/index.js"
+      },
+      "require": {
+        "types": "./dist/targeting/index.d.cts",
+        "default": "./dist/targeting/index.cjs"
+      }
+    },
+    "./versioning": {
+      "import": {
+        "types": "./dist/versioning.d.ts",
+        "default": "./dist/versioning.js"
+      },
+      "require": {
+        "types": "./dist/versioning.d.cts",
+        "default": "./dist/versioning.cjs"
+      }
+    },
     "./html": {
       "import": {
         "types": "./dist/html.d.ts",
@@ -119,6 +139,18 @@
       "name": "navigation subpath",
       "path": "./dist/navigation/index.js",
       "limit": "2 kB",
+      "gzip": true
+    },
+    {
+      "name": "targeting subpath",
+      "path": "./dist/targeting/index.js",
+      "limit": "2.5 kB",
+      "gzip": true
+    },
+    {
+      "name": "versioning subpath",
+      "path": "./dist/versioning.js",
+      "limit": "500 B",
       "gzip": true
     }
   ],
