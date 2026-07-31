@@ -1,30 +1,127 @@
 ---
-description: Deterministic client-side A/B variant assignment for GuideFlow tours with ExperimentEngine — and how to actually apply the variant, since nothing consumes it for you.
+description: Deterministic client-side A/B variant assignment for GuideFlow tours — run a different flow per variant with startVariant, and record the exposure through your analytics pipeline.
 keywords: GuideFlow A/B testing, product tour experiments, tour variant testing, deterministic variant assignment
 ---
 
 # A/B Testing
 
 `ExperimentEngine` assigns a user to a variant deterministically, client-side, with no server
-round-trip.
-
-::: warning It assigns; it does not apply
-`ExperimentEngine` is a hash function with a cache. **No GuideFlow API consumes its result.** There
-is no `theme` option on `createGuideFlow()`, no experiment hook in `AnalyticsCollector`, and no
-automatic exposure event. Reading the variant, branching on it, and recording it are all code you
-write. Everything below shows that wiring explicitly.
-:::
+round-trip. `startVariant()` runs the flow that variant names and records the exposure.
 
 ## Setup
 
 ```ts
-import { ExperimentEngine } from '@guideflow/analytics'
+import { AnalyticsCollector, ExperimentEngine, startVariant } from '@guideflow/analytics'
 
 const engine = new ExperimentEngine('user-123')
 ```
 
 The constructor takes the user id as its only argument. It must be stable across sessions or the
-assignment is not stable.
+assignment is not.
+
+## Run a different tour per variant
+
+The most powerful thing a variant can change is **which flow runs**. `value` is generic, so it can
+be a whole `FlowDefinition`:
+
+```ts
+await startVariant(gf, engine, {
+  id: 'onboarding-shape',
+  variants: [
+    { id: 'control',   value: shortOnboardingFlow },
+    { id: 'treatment', value: longOnboardingFlow },
+  ],
+}, { collector })
+```
+
+That assigns the variant, starts the flow, and emits `guideflow.experiment.exposed` through the
+collector — which means it passes the same privacy gate as every other event: consent, Do-Not-Track,
+sampling, URL scrubbing and key redaction.
+
+The variant value can also be a **registered flow id**, which is exactly `gf.start()`'s parameter
+type:
+
+```ts
+gf.createFlow(shortOnboardingFlow)
+gf.createFlow(longOnboardingFlow)
+
+await startVariant(gf, engine, {
+  id: 'onboarding-shape',
+  variants: [
+    { id: 'control',   value: 'short-onboarding' },
+    { id: 'treatment', value: 'long-onboarding' },
+  ],
+}, { collector })
+```
+
+### What it returns, and when it returns nothing
+
+`startVariant` resolves to the assignment, or to `null` in two cases — starting nothing and emitting
+nothing:
+
+- **A tour is already running.** Starting a second one ends the first, which emits `tour:abandon`
+  and would be recorded as the user giving up on a tour they never chose to leave.
+- **`gf.start()` declined** — an unknown flow id, a dismissed flow, or one the user already
+  completed. Exposure is recorded only for users who actually saw a tour; otherwise the denominator
+  of the experiment is wrong.
+
+### The exposure event
+
+```json
+{
+  "event": "guideflow.experiment.exposed",
+  "properties": {
+    "experiment_id": "onboarding-shape",
+    "variant_id": "treatment",
+    "flow_id": "long-onboarding"
+  }
+}
+```
+
+`flow_id` is read from the instance after the tour starts, not from the variant value — so it is
+always the flow that actually ran. Add your own with `properties`, which is spread last and wins:
+
+```ts
+await startVariant(gf, engine, experiment, {
+  collector,
+  properties: { surface: 'billing', cohort: 'q3' },
+})
+```
+
+::: warning Do not use `timestamp`, `time` or `$timestamp` as property keys
+The PostHog, Mixpanel, Amplitude and Segment transports each inject their own alongside your
+properties, and a collision silently overwrites one of them.
+:::
+
+## Changing the theme instead of the flow
+
+For a lighter-touch experiment, a variant can name a [theme](/themes/):
+
+```ts
+const { value: theme } = engine.assign({
+  id: 'popover-style',
+  variants: [
+    { id: 'control', value: 'minimal' },
+    { id: 'bold',    value: 'bold' },
+  ],
+})
+
+const gf = createGuideFlow({ theme })
+```
+
+`theme` sets `data-gf-theme` on `<html>`, which is what the shipped stylesheets key on. It also
+works through `configure({ theme })` at any time.
+
+## Any other custom event
+
+`collector.track()` puts anything through the same privacy pipeline:
+
+```ts
+collector.track('guideflow.experiment.converted', {
+  experiment_id: 'onboarding-shape',
+  variant_id: result.variantId,
+})
+```
 
 ## Assign Variants
 
@@ -42,72 +139,35 @@ result.variantId    // 'control' | 'treatment'
 result.value        // 'short' | 'long'
 ```
 
-`value` is generic — it can be a string, a number, an object, or a whole `FlowDefinition`.
+`value` is generic — a string, a number, an object, or a whole `FlowDefinition`. Pass the experiment
+straight to [`startVariant`](#run-a-different-tour-per-variant) rather than assigning and branching
+by hand.
 
-## Applying a variant
+## Applying a variant by hand
 
-### Pick a different flow
-
-The most direct use: two flows, one experiment.
+`startVariant` is three lines of glue you could write yourself, and sometimes should — when the
+variant changes something other than which tour runs:
 
 ```ts
-import { createGuideFlow } from '@guideflow/core'
-
-const gf = createGuideFlow()
-
-const { value: flow } = engine.assign({
-  id: 'onboarding-shape',
+const { variantId, value: stepCount } = engine.assign({
+  id: 'tour-length',
   variants: [
-    { id: 'control',   value: shortOnboardingFlow },
-    { id: 'treatment', value: longOnboardingFlow },
+    { id: 'short', value: 3 },
+    { id: 'long',  value: 7 },
   ],
 })
 
+const flow = buildOnboardingFlow({ steps: stepCount })
 await gf.start(flow)
-```
-
-### Change the look
-
-GuideFlow's bundled themes are plain CSS attribute selectors — `[data-gf-theme="minimal"]`,
-`"bold"`, `"glass"`, `"brutalist"`, `"enterprise"` — shipped in `@guideflow/core/styles`. Nothing in
-the library sets that attribute, so you set it:
-
-```ts
-import '@guideflow/core/styles'
-
-const { value: theme } = engine.assign({
-  id: 'tour-theme-q1-2025',
-  variants: [
-    { id: 'control',   value: 'minimal' },
-    { id: 'treatment', value: 'bold' },
-  ],
+collector.track('guideflow.experiment.exposed', {
+  experiment_id: 'tour-length',
+  variant_id: variantId,
 })
-
-document.documentElement.dataset['gfTheme'] = theme
 ```
 
-### Change the content
-
-```ts
-const { value: copy } = engine.assign({
-  id: 'welcome-copy',
-  variants: [
-    { id: 'control',   value: { title: 'Welcome', body: 'Let us show you around.' } },
-    { id: 'treatment', value: { title: 'Ready?',  body: 'Two minutes to your first project.' } },
-  ],
-})
-
-const flow = {
-  id: 'onboarding',
-  initial: 'main',
-  states: {
-    main: {
-      steps: [{ id: 'welcome', target: '#app', content: copy }],
-      final: true,
-    },
-  },
-}
-```
+Two things `startVariant` does that are easy to forget by hand: it refuses to start when a tour is
+already running (which would emit `tour:abandon`), and it records the exposure **only** if the tour
+actually started.
 
 ## Deterministic Assignment
 
@@ -146,7 +206,20 @@ engine.assign({
 
 ## Multiple Experiments
 
-Each experiment id is hashed and cached independently.
+Each experiment id is hashed and cached independently, and — since the bucketing fix — assignments
+are genuinely independent of one another.
+
+::: tip This was broken until recently
+Bucketing used to be `hash % totalWeight`, which for a two-arm experiment is a single bit of a djb2
+hash. Every experiment's marginal split looked like a clean 50/50, but the *joint* distribution was
+degenerate: over 10 000 users, two given experiments assigned the same arm to either 100% or 0% of
+them. Running two experiments at once produced uninterpretable results, and nothing in the output
+looked wrong. Assignment now uses FNV-1a with an avalanche step, bucketed over a fixed 10 000-slot
+space.
+
+Assignments **changed** as a result. An experiment already in flight will re-bucket its users; start
+a fresh experiment id rather than reading across the boundary.
+:::
 
 ```ts
 const { value: tourStyle } = engine.assign({
@@ -168,8 +241,8 @@ const { value: stepCount } = engine.assign({
 
 ## Tracking Results
 
-There is no exposure event. To learn which variant a user saw, put the assignment into
-`globalProperties` so it rides along on every tour event:
+`startVariant` emits `guideflow.experiment.exposed` for you. If you assign by hand, or want the
+variant attached to *every* tour event rather than one exposure, put it in `globalProperties`:
 
 ```ts
 import { AnalyticsCollector, WebhookTransport } from '@guideflow/analytics'

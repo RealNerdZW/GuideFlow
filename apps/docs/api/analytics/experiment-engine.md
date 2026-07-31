@@ -9,10 +9,18 @@ A deterministic, client-side A/B testing engine. Variant assignment is derived f
 `userId + ':' + experimentId`, so the same user always receives the same variant — no server
 round-trip required.
 
-::: warning Assignment only
-Nothing in GuideFlow reads the result. There is no `theme` option on `createGuideFlow()`, no
-experiment hook in `AnalyticsCollector`, and no exposure event. Applying the variant and recording it
-are both application code — see [A/B Testing](../../guide/ab-testing) for the wiring.
+::: tip Use `startVariant` unless you need the raw assignment
+[`startVariant(gf, engine, experiment)`](../../guide/ab-testing#run-a-different-tour-per-variant)
+assigns, starts the flow the variant names, and emits `guideflow.experiment.exposed` through the
+collector's privacy pipeline. `assign()` is the layer underneath, for variants that change something
+other than which tour runs.
+:::
+
+::: warning Assignments changed in the bucketing fix
+Bucketing used to be `hash % totalWeight` — a single bit of a djb2 hash for a two-arm experiment.
+Marginal splits looked fine; the joint distribution across two experiments was degenerate. See
+[Multiple Experiments](../../guide/ab-testing#multiple-experiments). An experiment already in flight
+will re-bucket its users, so start a fresh experiment id rather than reading across the boundary.
 :::
 
 ## Constructor

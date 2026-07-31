@@ -48,8 +48,18 @@ export interface StepMediaOptions {
 export interface StepAction {
   label: string
   variant?: 'primary' | 'secondary' | 'ghost'
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- intentional: string & object preserves autocomplete for known values
-  action: 'next' | 'prev' | 'skip' | 'end' | (string & object)
+  /**
+   * One of the four built-ins, or any FSM event name the current state
+   * declares in its `on` table.
+   *
+   * `string & Record<never, never>`, not `string & object` — the latter was
+   * here and it did not work: no string literal satisfies `string & object`, so
+   * `{ action: 'my-custom-event' }` was a type error and the documented escape
+   * hatch could not be expressed at all. `@guideflow/react`'s tests carried a
+   * cast to work around it.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- intentional: preserves autocomplete for the four built-ins while accepting any FSM event name
+  action: 'next' | 'prev' | 'skip' | 'end' | (string & Record<never, never>)
 }
 
 export interface Step<TContext = GuidanceContext> {
@@ -505,6 +515,25 @@ export interface RendererContract {
 
 // ── GuideFlow Config ──────────────────────────────────────────────────────────
 
+/**
+ * A theme name.
+ *
+ * The union preserves autocomplete for the five that ship while still accepting
+ * a custom name for a stylesheet of your own.
+ *
+ * `string & Record<never, never>`, not `string & object` — the latter is what
+ * `StepAction.action` uses and it does not work: no string literal satisfies
+ * `string & object`, so every custom value is a type error.
+ */
+export type GuideFlowTheme =
+  | 'minimal'
+  | 'bold'
+  | 'glass'
+  | 'brutalist'
+  | 'enterprise'
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- intentional: preserves autocomplete while accepting custom theme names
+  | (string & Record<never, never>)
+
 export interface GuideFlowConfig {
   /** Renderer to use. Defaults to the built-in themed renderer */
   renderer?: RendererContract
@@ -519,6 +548,24 @@ export interface GuideFlowConfig {
   injectStyles?: boolean
   /** Debug logging */
   debug?: boolean
+  /**
+   * Visual theme. Sets `data-gf-theme` on `<html>`, which is what the
+   * stylesheets in `@guideflow/core/styles` key on.
+   *
+   * Five themes ship — `minimal`, `bold`, `glass`, `brutalist`, `enterprise` —
+   * and until now nothing in the library ever set the attribute they need, so
+   * choosing one was impossible without writing the `setAttribute` yourself.
+   *
+   * On `<html>`, not on the popover: the spotlight overlay, hotspot beacons and
+   * hint badges are all portalled to `document.body` and all read the same
+   * custom properties. Only the root themes every surface.
+   *
+   * An empty string removes the attribute. Leaving it `undefined` never touches
+   * it, so a host page that sets its own theme is not clobbered.
+   *
+   * Applied by `DefaultRenderer`. A custom renderer reads it from `onInit(config)`.
+   */
+  theme?: GuideFlowTheme
   /**
    * Route-aware target resolution. Supply one from `@guideflow/core/navigation`,
    * or implement {@link NavigationAdapter} yourself.

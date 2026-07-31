@@ -133,8 +133,7 @@ const { value: variant } = engine.assign({
 Assignments are deterministic: the same `userId + experimentId` always produces the same variant, no
 server required.
 
-::: warning The variant is not consumed by GuideFlow
-`ExperimentEngine` hands you a value. No GuideFlow API reads it — there is no `theme` option on
-`createGuideFlow()`, and no experiment integration inside the collector. Branching on the variant,
-and recording which variant a user saw, are both yours to wire. See [A/B Testing](./ab-testing).
-:::
+`startVariant(gf, engine, experiment)` runs the flow the assigned variant names and emits
+`guideflow.experiment.exposed` through this collector — so the exposure passes the same consent,
+Do-Not-Track, sampling and scrubbing gate as every other event. `collector.track(name, props)` does
+the same for any custom event of your own. See [A/B Testing](./ab-testing).

@@ -275,3 +275,79 @@ describe('configure()', () => {
     expect(gf.currentStepId).toBe('admin-only')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Themes.
+//
+// Five themes ship in @guideflow/core/styles and nothing in the library ever
+// set the attribute they key on, so choosing one was impossible without writing
+// the setAttribute yourself — a documented feature that did nothing.
+//
+// Applied on <html>, not on the popover: the spotlight overlay, hotspot beacons
+// and hint badges are all portalled to document.body and all read the same
+// custom properties. Only the root themes every surface.
+// ---------------------------------------------------------------------------
+
+describe('theme', () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute('data-gf-theme')
+  })
+
+  it('sets data-gf-theme on the document root', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('bold')
+  })
+
+  it('never touches the attribute when no theme is configured', () => {
+    // A host page that sets its own theme must not be clobbered by an instance
+    // that has no opinion.
+    document.documentElement.setAttribute('data-gf-theme', 'set-by-the-host')
+    gf = createGuideFlow({ injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('set-by-the-host')
+  })
+
+  it('updates through configure()', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    gf.configure({ theme: 'glass' })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('glass')
+  })
+
+  it('leaves the theme alone when configure() patches something else', () => {
+    // configure() merges by spread, so an omitted key keeps its value — this
+    // has to hold for theme like every other field.
+    gf = createGuideFlow({ theme: 'brutalist', injectStyles: false })
+    gf.configure({ debug: true })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('brutalist')
+  })
+
+  it('removes the attribute for an empty string', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    gf.configure({ theme: '' })
+    expect(document.documentElement.hasAttribute('data-gf-theme')).toBe(false)
+  })
+
+  it('accepts a custom theme name', () => {
+    gf = createGuideFlow({ theme: 'acme-dark', injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('acme-dark')
+  })
+
+  it('is an attribute value, never an HTML sink', () => {
+    // setAttribute cannot execute markup. This pins that the value is never
+    // routed into the renderer's template string.
+    gf = createGuideFlow({
+      theme: '"><img src=x onerror=alert(1)>',
+      injectStyles: false,
+    })
+
+    expect(document.documentElement.getAttribute('data-gf-theme'))
+      .toBe('"><img src=x onerror=alert(1)>')
+    expect(document.querySelector('img')).toBeNull()
+  })
+
+  it('is last-writer-wins across two instances', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    const second = createGuideFlow({ theme: 'glass', injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('glass')
+    second.destroy()
+  })
+})

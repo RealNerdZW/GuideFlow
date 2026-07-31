@@ -534,10 +534,20 @@ the budget could not absorb it**, so the packaging change had to come first.
       (`blockedBy`). Guard order is load-bearing: free checks before storage reads.
       **Known limitation, documented:** the cap record is read-modify-write with no lock, so two
       tabs starting tours in the same instant can lose one increment.
-- [ ] **7.5 Make A/B testing able to change something** — `experiment-variant-cannot-affect-any-tour`.
-      Lands in `@guideflow/analytics` (no size gate) as `startVariant`. The brief argues `theme` in
-      core is **not** needed: `RendererContract.onInit?(config)` already lets a renderer read config
-      and set `data-gf-theme` for zero bytes.
+- [x] **7.5 Make A/B testing able to change something — DONE.** Closed
+      `experiment-variant-cannot-affect-any-tour` and `experiment-correlation`.
+      `startVariant(gf, engine, experiment)` in `@guideflow/analytics` — zero core bytes — assigns,
+      starts the flow the variant names, and emits `guideflow.experiment.exposed` through the
+      collector's privacy pipeline. `AnalyticsCollector.track()` promoted to public so a custom
+      event goes *through* `send()` rather than around it.
+      **The bucketing had to be fixed first.** `hash % totalWeight` is the low bit of djb2 for a
+      two-arm experiment, so two concurrent experiments agreed 100.0% / 0.0% of the time while every
+      marginal split looked like a clean 50/50. Now FNV-1a plus a murmur3 avalanche over a fixed
+      10 000-slot space; measured agreement 49–50%. **Assignments changed** — documented.
+      `theme` landed in core after all, at ~30 B rather than the estimated 80: `DefaultRenderer.onInit`
+      is already re-invoked by `configure()`, so one call site covers both.
+      Also `StepAction.action` — it used `string & object`, which no string literal satisfies, so
+      every custom FSM event name was a type error and the documented escape hatch was unusable.
 - [ ] **7.8 Checklists, banners, surveys** — `no-checklists-surveys-banners-resource-centre`.
 - [ ] **7.9 A real authoring path** — finish the recorder, then build the studio on it. Closes
       `no-authoring-path-for-non-engineers`.

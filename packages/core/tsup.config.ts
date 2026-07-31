@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup'
 
 /**
- * Two config objects, not two entries in one.
+ * Several config objects, not several entries in one.
  *
  * The main bundle emits an IIFE with a `GuideFlow` global; a subpath must not.
  * `clean: true` also belongs to exactly one of them — the second would wipe the
@@ -14,7 +14,11 @@ export default defineConfig([{
   globalName: 'GuideFlow',
   dts: true,
   sourcemap: true,
-  clean: true,
+  // NOT `clean: true`. tsup runs the configs in this array concurrently, so a
+  // clean here races the subpath builds and can delete .d.ts files they have
+  // already written — which then fails verify-pack with no build error at all.
+  // The `build` script removes dist/ once, up front, instead.
+  clean: false,
   treeshake: true,
   splitting: false,
   minify: false,

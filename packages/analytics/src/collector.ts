@@ -118,6 +118,22 @@ export class AnalyticsCollector {
     );
   }
 
+  /**
+   * Emit a custom event through the same pipeline as tour events.
+   *
+   * `send()` is private and is the **only** path through `PrivacyPolicy` —
+   * consent, Do-Not-Track, sampling, URL scrubbing and key redaction. Without a
+   * public entry point an exposure event would either bypass all of that or not
+   * exist at all.
+   *
+   * `properties` is spread last, so it wins over `globalProperties`. Do not use
+   * `timestamp`, `time` or `$timestamp` as keys: the vendor transports inject
+   * their own alongside the spread properties.
+   */
+  track(event: string, properties: Record<string, unknown> = {}): void {
+    this.send(event, properties);
+  }
+
   private send(event: string, properties: Record<string, unknown>): void {
     // Consent, Do Not Track and sampling are checked before anything is built,
     // so a suppressed event costs nothing and reaches no transport.

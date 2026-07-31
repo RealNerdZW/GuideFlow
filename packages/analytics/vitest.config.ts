@@ -12,10 +12,13 @@ export default defineConfig({
       // Ratchet at just below current. All five transports plus the collector and
       // ExperimentEngine are covered.
       thresholds: {
-        statements: 86,
-        lines: 86,
-        branches: 85,
-        functions: 90,
+        // Ratchets, set just below measured (90.56 / 90.07 / 94.44 / 90.56).
+        // Raise them as coverage improves; never lower them to make a build
+        // pass. startVariant and track() pushed these up, not down.
+        statements: 90,
+        lines: 90,
+        branches: 89,
+        functions: 94,
       },
     },
   },

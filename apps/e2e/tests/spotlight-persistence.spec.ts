@@ -325,3 +325,43 @@ test.describe('Target-only interaction', () => {
     expect(stillOnTop).not.toBe('covered');
   });
 });
+
+test.describe('Themes', () => {
+  // The five shipped themes are CSS attribute selectors, and nothing in the
+  // library ever set the attribute they key on — a documented feature that did
+  // nothing (AUDIT `experiment-variant-cannot-affect-any-tour`, theme half).
+  // This is the only place computed style is real.
+
+  test('does not touch data-gf-theme by default', async ({ page }) => {
+    // A host page that sets its own theme must not be clobbered by an instance
+    // with no opinion.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    const attr = await page.evaluate(() =>
+      document.documentElement.getAttribute('data-gf-theme'),
+    );
+    expect(attr).toBeNull();
+  });
+
+  test('applies a theme through configure()', async ({ page }) => {
+    await page.click('#apply-brutalist-btn');
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await expect(page.locator('html')).toHaveAttribute('data-gf-theme', 'brutalist');
+
+    const style = await page.evaluate(() => {
+      const el = document.querySelector('.gf-popover');
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { radius: cs.borderTopLeftRadius, border: cs.borderTopWidth };
+    });
+
+    expect(style).not.toBeNull();
+    // The brutalist theme is square-cornered with a 2px border. Nothing but a
+    // real browser can tell us the cascade actually reached the popover.
+    expect(style!.radius).toBe('0px');
+    expect(style!.border).toBe('2px');
+  });
+});

@@ -84,9 +84,9 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **837 unit tests pass**, 2 skipped
-(core 374, ai 153, react 114, analytics 78, vue 47, cli 37, svelte 34). Five bundles, each gated
-independently: `@guideflow/core` **14.93 kB / 15 kB**, `./targeting` **2.18 kB / 2.5 kB**,
+Build, type-check, lint and unit tests are **all green**: **865 unit tests pass**, 2 skipped
+(core 382, ai 153, react 114, analytics 98, vue 47, cli 37, svelte 34). Five bundles, each gated
+independently: `@guideflow/core` **14.96 kB / 15 kB**, `./targeting` **2.18 kB / 2.5 kB**,
 `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 If any of these regress, you broke it — do not paper over it.
 
@@ -126,7 +126,7 @@ marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOve
 > deliberately did *not* raise the limit at the same time: the eviction freed enough on its own, and
 > raising pre-emptively for unwritten code is the silent bump the rule exists to prevent.
 >
-> Core is at **14.93 kB with 70 B of headroom** — which is not a budget, it is a tripwire.
+> Core is at **14.96 kB with 40 B of headroom** — which is not a budget, it is a tripwire.
 > **The next core addition of any size needs either a real saving or a sixth raise with an ADR.**
 > The targeting lever has already been pulled: 7.4 put its ~1.75 kB of rules in
 > `@guideflow/core/targeting` and landed only 130 B of driver access in core. What remains to move
@@ -267,6 +267,17 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
   that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
   app" report is this.
+- **`tsup.config.ts` is an array of five configs, and NONE of them may set `clean: true`.** tsup
+  runs them concurrently, so a clean races the subpath builds and deletes `.d.ts` files they have
+  already written — with no build error at all. `dist/` is removed once, up front, by the `build`
+  script. `scripts/verify-pack.mjs` is what catches this; do not skip it.
+- **`string & object` does not work.** No string literal satisfies it, so a union meant to accept
+  "any string while keeping autocomplete" rejects every custom value. Use
+  `string & Record<never, never>` — `StepAction.action` and `GuideFlowTheme` both do.
+- **Assignment bucketing must never be `hash % smallNumber`.** `ExperimentEngine` used
+  `hash % totalWeight`, i.e. one bit of djb2 for a two-arm test: marginal splits looked perfect
+  while two concurrent experiments agreed 100% or 0% of the time. It now hashes with FNV-1a plus a
+  murmur3 avalanche and buckets over a fixed 10 000-slot space.
 - **`targeting` and `route` and `sanitizeHTML` are all inert without their subpath.** Core carries
   the *types* so a flow stays serialisable, and reads none of them. A `targeting` block with no
   `createTargeting()` silently does nothing, and core cannot afford a dev-mode warning to say so.

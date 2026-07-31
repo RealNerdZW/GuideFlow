@@ -111,6 +111,15 @@ export class DefaultRenderer implements RendererContract {
     if (config.injectStyles !== false) {
       injectStyles(POPOVER_CSS, POPOVER_CSS_ID, config.nonce)
     }
+    // `configure()` re-invokes onInit, so this covers both the initial config
+    // and every later patch with no second call site.
+    if (config.theme !== undefined && isBrowser()) {
+      const root = document.documentElement
+      // On <html>: the overlay, beacons and hint badges are portalled to body
+      // and read the same custom properties. Only the root themes all of them.
+      if (config.theme) root.setAttribute('data-gf-theme', config.theme)
+      else root.removeAttribute('data-gf-theme')
+    }
   }
 
   /**

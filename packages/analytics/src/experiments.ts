@@ -1,9 +1,8 @@
 /**
  * Deterministic A/B experiment engine.
  *
- * Variant assignment is derived from a simple djb2 hash of
- * `userId + experimentId` so the same user always gets the same variant —
- * no server round-trip required.
+ * Variant assignment is derived from a hash of `userId + experimentId`, so the
+ * same user always gets the same variant with no server round-trip.
  */
 
 export interface Variant<T = string> {
@@ -24,14 +23,60 @@ export interface ExperimentResult<T = string> {
   value: T;
 }
 
-/** djb2 — fast, deterministic, no crypto needed for A/B bucketing. */
-function djb2(str: string): number {
-  let hash = 5381;
+/**
+ * Number of buckets assignments are spread over.
+ *
+ * A large fixed space rather than `totalWeight`. Bucketing directly by
+ * `hash % totalWeight` meant a two-arm experiment used `hash % 2` — a single
+ * bit of the hash — and see {@link hashToBucket} for why that was catastrophic.
+ * 10_000 also gives weights a useful resolution: 0.01% is expressible.
+ */
+const BUCKETS = 10_000;
+
+/**
+ * FNV-1a with a murmur3 finalisation step.
+ *
+ * **This replaced a bare djb2, and the reason matters.** Assignment used to be
+ * `djb2(userId + ':' + experimentId) % totalWeight`, which for the common
+ * two-arm case is `% 2` — the low bit of djb2. That bit is the parity of the
+ * XOR chain over the input's char codes, so changing only the experiment id
+ * shifts it by a constant: two experiments are either *always* the same arm or
+ * *always* opposite.
+ *
+ * Measured over 10 000 synthetic ids before the fix:
+ *
+ * | pair | agreement |
+ * |---|---|
+ * | `exp-one` vs `exp-two` | 100.0% |
+ * | `tour-theme-2024` vs `cta-experiment` | 0.0% |
+ *
+ * The marginal split of each experiment was a clean 50/50, which is exactly why
+ * this survived: every obvious test passes. Only the *joint* distribution is
+ * degenerate — and a user in the treatment arm of every concurrent experiment
+ * makes the results of all of them uninterpretable.
+ *
+ * FNV-1a mixes better on its own, and the finaliser avalanches the low bits so
+ * no single bit of the output is a simple function of the input. Closes AUDIT
+ * `experiment-correlation`.
+ */
+function hashToBucket(str: string): number {
+  // FNV-1a, 32-bit.
+  let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
-    hash >>>= 0; // keep unsigned 32-bit
+    h ^= str.charCodeAt(i);
+    // The FNV prime, via imul so the multiply stays in 32-bit integer space.
+    h = Math.imul(h, 0x01000193);
   }
-  return hash;
+
+  // murmur3 fmix32 — the avalanche step. Without it the low bits still carry
+  // too much structure for a small modulus.
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+
+  return (h >>> 0) % BUCKETS;
 }
 
 /**
@@ -65,20 +110,20 @@ export class ExperimentEngine {
     const cached = this.cache.get(experiment.id) as ExperimentResult<T> | undefined;
     if (cached) return cached;
 
-    // Build a cumulative weight array
     const totalWeight = experiment.variants.reduce(
       (sum, v) => sum + (v.weight ?? 1),
       0,
     );
 
-    const hash = djb2(`${this.userId}:${experiment.id}`);
-    const bucket = hash % totalWeight;
+    // Bucket over the fixed space, then scale weights into it — never
+    // `hash % totalWeight`, which collapses a two-arm experiment onto one bit.
+    const bucket = hashToBucket(`${this.userId}:${experiment.id}`);
 
     let cumulative = 0;
     let chosen: Variant<T> = experiment.variants[0];
     for (const variant of experiment.variants) {
-      cumulative += variant.weight ?? 1;
-      if (bucket < cumulative) {
+      cumulative += (variant.weight ?? 1) / totalWeight;
+      if (bucket < cumulative * BUCKETS) {
         chosen = variant;
         break;
       }

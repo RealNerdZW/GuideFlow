@@ -64,14 +64,15 @@ async function settle(fn: () => void): Promise<void> {
 }
 
 /**
- * A custom FSM action. `StepAction['action']` is typed
- * `'next' | 'prev' | 'skip' | 'end' | (string & object)`, and no string literal
- * satisfies `string & object` — so core's own "any custom event" escape hatch
- * cannot be expressed in TypeScript today. Cast until core changes it to
- * `string & {}`.
+ * A custom FSM action.
+ *
+ * This used to need a cast: `StepAction['action']` was
+ * `… | (string & object)`, and no string literal satisfies `string & object`,
+ * so core's own "any custom event" escape hatch could not be expressed at all.
+ * Core now uses `string & Record<never, never>` and the cast is gone.
  */
 function customAction(label: string, action: string): StepAction {
-  return { label, action } as unknown as StepAction
+  return { label, action }
 }
 
 beforeEach(() => {

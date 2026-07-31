@@ -156,3 +156,84 @@ describe('AnalyticsCollector', () => {
     expect(transport2.events).toHaveLength(1)
   })
 })
+
+// ---------------------------------------------------------------------------
+// track() — the public door onto send().
+//
+// send() is private and is the ONLY path through PrivacyPolicy: consent,
+// Do-Not-Track, sampling, URL scrubbing, key redaction. A custom event that did
+// not go through it would bypass all of Phase 3.5 — so these assert it goes
+// *through* send(), not around it.
+// ---------------------------------------------------------------------------
+
+describe('track()', () => {
+  it('reaches every transport with an ISO timestamp', () => {
+    const a = createMockTransport()
+    const b = createMockTransport()
+    const collector = new AnalyticsCollector({ userId: 'u1' })
+      .addTransport(a)
+      .addTransport(b);
+
+    collector.track('custom.event', { surface: 'billing' });
+
+    for (const t of [a, b]) {
+      expect(t.events).toHaveLength(1);
+      expect(t.events[0]?.event).toBe('custom.event');
+      expect(t.events[0]?.properties['surface']).toBe('billing');
+      expect(t.events[0]?.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    }
+  });
+
+  it('honours the consent gate', () => {
+    const t = createMockTransport()
+    const collector = new AnalyticsCollector({
+      userId: 'u1',
+      privacy: { consent: false },
+    }).addTransport(t)
+
+    collector.track('custom.event')
+    expect(t.events).toHaveLength(0)
+
+    collector.setConsent(true)
+    collector.track('custom.event')
+    expect(t.events).toHaveLength(1)
+  });
+
+  it('redacts a sensitive property key', () => {
+    // Proof that it goes through send() rather than around it.
+    const t = createMockTransport()
+    const collector = new AnalyticsCollector({ userId: 'u1' }).addTransport(t);
+
+    collector.track('custom.event', { password: 'hunter2' });
+
+    expect(t.events[0]?.properties['password']).not.toBe('hunter2');
+  });
+
+  it('scrubs a url query string', () => {
+    const t = createMockTransport()
+    const collector = new AnalyticsCollector({ userId: 'u1' }).addTransport(t);
+
+    collector.track('custom.event', { url: 'https://app.test/x?token=secret' });
+
+    expect(String(t.events[0]?.properties['url'])).not.toContain('secret');
+  });
+
+  it('lets per-event properties beat globalProperties', () => {
+    const t = createMockTransport()
+    const collector = new AnalyticsCollector({
+      userId: 'u1',
+      globalProperties: { surface: 'global', tier: 'free' },
+    }).addTransport(t);
+
+    collector.track('custom.event', { surface: 'override' });
+
+    expect(t.events[0]?.properties['surface']).toBe('override');
+    expect(t.events[0]?.properties['tier']).toBe('free');
+  });
+
+  it('carries user_id like every other event', () => {
+    const t = createMockTransport()
+    new AnalyticsCollector({ userId: 'u42' }).addTransport(t).track('custom.event')
+    expect(t.events[0]?.properties['user_id']).toBe('u42');
+  });
+});

@@ -40,6 +40,7 @@
   <button id="start-blocking-btn" type="button">Start Blocking Tour</button>
   <button id="start-routed-btn" type="button">Start Routed Tour</button>
   <button id="start-missing-target-btn" type="button">Start Missing-Target Tour</button>
+  <button id="apply-brutalist-btn" type="button">Apply Brutalist Theme</button>
 
   <p>
     <label for="text-input">Type here</label>
@@ -138,6 +139,12 @@
 
     document.getElementById('go-settings').addEventListener('click', function () { go('settings') })
     document.getElementById('go-home').addEventListener('click', function () { go('home') })
+
+    // Themes are a config option now — nothing in the library used to set the
+    // attribute the shipped stylesheets key on.
+    document.getElementById('apply-brutalist-btn').addEventListener('click', function () {
+      gf.configure({ theme: 'brutalist' })
+    })
 
     window.__gfWaiting = []
     window.__gfTimeouts = []

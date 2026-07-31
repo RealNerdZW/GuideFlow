@@ -104,7 +104,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup && node ../../scripts/fsx.mjs cp src/styles dist/styles",
+    "build": "node ../../scripts/fsx.mjs rm dist && tsup && node ../../scripts/fsx.mjs cp src/styles dist/styles",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
