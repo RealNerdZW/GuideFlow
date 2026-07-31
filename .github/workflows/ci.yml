@@ -164,7 +164,10 @@ jobs:
         run: pnpm --filter @guideflow/core build
 
       - name: Run E2E
-        run: pnpm --filter e2e test:e2e -- --project=${{ matrix.browser }}
+        # No `--` before the flag: pnpm 8 forwards the separator itself, so
+        # `test:e2e -- --project=x` reached Playwright as `test "--" "--project=x"`,
+        # where `--` was read as a test-file regex — "No tests found", every run.
+        run: pnpm --filter e2e test:e2e --project=${{ matrix.browser }}
 
       - name: Upload report
         if: failure()
