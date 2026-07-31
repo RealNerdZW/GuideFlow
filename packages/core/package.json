@@ -38,6 +38,9 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./global": {
+      "default": "./dist/index.global.js"
+    },
     "./styles": {
       "import": "./dist/styles/index.css"
     },
@@ -79,5 +82,7 @@
       "limit": "13 kB",
       "gzip": true
     }
-  ]
+  ],
+  "unpkg": "./dist/index.global.js",
+  "jsdelivr": "./dist/index.global.js"
 }

@@ -1,7 +1,7 @@
 {
   "name": "@guideflow/vue",
   "version": "0.1.9",
-  "description": "GuideFlow Vue 3 adapter — composables and components",
+  "description": "GuideFlow Vue 3 adapter — plugin and composables (no components)",
   "keywords": [
     "guided-tour",
     "vue",

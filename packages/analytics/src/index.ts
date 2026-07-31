@@ -2,9 +2,8 @@
  * @guideflow/analytics
  *
  * @author  John Mugabe
- * @email   jonesmugabe@263tickets.co.zw
  * @country Zimbabwe
- * @github  https://github.com/johnmugabe
+ * @github  https://github.com/RealNerdZW
  * @license MIT
  *
  * Copyright (c) 2026 John Mugabe. All rights reserved.
@@ -30,16 +29,17 @@
  *
  * collector.attach(gf);
  *
- * // A/B assignment
+ * // A/B assignment. The engine assigns; nothing in GuideFlow consumes the
+ * // result — applying and recording the variant is application code.
  * const engine = new ExperimentEngine('user-123');
- * const { value: theme } = engine.assign({
- *   id: 'tour-theme',
+ * const { variantId, value: flow } = engine.assign({
+ *   id: 'onboarding-shape',
  *   variants: [
- *     { id: 'control', value: 'minimal' },
- *     { id: 'treatment', value: 'bold' },
+ *     { id: 'control', value: shortOnboardingFlow },
+ *     { id: 'treatment', value: longOnboardingFlow },
  *   ],
  * });
- * const gf2 = createGuideFlow({ theme });
+ * await gf.start(flow);
  * ```
  */
 

@@ -250,9 +250,12 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **Two documentation sites exist.** `.github/workflows/docs.yml` publishes
   `apps/docs/.vitepress/dist` to GitHub Pages. The root `docs/*.html` files are stale leftovers that
   nothing builds — yet `docs.yml` still *triggers* on `docs/**`. Edit `apps/docs/`, never `docs/`.
-- **Identity strings are inconsistent.** Source-file headers in `core`, `react`, `vue`, `svelte`,
-  `ai` claim `github.com/johnmugabe` and a `@263tickets.co.zw` email; `repo.config.json` and the
-  manifests say `RealNerdZW`. `scripts/sync-repo-meta.mjs` does not rewrite source headers.
+- **`repo.config.json` is the only source of identity truth.** Owner, author, and URLs are
+  propagated by `scripts/sync-repo-meta.mjs`, which now also rewrites the `@author` / `@github` /
+  copyright lines in `packages/*/src/**` and the `LICENSE` copyright holder. Never hand-edit those
+  strings: change `repo.config.json` and run `pnpm sync-repo`. The script is idempotent — a second
+  run must report `0 file(s) updated`. Headers carry no `@email`; the security contact is GitHub
+  Security Advisories (see `SECURITY.md`).
 - **Turbo is v1.** `turbo.json` uses the `pipeline` key. Do not rename it to `tasks` without also
   upgrading the `turbo` devDependency.
 - **`--passWithNoTests` hides emptiness.** Adding it to a package makes a missing test suite look

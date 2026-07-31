@@ -10,7 +10,16 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **70 / 325 findings resolved** — Phases 0–3 complete on branch `fix/phase-0-1-engine-correctness`. Remaining open: 12 P0, 86 P1, 115 P2, 42 P3.
+**Progress:** **117 / 357 findings resolved** — Phases 0–4 complete on branch
+`fix/phase-0-1-engine-correctness`. Remaining open: **3 P0**, 60 P1, 135 P2, 42 P3.
+
+The total grew from 325 to 357 because Phase 4 found **32 new source bugs while verifying
+documentation claims against the code** — checking whether a doc was true turned out to be an
+effective bug-finding technique in its own right. They are registered as P2 with
+`foundIn: "Phase 4 docs verification"`.
+
+The three remaining P0s are `react-guidepopover-duplicates-core-renderer` (Phase 5.1),
+`bridge-dataclone-aborts-every-tour` (Phase 5.3) and `no-spa-route-change-handling` (Phase 7.1).
 
 ---
 
@@ -272,7 +281,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
 
 52 documentation findings. Every one is a user who follows the docs and fails.
 
-- [ ] **4.1 Fix the P0 documentation lies.**
+- [x] **4.1 Fix the P0 documentation lies.**
       Closes `docs-flat-steps-flow-throws`, `theme-css-imports-do-not-exist`, `cli-docs-flags-all-wrong`,
       `react-guide-fabricated-props`, `docs-react-tour-step-wrong-component`,
       `docs-react-guidepopover-fabricated-props`, `docs-svelte-store-example-compile-error`.
@@ -281,7 +290,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       components and props that were never written.
       *Accept:* every code block in `apps/docs/` and `README.md` compiles and runs.
 
-- [ ] **4.2 Fix the P1 documentation drift.**
+- [x] **4.2 Fix the P1 documentation drift.**
       Closes `i18n-docs-nonexistent-api`, `guide-brain-doc-signatures-wrong`, `ai-generate-options-arg-fabricated`,
       `intent-signal-shape-fabricated`, `analytics-event-names-wrong`, `docs-analyticsevent-shape-wrong`,
       `docs-custom-transport-wrong-method`, `docs-nonexistent-events`, `theme-docs-fictional-tokens`,
@@ -290,7 +299,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       `docs-overclaim-dropoffs-and-ab-integration`, `docs-react-guide-six-nonexistent-apis`.
       Run the `gf-docs-truth-checker` agent to catch what this list misses.
 
-- [ ] **4.3 Fix identity, licence and version strings.**
+- [x] **4.3 Fix identity, licence and version strings.**
       Closes `source-header-identity-mismatch`, `license-wrong-owner-url`, `stale-version-strings`,
       `sync-script-misses-surfaces`, `published-packages-have-no-license-file`.
       Six package entry points carry `github.com/johnmugabe` and a `263tickets.co.zw` email while every
@@ -299,19 +308,19 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       then run it.
       *Accept:* one grep for the old identity returns nothing.
 
-- [ ] **4.4 Correct the bundle-size claim.**
+- [x] **4.4 Correct the bundle-size claim.**
       Closes `bundle-size-claim-exceeded`, `size-budget-unenforced-and-optimistic`.
       README says "~12 kB gzip"; the size-limit gate reports 11.09 kB but the shipped
       `dist/index.js` gzips to **14.95 kB**. State both numbers, or change what the gate measures. Add
       budgets for the other packages.
 
-- [ ] **4.5 Retire or rebuild the stale documentation surface.**
+- [x] **4.5 Retire or rebuild the stale documentation surface.**
       Closes `duplicated-doc-surfaces`, `only-changelog-is-stale-unpublished-html`, `missing-support-docs`.
       `docs/*.html` is not built by anything, yet `docs.yml` still triggers on `docs/**`. Migrate
       `publishing.html`, delete the rest, drop the trigger. Add a real `CHANGELOG.md`, a browser support
       matrix, and a troubleshooting page.
 
-- [ ] **4.6 Retract or build the vapourware.**
+- [x] **4.6 Retract or build the vapourware.**
       Closes `studio-is-not-a-visual-editor`, `cli-studio-not-an-editor`, `export-ts-js-emits-stub-not-flow`,
       `cli-export-emits-stub`, `push-hardcoded-nonexistent-saas`, `cloud-push-nonexistent-service`,
       `guideflow-config-ts-documented-never-exists`, `docs-claim-ai-assist`.

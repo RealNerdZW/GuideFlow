@@ -1,7 +1,7 @@
 {
   "name": "@guideflow/svelte",
   "version": "0.1.9",
-  "description": "GuideFlow Svelte adapter — stores and components",
+  "description": "GuideFlow Svelte adapter — a reactive tour store (no components)",
   "keywords": [
     "guided-tour",
     "svelte",
@@ -12,7 +12,7 @@
     "tooltip",
     "user-onboarding",
     "svelte-store",
-    "tour-component"
+    "sveltekit"
   ],
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "license": "MIT",

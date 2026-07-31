@@ -2,9 +2,8 @@
  * @guideflow/ai
  *
  * @author  John Mugabe
- * @email   jonesmugabe@263tickets.co.zw
  * @country Zimbabwe
- * @github  https://github.com/johnmugabe
+ * @github  https://github.com/RealNerdZW
  * @license MIT
  *
  * Copyright (c) 2026 John Mugabe. All rights reserved.
@@ -15,14 +14,21 @@
  * Usage:
  * ```ts
  * import { createGuideFlow } from '@guideflow/core';
- * import { createAI, OpenAIProvider } from '@guideflow/ai';
+ * import { createAI, ProxyProvider } from '@guideflow/ai';
  *
- * const gf = createGuideFlow({ ... });
- * createAI(new OpenAIProvider(), gf);
+ * // ProxyProvider holds no credential — your endpoint keeps the key. Keep
+ * // createAI's return value: it is the binding typed with `.ai`.
+ * const gf = createAI(
+ *   new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
+ *   createGuideFlow(),
+ * );
  *
- * // Then anywhere:
+ * // generate() returns Step[] — assemble the flow yourself.
  * const steps = await gf.ai.generate('Walk me through checkout');
+ * await gf.start({ id: 'checkout', initial: 'main', states: { main: { steps, final: true } } });
+ *
  * const answer = await gf.ai.chat('How do I add a promo code?');
+ * console.log(answer.text, answer.highlights);
  * ```
  */
 

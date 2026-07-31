@@ -92,9 +92,14 @@ describe('guideflow program', () => {
 
     const help = output();
     expect(help).toContain('Scaffold a new GuideFlow configuration in your project');
-    expect(help).toContain('Start the GuideFlow Studio');
     expect(help).toContain('Export a flow definition to JSON');
-    expect(help).toContain('Push a flow JSON file to GuideFlow Cloud');
+    // `studio` and `push` used to advertise "a local visual tour editor" and
+    // "GuideFlow Cloud". Neither exists — the editor was never built and the
+    // Cloud endpoint is a placeholder — and these assertions pinned the false
+    // strings in place. --help is documentation too.
+    expect(help).toContain('experimental');
+    expect(help).not.toContain('visual tour editor');
+    expect(help).not.toContain('GuideFlow Cloud');
   });
 
   it('prints the package version for -v', async () => {

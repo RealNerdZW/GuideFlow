@@ -35,10 +35,21 @@ GuideFlow is published as a collection of scoped npm packages. Install only what
 | [@guideflow/cli](./cli) | Scaffold flows, validate configs, export tours from the terminal | `npm i -g @guideflow/cli` |
 | [@guideflow/devtools](./devtools) | Chrome/Firefox extension — visual tour builder, flow inspector, AI assist | [Install from source](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/devtools) |
 
-## Version Matrix
+## Versions
 
-All packages follow the same version number and are released together via [Changesets](https://github.com/changesets/changesets).
+Every package is MIT-licensed and released from the same repository with
+[Changesets](https://github.com/changesets/changesets). Versions are not locked together — a
+release bumps only the packages a changeset names — so read the current version off npm rather
+than off this page:
 
-| Current version | License |
-|-----------------|---------|
-| **0.1.4** | MIT |
+| Package | Latest |
+|---------|--------|
+| `@guideflow/core` | [![npm](https://img.shields.io/npm/v/@guideflow/core.svg?label=)](https://www.npmjs.com/package/@guideflow/core) |
+| `@guideflow/react` | [![npm](https://img.shields.io/npm/v/@guideflow/react.svg?label=)](https://www.npmjs.com/package/@guideflow/react) |
+| `@guideflow/vue` | [![npm](https://img.shields.io/npm/v/@guideflow/vue.svg?label=)](https://www.npmjs.com/package/@guideflow/vue) |
+| `@guideflow/svelte` | [![npm](https://img.shields.io/npm/v/@guideflow/svelte.svg?label=)](https://www.npmjs.com/package/@guideflow/svelte) |
+| `@guideflow/ai` | [![npm](https://img.shields.io/npm/v/@guideflow/ai.svg?label=)](https://www.npmjs.com/package/@guideflow/ai) |
+| `@guideflow/analytics` | [![npm](https://img.shields.io/npm/v/@guideflow/analytics.svg?label=)](https://www.npmjs.com/package/@guideflow/analytics) |
+| `@guideflow/cli` | [![npm](https://img.shields.io/npm/v/@guideflow/cli.svg?label=)](https://www.npmjs.com/package/@guideflow/cli) |
+
+`@guideflow/devtools` is not published to npm — install it from source.

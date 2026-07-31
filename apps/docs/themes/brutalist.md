@@ -1,35 +1,50 @@
 ---
-description: GuideFlow Brutalist theme — a raw monospace tour popover theme with thick borders and no rounded corners. Suited for developer tools and CLI-adjacent interfaces.
-keywords: GuideFlow brutalist theme, monospace tour popover, developer tool tour theme
+description: GuideFlow Brutalist theme — black-on-white tour popovers with square corners and a hard offset shadow, activated with data-gf-theme="brutalist".
+keywords: GuideFlow brutalist theme, square tour popover, hard shadow tour, data-gf-theme brutalist
 ---
 
 # Brutalist Theme
 
-A raw, monospace theme with thick borders and no rounded corners. Suited for developer tools and CLI-adjacent interfaces.
-
-## Preview
-
-- Monospace typography
-- Thick solid borders
-- No border radius
-- High contrast black and white
+Black on white, square corners, and a hard 4px offset shadow instead of a blur.
 
 ## Usage
 
 ```ts
 import '@guideflow/core/styles'
-import '@guideflow/core/styles/themes/brutalist.css'
 ```
 
-## Design Tokens
+```html
+<html data-gf-theme="brutalist">
+```
+
+The bundle already contains this theme — there is no separate `brutalist.css` to import.
+
+## What it overrides
 
 | Token | Value |
 |-------|-------|
 | `--gf-popover-bg` | `#ffffff` |
-| `--gf-popover-color` | `#000000` |
-| `--gf-popover-border` | `3px solid #000000` |
-| `--gf-popover-border-radius` | `0` |
-| `--gf-popover-shadow` | `4px 4px 0 #000000` |
-| `--gf-popover-font` | `'Courier New', monospace` |
-| `--gf-btn-primary-bg` | `#000000` |
-| `--gf-btn-primary-color` | `#ffffff` |
+| `--gf-popover-text` | `#000000` |
+| `--gf-popover-border` | `#000000` |
+| `--gf-accent-color` | `#000000` |
+| `--gf-accent-fg` | `#ffffff` |
+| `--gf-shadow` | `4px 4px 0 #000000` |
+| `--gf-border-radius` | `0px` |
+| `--gf-border-radius-sm` | `0px` |
+| `--gf-btn-radius` | `0px` |
+
+Plus one non-token rule that thickens the popover outline:
+
+```css
+[data-gf-theme="brutalist"] .gf-popover { border: 2px solid #000; }
+```
+
+## Notes
+
+The theme does not set a font. If you want monospace type, declare `--gf-font-family` yourself:
+
+```css
+[data-gf-theme="brutalist"] {
+  --gf-font-family: ui-monospace, 'SFMono-Regular', 'Courier New', monospace;
+}
+```

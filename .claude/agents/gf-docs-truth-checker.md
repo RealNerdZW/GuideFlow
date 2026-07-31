@@ -65,9 +65,11 @@ cat packages/core/dist/index.d.ts
 - `guideflow push` documents a `GUIDEFLOW_API_KEY` env var while `--api-key` is a `requiredOption`.
 - Bundle-size and "zero dependencies" claims — check against `size-limit` output and the manifests.
 - Live demo / documentation URLs in the README — do the workflows actually publish to those paths?
-- Author identity: source headers say `github.com/johnmugabe` and a `263tickets.co.zw` email;
-  `repo.config.json` and the manifests say `RealNerdZW`. `scripts/sync-repo-meta.mjs` does not touch
-  source headers — confirm and enumerate every divergent string.
+- Author identity. Fixed in Phase 4.3: source headers, `LICENSE` and the manifests now all agree with
+  `repo.config.json`, and `scripts/sync-repo-meta.mjs` was extended to rewrite source headers so they
+  cannot drift again. Re-check by running the script and confirming it is idempotent — a second run
+  must change nothing. Note `packages/*/src` is published (the `files` field ships it), so these
+  headers reach npm.
 
 ## Output
 

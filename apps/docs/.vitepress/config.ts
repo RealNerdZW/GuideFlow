@@ -164,6 +164,7 @@ export default defineConfig({
             { text: 'Introduction', link: '/guide/' },
             { text: 'Installation', link: '/guide/installation' },
             { text: 'Quick Start', link: '/guide/quick-start' },
+            { text: 'CDN / script tag', link: '/guide/cdn' },
           ],
         },
         {
@@ -309,7 +310,7 @@ export default defineConfig({
 
     footer: {
       message: 'Released under the MIT License.',
-      copyright: `Copyright © ${new Date().getFullYear()} GuideFlow Contributors`,
+      copyright: `Copyright © ${new Date().getFullYear()} John Mugabe`,
     },
 
     search: { provider: 'local' },

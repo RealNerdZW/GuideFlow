@@ -10,12 +10,12 @@
     "shippedCoreGzip": "14.95 kB"
   },
   "counts": {
-    "total": 325,
-    "P0": 12,
-    "P1": 86,
-    "P2": 115,
+    "total": 357,
+    "P0": 3,
+    "P1": 60,
+    "P2": 135,
     "P3": 42,
-    "resolved": 70
+    "resolved": 117
   },
   "findings": [
     {
@@ -75,7 +75,7 @@
       "severity": "P0",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "apps/docs/api/react/guide-popover.md documents three props that do not exist and claims the component works without TourProvider, which throws",
       "file": "apps/docs/api/react/guide-popover.md",
       "line": 18,
@@ -83,7 +83,8 @@
       "impact": "`GuidePopoverProps` (GuidePopover.tsx:13-22) accepts exactly `width?: number`, `children?`, and `className?: string`. `target`, `placement` and `content` are all rejected by TypeScript and ignored at runtime. Worse, line 41 of this page asserts \"Can be used without `TourProvider`\", but GuidePopover.tsx:45 calls `const gf = useGuideFlow()` which throws `'[GuideFlow] useGuideFlow must be used inside a <TourProvider>'` (context.tsx:48). Every consumer following the documented \"standalone popover / one-off tooltip outside of a tour context\" use case gets an unrecoverable render-time exception.",
       "fix": "Either implement the documented standalone mode (accept `target`/`placement`/`content` props, use `useContext(GuideFlowContext)` instead of the throwing `useGuideFlow()`, and fall back to prop-driven rendering when there is no provider), or rewrite the page to document the real tour-bound `{ width, className, children }` API and delete the \"Can be used without TourProvider\" and \"scroll tracking\" claims.",
       "effort": "M",
-      "verifierNote": "guide-popover.md:17-24 passes target/placement/content verbatim and the props table (lines 33-35) lists all three; GuidePopoverProps (GuidePopover.tsx:13-22) declares only width?/children?/className?. guide-popover.md:41 says \"Can be used without `TourProvider`\" while GuidePopover.tsx:45 calls useGuideFlow(), which throws '[GuideFlow] useGuideFlow must be used inside a <TourProvider>' at context.tsx:48. Both halves reproduce exactly as cited."
+      "verifierNote": "guide-popover.md:17-24 passes target/placement/content verbatim and the props table (lines 33-35) lists all three; GuidePopoverProps (GuidePopover.tsx:13-22) declares only width?/children?/className?. guide-popover.md:41 says \"Can be used without `TourProvider`\" while GuidePopover.tsx:45 calls useGuideFlow(), which throws '[GuideFlow] useGuideFlow must be used inside a <TourProvider>' at context.tsx:48. Both halves reproduce exactly as cited.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-react-tour-step-wrong-component",
@@ -91,7 +92,7 @@
       "severity": "P0",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "apps/docs/api/react/tour-step.md documents a component that does not exist — <TourStep /> with no props, described as the popover renderer",
       "file": "apps/docs/api/react/tour-step.md",
       "line": 19,
@@ -99,7 +100,8 @@
       "impact": "The shipped component is `export function TourStep({ id, children }: TourStepProps)` where `id: string` is required and the body is `if (!isActive || !children) return null` — it renders nothing but its own children when the matching step is active. It never renders a popover, never touches the spotlight, and never wires next/prev/skip buttons, all of which this page claims under \"## Behavior\" (\"Positions the popover relative to the current step's target element\", \"Manages the spotlight overlay\", \"Handles next/prev/skip button actions\"). A user copying this page gets a TypeScript error (`Property 'id' is missing`) and, if they cast past it, a component that renders `null` forever — so they conclude GuideFlow's React support is broken.",
       "fix": "Rewrite apps/docs/api/react/tour-step.md to document the real `{ id, children }` render-prop gate, and move the \"renders the popover / manages the spotlight\" description to the DefaultRenderer / GuidePopover pages. Also fix the same wrong one-liner in packages/react/README.md (\"`TourStep` | Renders the current tour step popover\") and apps/docs/packages/react.md (\"`TourStep` | Component | Step renderer\").",
       "effort": "S",
-      "verifierNote": "apps/docs/api/react/tour-step.md:18-19 shows `<TourStep />` with no props inside TourProvider, and lines 27-31 claim it positions the popover, manages the spotlight and handles next/prev/skip. The shipped component is `export function TourStep({ id, children }: TourStepProps)` (TourStep.tsx:30) with required `id: string` (line 15) and `if (!isActive || !children) return null` (line 43) — it renders only its own children, never a popover, spotlight or buttons. Both the missing-prop TS error and the render-null-forever outcome reproduce."
+      "verifierNote": "apps/docs/api/react/tour-step.md:18-19 shows `<TourStep />` with no props inside TourProvider, and lines 27-31 claim it positions the popover, manages the spotlight and handles next/prev/skip. The shipped component is `export function TourStep({ id, children }: TourStepProps)` (TourStep.tsx:30) with required `id: string` (line 15) and `if (!isActive || !children) return null` (line 43) — it renders only its own children, never a popover, spotlight or buttons. Both the missing-prop TS error and the render-null-forever outcome reproduce.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-svelte-store-example-compile-error",
@@ -107,7 +109,7 @@
       "severity": "P0",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "The Svelte API doc's headline example uses $tour on a plain object — a Svelte compile error, duplicated in the source JSDoc",
       "file": "apps/docs/api/svelte/create-tour-store.md",
       "line": 67,
@@ -115,7 +117,8 @@
       "impact": "`createTourStore()` returns a `TourStore` — a plain object whose *fields* are stores (`isActive: { subscribe: _isActive.subscribe }`, index.ts:88-91). The object itself has no `subscribe` method, so the Svelte compiler rejects `$tour` with \"'tour' is not a store with a 'subscribe' method\". The only correct form is destructuring first (`const { isActive } = tour` then `$isActive`), which is what README.md:222 and apps/docs/guide/svelte.md:47 do — so the two doc sets contradict each other and the canonical API reference is the broken one. The same broken pattern is baked into the exported JSDoc at packages/svelte/src/index.ts:59, which additionally has a malformed closing tag: `{#if $tour.isActive}Step {$tour.currentStepIndex + 1}</>`.",
       "fix": "Rewrite the example in apps/docs/api/svelte/create-tour-store.md (lines 60-73) and the JSDoc in packages/svelte/src/index.ts (lines 52-60) to destructure the readables before `$`-subscribing, and fix the stray `</>`. Optionally add a top-level `subscribe` to `TourStore` (a derived store of all four scalars) so `$tour.isActive` actually becomes legal.",
       "effort": "S",
-      "verifierNote": "create-tour-store.md:67-68 is verbatim `{#if $tour.isActive}` / `<p>Step {$tour.currentStepIndex + 1} of {$tour.totalSteps}</p>`, and createTourStore returns an object literal (index.ts:87-106) whose fields are stores — `isActive: { subscribe: _isActive.subscribe }` at line 88 — with no top-level subscribe, so `$tour` is a Svelte compile error. The exported JSDoc at packages/svelte/src/index.ts:59 does carry the same broken pattern plus the malformed `</>`. Root README.md and apps/docs/guide/svelte.md both use the destructured `$isActive` form, confirming the contradiction. Bonus: the same page's line 62 also passes `{ theme: 'bold' }`, which GuideFlowConfig (core types/index.ts:234-248) does not accept."
+      "verifierNote": "create-tour-store.md:67-68 is verbatim `{#if $tour.isActive}` / `<p>Step {$tour.currentStepIndex + 1} of {$tour.totalSteps}</p>`, and createTourStore returns an object literal (index.ts:87-106) whose fields are stores — `isActive: { subscribe: _isActive.subscribe }` at line 88 — with no top-level subscribe, so `$tour` is a Svelte compile error. The exported JSDoc at packages/svelte/src/index.ts:59 does carry the same broken pattern plus the malformed `</>`. Root README.md and apps/docs/guide/svelte.md both use the destructured `$isActive` form, confirming the contradiction. Bonus: the same page's line 62 also passes `{ theme: 'bold' }`, which GuideFlowConfig (core types/index.ts:234-248) does not accept.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "react-guidepopover-duplicates-core-renderer",
@@ -156,7 +159,7 @@
       "severity": "P0",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`guideflow export` on a .ts/.js file never emits a FlowDefinition — it writes a truncated raw string snippet",
       "file": "packages/cli/src/commands/export.ts",
       "line": 47,
@@ -164,7 +167,8 @@
       "impact": "The `.ts`/`.js` branch — the primary documented path (apps/docs/guide/quick-start.md:84 `npx @guideflow/cli export my-tour.ts`, and export.ts:19 defaults the argument to `'my-tour.ts'`, which is exactly the file `init` scaffolds) — never parses anything. `match` comes from a single non-greedy regex at line 39 and `match[0]` is sliced to 500 characters, so the output for the scaffolded `my-tour.ts` is `{\"_note\":\"...\",\"rawSnippet\":\"const welcomeTour: FlowDefinition = {\\n  id: 'welcome-tour',\\n  initial: 'step-1',\\n  states: {\"}` — a truncated string, not a flow. It is not round-trippable into a `FlowDefinition` by any consumer: it has no `id`, no `initial`, no `states`. It is then written to `my-tour.flow.json`, which is precisely `push`'s default argument (push.ts:23), so the documented `init -> export -> push` pipeline publishes this stub to the cloud. The stated problem of non-serialisable values (`Step.showIf?: (context: TContext) => boolean` at packages/core/src/types/index.ts:60 and `content: StepContent | (() => MaybePromise<StepContent>)` at line 57) is not \"silently lossy\" — it is never reached, because nothing is ever serialised. Notably apps/demo/src/App.tsx:796 claims its in-browser exporter \"reproduces `guideflow export`\" by \"replacing function values with `\\\"[Function]\\\"` annotations\"; the CLI does no such thing.",
       "fix": "Replace the regex with real evaluation: import the module (jiti/tsx/esbuild-register), take the exported `FlowDefinition`, and serialise with a replacer that (a) emits `{\"$fn\": \"showIf\", \"source\": \"...\"}` markers or drops functions with a named warning listing each lossy field path, and (b) fails loudly if `content` is a function. Validate the result has `id`/`initial`/`states` before writing. Until that exists, make the `.ts`/`.js` branch exit non-zero with \"not implemented — write your flow to JSON\" rather than writing a file that looks like a successful export (line 63 currently prints a green `✓ Exported flow`).",
       "effort": "L",
-      "verifierNote": "export.ts:47-50 verbatim; the only .ts/.js processing is the regex at line 39 and `match[0].slice(0,500)`. No parser, no evaluation, no serialisation — so the FlowDefinition-serialisability concern (core/src/types/index.ts:57 `content: StepContent | (() => MaybePromise<StepContent>)`, :60 `showIf?: (context: TContext) => boolean` — both verified verbatim) is indeed never reached. Default argument is 'my-tour.ts' (line 19), which is exactly what init.ts:96 writes, and push.ts:23 defaults to 'my-tour.flow.json' — the pipeline claim holds. Partial mitigation the auditor omitted: line 51-53 prints a yellow `⚠ TypeScript static extraction is limited` warning and the payload carries `_note`, so it is not silent — but it still prints `✓ Exported flow` and writes a non-FlowDefinition. Severity stands: the primary documented export path is non-functional."
+      "verifierNote": "export.ts:47-50 verbatim; the only .ts/.js processing is the regex at line 39 and `match[0].slice(0,500)`. No parser, no evaluation, no serialisation — so the FlowDefinition-serialisability concern (core/src/types/index.ts:57 `content: StepContent | (() => MaybePromise<StepContent>)`, :60 `showIf?: (context: TContext) => boolean` — both verified verbatim) is indeed never reached. Default argument is 'my-tour.ts' (line 19), which is exactly what init.ts:96 writes, and push.ts:23 defaults to 'my-tour.flow.json' — the pipeline claim holds. Partial mitigation the auditor omitted: line 51-53 prints a yellow `⚠ TypeScript static extraction is limited` warning and the payload carries `_note`, so it is not silent — but it still prints `✓ Exported flow` and writes a non-FlowDefinition. Severity stands: the primary documented export path is non-functional.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "studio-is-not-a-visual-editor",
@@ -172,7 +176,7 @@
       "severity": "P0",
       "kind": "missing-implementation",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`guideflow studio` is vaporware: it serves the user's own project with bare Vite and injects a boolean flag nobody reads",
       "file": "packages/cli/src/commands/studio.ts",
       "line": 24,
@@ -180,7 +184,8 @@
       "impact": "The entire command body is a Vite dev server pointed at `resolve(opts.root)` (default `.`) plus a one-line HTML injection. There is no editor bundle, no served asset directory, no HTML/JS for a builder anywhere in the repo. A repo-wide grep for `__GUIDEFLOW_DEVTOOLS__` returns exactly three producers/consumers: this line, and `apps/demo/src/App.tsx:207` (`setStudioActive(w.__GUIDEFLOW_DEVTOOLS__ === true)`) which only flips a status badge. Nothing in `packages/devtools/src/**` reads the flag — the DevTools panel is a Chrome extension loaded via `chrome://extensions`, entirely unrelated to this server. Concretely: a user installs the CLI, runs `guideflow studio` in a project with no `index.html` at root (e.g. the repo's own root script `package.json:23` -> `\"studio\": \"pnpm --filter @guideflow/cli exec guideflow studio\"`, which runs it in `packages/cli/`), gets `Studio running at http://localhost:4747`, opens it, and receives a Vite 404 — there is nothing to edit. In a Vite project they get their own app back, unchanged, with one extra global. README.md:534 sells this as \"Launch the visual tour editor (opens browser)\" and packages/cli/README.md:45 as \"the visual tour builder where you can create and edit tours interactively\". Neither is true; `open: false` means it does not even open a browser.",
       "fix": "Either build the editor or stop claiming it exists. Short term: rename to `guideflow dev`, change its description to \"serve your project with the GuideFlow DevTools hook injected\", drop \"visual tour editor/builder\" from README.md:534, packages/cli/README.md:24+45, apps/docs/api/cli.md:46-67, apps/docs/packages/cli.md:23 and apps/docs/guide/index.md:30, and make the command print a warning + exit non-zero when `root` contains no `index.html`. Long term: ship a real editor bundle inside the package (e.g. `packages/cli/studio/` built by tsup/vite) and serve it via a middleware mode server that proxies the user app in an iframe, then wire `packages/devtools/src/panel/app.tsx` (which already has a Builder tab) as the editor host.",
       "effort": "L",
-      "verifierNote": "studio.ts:24-39 is verbatim: createServer({root: resolve(opts.root), server:{port, open:false}}) plus one transformIndexHtml that injects `window.__GUIDEFLOW_DEVTOOLS__ = true`. `ls packages/cli/src` shows only `commands/` and `index.ts` — no editor bundle, and package.json `files` is [dist, src, README.md], so nothing else could ship. Repo-wide grep for __GUIDEFLOW_DEVTOOLS__ returns exactly 5 hits: studio.ts:34 (producer), apps/demo/src/App.tsx:169/207 (type + `setStudioActive(w.__GUIDEFLOW_DEVTOOLS__ === true)`), and 725/779 (prose). Nothing in packages/devtools reads it. Root package.json `\"studio\": \"pnpm --filter @guideflow/cli exec guideflow studio\"` is at line 22, not 23 (harmless off-by-one), and packages/cli has no index.html, so that script does yield a Vite 404. README.md:534 and packages/cli/README.md:45 claims verified verbatim."
+      "verifierNote": "studio.ts:24-39 is verbatim: createServer({root: resolve(opts.root), server:{port, open:false}}) plus one transformIndexHtml that injects `window.__GUIDEFLOW_DEVTOOLS__ = true`. `ls packages/cli/src` shows only `commands/` and `index.ts` — no editor bundle, and package.json `files` is [dist, src, README.md], so nothing else could ship. Repo-wide grep for __GUIDEFLOW_DEVTOOLS__ returns exactly 5 hits: studio.ts:34 (producer), apps/demo/src/App.tsx:169/207 (type + `setStudioActive(w.__GUIDEFLOW_DEVTOOLS__ === true)`), and 725/779 (prose). Nothing in packages/devtools reads it. Root package.json `\"studio\": \"pnpm --filter @guideflow/cli exec guideflow studio\"` is at line 22, not 23 (harmless off-by-one), and packages/cli has no index.html, so that script does yield a Vite 404. README.md:534 and packages/cli/README.md:45 claims verified verbatim.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "completed-tours-replay-forever",
@@ -272,7 +277,7 @@
       "severity": "P0",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "CLI reference documents flags for `export` and `push` that do not exist; every documented invocation fails",
       "file": "apps/docs/api/cli.md",
       "line": 86,
@@ -280,7 +285,8 @@
       "impact": "packages/cli/src/commands/export.ts:204-206 defines a positional `[file]` argument plus `-o, --output <file>` and `--pretty`. There is no `--flow`, no `--out`, no `--config`. Commander exits with \"error: unknown option '--flow'\". The `push` docs (cli.md:101-108) are worse: they document `--flow`, `--api`, `--token` and `GUIDEFLOW_TOKEN`, while push.ts:130-133 defines a positional `[file]`, a **required** `-k, --api-key`, `-e, --endpoint`, `--env`, and reads `GUIDEFLOW_API_KEY`. The documented `guideflow push --flow onboarding --api https://tours.myapp.com` fails on the unknown option and would fail again on the undocumented required `--api-key`. Both documented commands are 100% non-functional.",
       "fix": "Regenerate apps/docs/api/cli.md from `commander`'s own help output (`guideflow export --help`, `guideflow push --help`). Correct table for export: `[file]` positional, `-o, --output`, `--pretty`. For push: `[file]` positional, `-k, --api-key` (required), `-e, --endpoint` (default `https://api.guideflow.dev/v1/flows`), `--env`, env var `GUIDEFLOW_API_KEY`.",
       "effort": null,
-      "verifierNote": "cli.md:86 is verbatim `guideflow export --flow onboarding --out ./dist/flows/onboarding.json`. Substance verified though line cites are wrong: export.ts is 64 lines total — the option definitions are at lines 19-21 (`[file]` default 'my-tour.ts', `-o, --output`, `--pretty`), not 204-206. push.ts is 78 lines; lines 23-26 define `[file]`, `.requiredOption('-k, --api-key')`, `-e, --endpoint`, `--env`, and line 35 reads GUIDEFLOW_API_KEY — not 130-133. Neither documented invocation works."
+      "verifierNote": "cli.md:86 is verbatim `guideflow export --flow onboarding --out ./dist/flows/onboarding.json`. Substance verified though line cites are wrong: export.ts is 64 lines total — the option definitions are at lines 19-21 (`[file]` default 'my-tour.ts', `-o, --output`, `--pretty`), not 204-206. push.ts is 78 lines; lines 23-26 define `[file]`, `.requiredOption('-k, --api-key')`, `-e, --endpoint`, `--env`, and line 35 reads GUIDEFLOW_API_KEY — not 130-133. Neither documented invocation works.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-flat-steps-flow-throws",
@@ -288,7 +294,7 @@
       "severity": "P0",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Quick Start and AI guides document `gf.start({ id, steps })`, which throws — FlowDefinition requires initial+states",
       "file": "apps/docs/guide/quick-start.md",
       "line": 16,
@@ -296,7 +302,8 @@
       "impact": "`FlowDefinition` in packages/core/src/types/index.ts:104 is `{ id: string; initial: string; states: Record<string, StateNode> }` — there is no top-level `steps`, and `Step` requires `content: StepContent`, not top-level `title`/`body`. `FlowMachine`'s constructor (packages/core/src/fsm/machine.ts:16) does `if (!(flow.initial in flow.states))` — with both undefined this evaluates `'undefined' in undefined` and throws a TypeError, or with `states: undefined` throws `Cannot use 'in' operator`. The very first code sample a new user copies from the Quick Start page crashes, and it fails `tsc` too. The same broken shape appears at quick-start.md:61 and :79, ai.md:40, :55, :70, api/ai/create-ai.md:50, api/ai/guide-brain.md:35, migrate-driver.md:15, :16, :59, migrate-intro.md:13, :51, docs/usage.html:105, and apps/e2e/fixtures/index.html:26.",
       "fix": "Rewrite every flat-`steps` sample to the FSM shape used correctly in apps/docs/guide/vanilla.md:24-46 and packages/core/README.md:25-47. Alternatively, if the flat shape is the intended ergonomic API, implement it: normalise `{id, steps}` into `{id, initial:'main', states:{main:{steps, final:true}}}` inside `createGuideFlow().start()` and widen the `FlowDefinition` type accordingly.",
       "effort": null,
-      "verifierNote": "quick-start.md:16 begins `gf.start({ id: 'welcome', steps: [...] })` verbatim. FlowDefinition (types/index.ts:104) is `{id, initial, states, context?}` with no `steps`; Step requires `content: StepContent`. createGuideFlow.start (index.ts:231-262) passes the object straight to TourEngine.start (tour.ts:100) → `new FlowMachine(flow)` → machine.ts:16 `if (!(flow.initial in flow.states))` with `flow.states === undefined` throws `TypeError: Cannot use 'in' operator`. No normalization layer anywhere. Same shape verified at quick-start.md:61/79, ai.md, migrate-*.md, docs/usage.html:105, and e2e fixture."
+      "verifierNote": "quick-start.md:16 begins `gf.start({ id: 'welcome', steps: [...] })` verbatim. FlowDefinition (types/index.ts:104) is `{id, initial, states, context?}` with no `steps`; Step requires `content: StepContent`. createGuideFlow.start (index.ts:231-262) passes the object straight to TourEngine.start (tour.ts:100) → `new FlowMachine(flow)` → machine.ts:16 `if (!(flow.initial in flow.states))` with `flow.states === undefined` throws `TypeError: Cannot use 'in' operator`. No normalization layer anywhere. Same shape verified at quick-start.md:61/79, ai.md, migrate-*.md, docs/usage.html:105, and e2e fixture.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "react-guide-fabricated-props",
@@ -304,7 +311,7 @@
       "severity": "P0",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "React guide documents props and hook options that none of the components accept",
       "file": "apps/docs/guide/react.md",
       "line": 113,
@@ -312,7 +319,8 @@
       "impact": "`GuidePopoverProps` (packages/react/src/components/GuidePopover.tsx:13-22) is `{ width?: number; children?: ReactNode | fn; className?: string }` — all four documented props are rejected by TypeScript and silently ignored at runtime, so the popover renders the active tour step instead of the documented custom content. The same page is wrong four more times: line 96/101 `<TourStep stepId=\"welcome\">` (the prop is `id`, and it is required — TourStep.tsx:14), line 82 `useHotspot(ref, { tooltip: ... })` (`HotspotOptions` has title/body/placement/color/size, no `tooltip` — types/index.ts:147), line 128 `<HotspotBeacon target tooltip>` (same, HotspotBeacon.tsx:10 extends HotspotOptions), and line 141 `<ConversationalPanel position=\"bottom-right\">` (props are open/onClose/placeholder/title/className — ConversationalPanel.tsx:16-22). A React user following this page gets five compile errors in one file.",
       "fix": "Rewrite apps/docs/guide/react.md against the actual exported prop interfaces. Use `<TourStep id=\"welcome\">`, `useHotspot(ref, { title, body })`, `<HotspotBeacon target=\"#help-btn\" title=\"...\" body=\"...\" />`, `<GuidePopover width={360} className=\"...\" />`, and `<ConversationalPanel open onClose={...} placeholder=\"...\" />`. Add a docs test that type-checks fenced tsx blocks, or move the samples into the storybook app where tsc runs on them.",
       "effort": null,
-      "verifierNote": "react.md:113 quotes `<GuidePopover stepId title body placement/>` verbatim. GuidePopover.tsx:13-22 GuidePopoverProps = {width?, children?, className?} — all four rejected. TourStep.tsx:10-17 takes required `id`, not `stepId`. use-tour-step.ts:72-74 `useHotspot(ref, options: HotspotOptions)` and HotspotOptions (types/index.ts:147) is {title,body,placement,color,size} — no `tooltip`. HotspotBeacon.tsx:10 `extends HotspotOptions`, same. ConversationalPanel.tsx:16-22 = {open,onClose,placeholder,title,className} — no `position`. All five verified."
+      "verifierNote": "react.md:113 quotes `<GuidePopover stepId title body placement/>` verbatim. GuidePopover.tsx:13-22 GuidePopoverProps = {width?, children?, className?} — all four rejected. TourStep.tsx:10-17 takes required `id`, not `stepId`. use-tour-step.ts:72-74 `useHotspot(ref, options: HotspotOptions)` and HotspotOptions (types/index.ts:147) is {title,body,placement,color,size} — no `tooltip`. HotspotBeacon.tsx:10 `extends HotspotOptions`, same. ConversationalPanel.tsx:16-22 = {open,onClose,placeholder,title,className} — no `position`. All five verified.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "theme-css-imports-do-not-exist",
@@ -320,7 +328,7 @@
       "severity": "P0",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "All six theme documentation pages tell users to import CSS files that do not exist",
       "file": "apps/docs/themes/bold.md",
       "line": 21,
@@ -328,7 +336,8 @@
       "impact": "`packages/core/src/styles/` contains exactly seven files — tokens.css, popover.css, themes.css, dark.css, rtl.css, high-contrast.css, index.css. There is no `themes/` directory and no per-theme file. The build step is `tsup && cp -r src/styles dist/styles`, so `dist/styles/themes/bold.css` never exists either; the `\"./styles/*\"` export maps it to a missing path and the bundler errors with \"Failed to resolve import\". Themes are actually applied by setting the `data-gf-theme` attribute (see packages/core/src/styles/themes.css:2 `[data-gf-theme=\"minimal\"]`), which no documentation page mentions anywhere. Every one of the five theme pages plus themes/index.md:26 is unusable.",
       "fix": "Replace the import instruction on themes/index.md, minimal.md, bold.md, glass.md, brutalist.md and enterprise.md with the real mechanism — `import '@guideflow/core/styles'` plus `document.documentElement.setAttribute('data-gf-theme', 'bold')` — or split themes.css into `src/styles/themes/{minimal,bold,glass,brutalist,enterprise}.css` so the documented imports resolve.",
       "effort": null,
-      "verifierNote": "themes/bold.md:21 is verbatim `import '@guideflow/core/styles/themes/bold.css'`. `ls packages/core/src/styles/` returns exactly dark.css, high-contrast.css, index.css, popover.css, rtl.css, themes.css, tokens.css — no themes/ dir. Build is `tsup && cp -r src/styles dist/styles`, and exports maps `./styles/*` → `./dist/styles/*`, so the path never resolves. themes.css:2 confirms the real mechanism is `[data-gf-theme=\"minimal\"]`, which no theme page mentions."
+      "verifierNote": "themes/bold.md:21 is verbatim `import '@guideflow/core/styles/themes/bold.css'`. `ls packages/core/src/styles/` returns exactly dark.css, high-contrast.css, index.css, popover.css, rtl.css, themes.css, tokens.css — no themes/ dir. Build is `tsup && cp -r src/styles dist/styles`, and exports maps `./styles/*` → `./dist/styles/*`, so the path never resolves. themes.css:2 confirms the real mechanism is `[data-gf-theme=\"minimal\"]`, which no theme page mentions.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "no-spa-route-change-handling",
@@ -451,7 +460,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "apps/docs/guide/i18n.md documents an i18n API that does not exist — setLocale(), arbitrary keys, and first-registered-locale fallback are all fictional",
       "file": "apps/docs/guide/i18n.md",
       "line": 38,
@@ -459,7 +468,8 @@
       "impact": "`I18nRegistry` (packages/core/src/i18n/index.ts) has no `setLocale` method — the real one is `use(locale)`, line 37. Following the documented example throws `TypeError: gf.i18n.setLocale is not a function`. The whole page is wrong in four further ways: (1) it registers arbitrary keys like `'tour.welcome.title'` and `'btn.next'`, but `Locale` is a fixed 8-field interface (`next|prev|close|skip|stepOf|done|openHint|closeHint`) and `t(key: keyof Locale)` is typed against it — TypeScript rejects the documented call and at runtime `locale[key] ?? EN[key]` evaluates to `undefined`, so `t('btn.next')` returns `undefined`, not a string; (2) the \"Locale Fallback\" section claims fallback goes to \"the default locale (first registered locale)\" and that `register('fr', {})` then `t('greeting')` yields `'Hello'` — the code hardcodes fallback to the built-in `EN` const (line 46) and `register` seeds unknown locales from `{ ...EN }` (line 33), so the documented `'Hello'` result is impossible; (3) the API table documents `getLocale()` as \"Get the current locale\", but the real `getLocale(locale?)` returns a whole `Locale` string map, and the current locale name is exposed as the `activeLocale` getter; (4) the frontmatter advertises \"right-to-left (RTL) text\" support, yet the page contains no RTL content and the positioning engine has no direction awareness at all. A user following this page cannot localise anything.",
       "fix": "Rewrite apps/docs/guide/i18n.md against the real surface: `register(locale, Partial<Locale>)`, `use(locale)`, `t(key: keyof Locale, vars?)`, `activeLocale`, `getLocale(locale?)`. Enumerate the eight real keys. State that fallback is always to built-in English. Remove the arbitrary-key examples entirely, or implement free-form keys in `I18nRegistry` if that is the intended design. Delete the unsupported RTL claim from the frontmatter or point it at real RTL guidance.",
       "effort": "M",
-      "verifierNote": "i18n.md:38-39 verbatim, and `setLocale` also appears at 65, 76 and in the API table at 85. I18nRegistry has `use(locale)` (line 37), no setLocale. All four sub-claims verified: `t(key: keyof Locale)` against the fixed 8-field interface (lines 6-15) rejects 'btn.next'/'tour.welcome.title'; fallback is hardcoded `EN[key]` (line 46) and register seeds from `{...EN}` (line 33), so the documented 'Hello' fallback result is impossible; `getLocale(locale?)` returns a Locale map (59-61) with `activeLocale` as the separate getter (55-57); frontmatter advertises RTL with zero RTL content on the page."
+      "verifierNote": "i18n.md:38-39 verbatim, and `setLocale` also appears at 65, 76 and in the API table at 85. I18nRegistry has `use(locale)` (line 37), no setLocale. All four sub-claims verified: `t(key: keyof Locale)` against the fixed 8-field interface (lines 6-15) rejects 'btn.next'/'tour.welcome.title'; fallback is hardcoded `EN[key]` (line 46) and register seeds from `{...EN}` (line 33), so the documented 'Hello' fallback result is impossible; `getLocale(locale?)` returns a Locale map (59-61) with `activeLocale` as the separate getter (55-57); frontmatter advertises RTL with zero RTL content on the page.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "no-focus-trap-or-restore",
@@ -564,7 +574,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Theming docs list CSS custom properties and class names that do not exist in any stylesheet",
       "file": "apps/docs/themes/custom.md",
       "line": 16,
@@ -572,7 +582,8 @@
       "impact": "Cross-checked against `packages/core/src/styles/tokens.css` (the only token definition), none of these exist. The real names are `--gf-popover-text`, `--gf-border-radius`, `--gf-shadow`, `--gf-spacing`. `--gf-popover-padding`, `--gf-popover-max-width`, `--gf-popover-font`, `--gf-popover-backdrop`, `--gf-btn-primary-bg`, `--gf-btn-primary-color`, `--gf-btn-secondary-bg`, `--gf-btn-secondary-color`, `--gf-btn-border-radius`, `--gf-beacon-color`, `--gf-beacon-size` appear in no CSS file at all (the real ones are `--gf-accent-color`, `--gf-accent-fg`, `--gf-btn-radius`, `--gf-hotspot-size`). Every code sample also targets `.guideflow-popover`, while the actual class is `.gf-popover`. `--gf-popover-border` is documented as a border shorthand with default `1px solid #e5e7eb`, but the stylesheets consume it as a colour — `popover.css:11: border: 1px solid var(--gf-popover-border);` — so a user who follows the doc produces the invalid declaration `border: 1px solid 1px solid #e5e7eb` and loses the border entirely. The result is that a customer following the theming documentation writes a stylesheet in which literally nothing takes effect, with no error to diagnose. apps/docs/themes/bold.md repeats the same fictional tokens with values (`#f8fafc`, `2px solid #6366f1`, `16px`) that also do not match `themes.css:13-22`.",
       "fix": "Regenerate apps/docs/themes/custom.md and each apps/docs/themes/*.md directly from `packages/core/src/styles/tokens.css` and `themes.css` — same names, same defaults, `.gf-popover` selectors. Add a CI check that greps every `--gf-*` identifier in apps/docs/** and fails if it is not defined in tokens.css.",
       "effort": "M",
-      "verifierNote": "custom.md lines 16-24/30-35/48-49 cross-checked against tokens.css (the only :root token block). --gf-popover-color, --gf-popover-border-radius, --gf-popover-shadow, --gf-popover-padding, --gf-popover-max-width, --gf-popover-font, --gf-popover-backdrop, --gf-btn-primary-bg/-color, --gf-btn-secondary-bg/-color, --gf-btn-border-radius, --gf-beacon-color, --gf-beacon-size all absent; real names are --gf-popover-text, --gf-border-radius, --gf-shadow, --gf-spacing, --gf-accent-color/-fg, --gf-btn-radius, --gf-hotspot-size. Code samples target `.guideflow-popover` (custom.md:55, themes/index.md:34) vs the real `.gf-popover`. popover.css:11 `border: 1px solid var(--gf-popover-border)` confirms the shorthand-vs-colour mismatch. bold.md:28-33 repeats the fictional tokens with values that don't match themes.css:13-22. (Minor: --gf-btn-padding and --gf-overlay-color DO exist; the auditor did not claim otherwise.)"
+      "verifierNote": "custom.md lines 16-24/30-35/48-49 cross-checked against tokens.css (the only :root token block). --gf-popover-color, --gf-popover-border-radius, --gf-popover-shadow, --gf-popover-padding, --gf-popover-max-width, --gf-popover-font, --gf-popover-backdrop, --gf-btn-primary-bg/-color, --gf-btn-secondary-bg/-color, --gf-btn-border-radius, --gf-beacon-color, --gf-beacon-size all absent; real names are --gf-popover-text, --gf-border-radius, --gf-shadow, --gf-spacing, --gf-accent-color/-fg, --gf-btn-radius, --gf-hotspot-size. Code samples target `.guideflow-popover` (custom.md:55, themes/index.md:34) vs the real `.gf-popover`. popover.css:11 `border: 1px solid var(--gf-popover-border)` confirms the shorthand-vs-colour mismatch. bold.md:28-33 repeats the fictional tokens with values that don't match themes.css:13-22. (Minor: --gf-btn-padding and --gf-overlay-color DO exist; the auditor did not claim otherwise.)",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "theme-docs-nonexistent-import-path",
@@ -580,7 +591,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Every theme page tells users to import a per-theme CSS file that is not shipped, and the real activation mechanism is undocumented",
       "file": "apps/docs/themes/index.md",
       "line": 26,
@@ -588,7 +599,8 @@
       "impact": "`packages/core/src/styles/` contains exactly seven files — index, tokens, popover, themes, dark, rtl, high-contrast — and the build step is `cp -r src/styles dist/styles` (packages/core/package.json build script), so `dist/styles/themes/minimal.css` never exists. The `./styles/*` export maps to `./dist/styles/*`, so the documented import is an unresolvable module specifier: the user's bundler fails the build. The five themes are actually activated by an attribute selector — `themes.css:2: [data-gf-theme=\"minimal\"]`, `:13 [data-gf-theme=\"bold\"]`, `:25 glass`, `:38 brutalist`, `:54 enterprise` — and the string `data-gf-theme` appears nowhere in apps/docs or README. The headline feature \"5 Built-in Themes\" (apps/docs/index.md:35) is therefore both unusable as documented and undiscoverable as implemented.",
       "fix": "Replace the import snippet on every apps/docs/themes/*.md page with the real usage — `import '@guideflow/core/styles'` plus `<html data-gf-theme=\"minimal\">` (or setting the attribute on any ancestor of the popover, noting the popover is portalled to document.body so the attribute must go on `:root`). Either that, or split themes.css into per-theme files and add them to the build so the documented paths resolve.",
       "effort": "S",
-      "verifierNote": "themes/index.md:25-26 verbatim; bold.md:20-21 repeats it. packages/core/src/styles/ contains exactly dark, high-contrast, index, popover, rtl, themes, tokens — no themes/ subdirectory — and the build script is `tsup && cp -r src/styles dist/styles`, with `\"./styles/*\": {\"import\": \"./dist/styles/*\"}` in exports, so `@guideflow/core/styles/themes/minimal.css` cannot resolve. themes.css activates via `[data-gf-theme=\"minimal\"]` (:2), bold (:13), glass (:25), brutalist (:38), enterprise (:54), and my grep for `data-gf-theme` across apps/docs, README.md, storybook stories and demo returned zero hits."
+      "verifierNote": "themes/index.md:25-26 verbatim; bold.md:20-21 repeats it. packages/core/src/styles/ contains exactly dark, high-contrast, index, popover, rtl, themes, tokens — no themes/ subdirectory — and the build script is `tsup && cp -r src/styles dist/styles`, with `\"./styles/*\": {\"import\": \"./dist/styles/*\"}` in exports, so `@guideflow/core/styles/themes/minimal.css` cannot resolve. themes.css activates via `[data-gf-theme=\"minimal\"]` (:2), bold (:13), glass (:25), brutalist (:38), enterprise (:54), and my grep for `data-gf-theme` across apps/docs, README.md, storybook stories and demo returned zero hits.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-react-guide-six-nonexistent-apis",
@@ -596,7 +608,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "apps/docs/guide/react.md uses six props/config options that do not exist in any shipped type",
       "file": "apps/docs/guide/react.md",
       "line": 96,
@@ -604,7 +616,8 @@
       "impact": "Every code block in the primary React guide fails to compile. (a) line 96 and 101: `stepId` — the prop is `id` (TourStep.tsx:15). (b) lines 113-118: `<GuidePopover stepId title body placement>` — `GuidePopoverProps` has only `width`/`children`/`className`. (c) line 82 `useHotspot(ref, { tooltip: '...' })` and line 128 `<HotspotBeacon tooltip=\"...\">` — `HotspotOptions` is `{ title?, body?, placement?, color?, size? }` (core types/index.ts:147-154); there is no `tooltip`, so the beacon renders with an empty tooltip body. (d) line 141 `<ConversationalPanel position=\"bottom-right\">` — no `position` prop exists; placement is hardcoded to `bottom: 24, right: 24` (ConversationalPanel.tsx:106-107). (e) line 26 `createGuideFlow({ theme: 'minimal', locale: 'en' })` — `GuideFlowConfig` (core types/index.ts:234-248) has neither `theme` nor `locale`. This is the page linked from the README, so it is most new users' first contact with the adapter.",
       "fix": "Correct all six call sites against the real types. The `theme`/`locale` invention also appears at apps/docs/api/vue/guide-flow-plugin.md:20, apps/docs/api/svelte/create-tour-store.md:62 and :82 — fix those too, or add real `theme`/`locale` fields to `GuideFlowConfig` (a `locale` field wiring straight into `i18n.use()` would be genuinely useful given the i18n bug above). Add a docs lint step that type-checks fenced tsx/vue/svelte blocks.",
       "effort": "M",
-      "verifierNote": "All six verified verbatim in apps/docs/guide/react.md: stepId at 96 and 101 (prop is `id`, TourStep.tsx:15); GuidePopover stepId/title/body/placement at 113-118; `useHotspot(ref, { tooltip: ... })` at 82 and `<HotspotBeacon tooltip=...>` at 128 against HotspotOptions = {title?,body?,placement?,color?,size?} at core types/index.ts:147-154; `position=\"bottom-right\"` at 141 against ConversationalPanelProps (open/onClose/placeholder/title/className) with placement hardcoded at ConversationalPanel.tsx:106-107; `theme`/`locale` at 26-27 against GuideFlowConfig at types/index.ts:234-248, which has neither. One nit: HotspotBeaconProps extends HotspotOptions, so `tooltip` is a TS excess-property error rather than an 'empty tooltip body' at runtime — the outcome is worse, not better."
+      "verifierNote": "All six verified verbatim in apps/docs/guide/react.md: stepId at 96 and 101 (prop is `id`, TourStep.tsx:15); GuidePopover stepId/title/body/placement at 113-118; `useHotspot(ref, { tooltip: ... })` at 82 and `<HotspotBeacon tooltip=...>` at 128 against HotspotOptions = {title?,body?,placement?,color?,size?} at core types/index.ts:147-154; `position=\"bottom-right\"` at 141 against ConversationalPanelProps (open/onClose/placeholder/title/className) with placement hardcoded at ConversationalPanel.tsx:106-107; `theme`/`locale` at 26-27 against GuideFlowConfig at types/index.ts:234-248, which has neither. One nit: HotspotBeaconProps extends HotspotOptions, so `tooltip` is a TS excess-property error rather than an 'empty tooltip body' at runtime — the outcome is worse, not better.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "react-guidepopover-drops-actions-html-media",
@@ -741,7 +754,7 @@
       "severity": "P1",
       "kind": "missing-implementation",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "@guideflow/vue ships zero components while its package description, docs and npm metadata promise them",
       "file": "packages/vue/package.json",
       "line": 4,
@@ -749,7 +762,8 @@
       "impact": "`packages/vue/src` contains only `index.ts`, `plugin.ts` and `composables/use-tour.ts`; `packages/vue/src/index.ts:26` exports nothing but the plugin, the composable and re-exported core types. There is no Vue equivalent of `<GuidePopover>`, `<TourStep>`, `<HotspotBeacon>` or `<ConversationalPanel>`, and no `@vitejs/plugin-vue` entry in tsup.config.ts (so the build cannot even compile a `.vue` file). The description is the npm listing text, so the package advertises components it does not contain; there is also no `hotspot`, `hints`, `progress`, `i18n`, `pause`/`resume`, `currentStep`, `listFlows` or `configure` surface — Vue users must reach through `useGuideFlow()` to the raw imperative instance for everything beyond six navigation methods.",
       "fix": "Either correct the description to \"composables and plugin\" (matching apps/docs/packages/vue.md, which already says that) and state the components gap explicitly in the Vue guide, or add `GfPopover.vue`/`GfTourStep.vue`/`GfHotspotBeacon.vue` plus the `@vitejs/plugin-vue` tsup pipeline needed to build them. Also add `useHotspot`/`useHints`/`usePause` composables to close the React↔Vue asymmetry.",
       "effort": "L",
-      "verifierNote": "packages/vue/package.json:4 is verbatim \"GuideFlow Vue 3 adapter — composables and components\". Directory listing of packages/vue/src shows exactly index.ts, plugin.ts and composables/use-tour.ts — no .vue files, no components dir. index.ts exports only GuideFlowPlugin/useGuideFlow/GUIDEFLOW_KEY/useTour plus type re-exports. packages/vue/tsup.config.ts has no vue plugin (esbuild cannot compile .vue), despite @vitejs/plugin-vue sitting in devDependencies. UseTourReturn (use-tour.ts:10-21) exposes four refs and six methods and nothing else. All verified."
+      "verifierNote": "packages/vue/package.json:4 is verbatim \"GuideFlow Vue 3 adapter — composables and components\". Directory listing of packages/vue/src shows exactly index.ts, plugin.ts and composables/use-tour.ts — no .vue files, no components dir. index.ts exports only GuideFlowPlugin/useGuideFlow/GUIDEFLOW_KEY/useTour plus type re-exports. packages/vue/tsup.config.ts has no vue plugin (esbuild cannot compile .vue), despite @vitejs/plugin-vue sitting in devDependencies. UseTourReturn (use-tour.ts:10-21) exposes four refs and six methods and nothing else. All verified.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "anthropic-default-model-retired",
@@ -885,7 +899,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Documented AnalyticsEvent shape contradicts the real type in three of four fields",
       "file": "apps/docs/api/analytics/transports.md",
       "line": 120,
@@ -893,7 +907,8 @@
       "impact": "The real interface (src/transports/interface.ts:2-9) is `{ event: string; timestamp: string; properties: Record<string, unknown> }`. So: the name field is `event`, not `name`; there is no top-level `userId` (it is buried as `properties.user_id`, collector.ts:108); and `timestamp` is an ISO-8601 string from `new Date().toISOString()` (collector.ts:105), not Unix milliseconds. A backend engineer writing the `/api/analytics` handler against this documented shape produces a parser that reads `body[i].name` (undefined → every event stored with a null name) and `new Date(body[i].timestamp)` treating an ISO string as epoch ms. Because the webhook transport treats any 2xx as success, the ingest silently stores garbage. This is also the schema a data team would build dashboards on.",
       "fix": "Correct the block to the real interface, note that the user identifier lives at `properties.user_id`, and state that `timestamp` is ISO-8601. Better: generate this section from `src/transports/interface.ts` rather than hand-maintaining it.",
       "effort": "S",
-      "verifierNote": "transports.md:118-125 is verbatim. The real interface at transports/interface.ts:2-9 is { event: string; timestamp: string /* ISO-8601 */; properties: Record<string, unknown> }. collector.ts:103-111 builds exactly that: event at :104, `new Date().toISOString()` at :105, and user_id nested inside properties at :108 — there is no top-level userId and no `name` field. Three of the four documented fields are wrong."
+      "verifierNote": "transports.md:118-125 is verbatim. The real interface at transports/interface.ts:2-9 is { event: string; timestamp: string /* ISO-8601 */; properties: Record<string, unknown> }. collector.ts:103-111 builds exactly that: event at :104, `new Date().toISOString()` at :105, and user_id nested inside properties at :108 — there is no top-level userId and no `name` field. Three of the four documented fields are wrong.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-custom-transport-wrong-method",
@@ -901,7 +916,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "The custom-transport example implements send() instead of track(), so a transport built from the docs receives nothing",
       "file": "apps/docs/api/analytics/transports.md",
       "line": 102,
@@ -909,7 +924,8 @@
       "impact": "`AnalyticsTransport` requires `name: string` and `track(event)` (src/transports/interface.ts:15-28); `AnalyticsCollector.send()` calls `t.track(payload)` (collector.ts:115). The documented class declares neither `name` nor `track`, so `implements AnalyticsTransport` is a hard TypeScript error — and a JavaScript user who copies it registers a transport whose `track` is `undefined`, causing `t.track is not a function` to be thrown and swallowed by the collector's try/catch on every single event, producing an endless `Transport \"undefined\" threw` console stream and zero delivered data. This is the one snippet in the docs that third-party integrators (GA4, Rudderstack, self-hosted sinks) must copy, since no transport exists for any of those.",
       "fix": "Replace `async send(event)` with `readonly name = 'my-transport'` and `async track(event: AnalyticsEvent): Promise<void>`. Add a compile-checked snippet under apps/docs or a `examples/custom-transport.ts` file included in `type-check` so the example cannot rot again.",
       "effort": "S",
-      "verifierNote": "transports.md:101-113 declares `class MyTransport implements AnalyticsTransport` with `async send(...)` and a flush(), and no `name` or `track`. interface.ts:15-28 requires readonly name and track(); collector.ts:115 calls `void t.track(payload)` inside the try, so a JS copy throws 't.track is not a function' synchronously, is caught at :116, and logs `Transport \"undefined\" threw:` (t.name is undefined) once per event with zero delivery. Verified end to end."
+      "verifierNote": "transports.md:101-113 declares `class MyTransport implements AnalyticsTransport` with `async send(...)` and a flush(), and no `name` or `track`. interface.ts:15-28 requires readonly name and track(); collector.ts:115 calls `void t.track(payload)` inside the try, so a JS copy throws 't.track is not a function' synchronously, is caught at :116, and logs `Transport \"undefined\" threw:` (t.name is undefined) once per event with zero delivery. Verified end to end.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-nonexistent-events",
@@ -917,7 +933,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "The analytics guide lists three events that are never emitted and omits two that are",
       "file": "apps/docs/guide/analytics.md",
       "line": 31,
@@ -925,7 +941,8 @@
       "impact": "grep of packages/analytics/src for the emitted strings gives exactly six: `guideflow.tour.started`, `guideflow.tour.completed`, `guideflow.tour.abandoned`, `guideflow.step.viewed`, `guideflow.step.exited`, `guideflow.step.skipped`. `guideflow.tour.skipped`, `guideflow.step.completed` and `guideflow.step.abandoned` do not exist anywhere in the codebase, and the table omits the two that do (`tour.abandoned`, `step.skipped`). A team building a dashboard from this guide creates funnel steps and alerts keyed on event names that never arrive; `step.completed` in particular is the natural per-step conversion metric and its absence from the code is the reason no step-level funnel is possible. The same table conflicts with packages/analytics/README.md:40-47 and apps/docs/api/analytics/analytics-collector.md:82-89, which list the correct six — three documents, two contradictory taxonomies.",
       "fix": "Make apps/docs/guide/analytics.md match the six real names, then either implement `guideflow.step.completed` (emit on a step advanced via next/send rather than skip) or drop it. Publish one canonical event taxonomy page with property tables and a schema version, and have the other three documents link to it instead of restating it.",
       "effort": "S",
-      "verifierNote": "apps/docs/guide/analytics.md:29-35 is verbatim. grep of the whole repo for 'guideflow.tour.skipped', 'guideflow.step.completed' and 'guideflow.step.abandoned' returns zero hits; grep of packages/analytics/src returns exactly the six real names (collector.ts:62,65,70,74,79,82), and the guide's table omits tour.abandoned and step.skipped. packages/analytics/README.md and api/analytics/analytics-collector.md:80-89 both list the correct six, so the two taxonomies do conflict as claimed."
+      "verifierNote": "apps/docs/guide/analytics.md:29-35 is verbatim. grep of the whole repo for 'guideflow.tour.skipped', 'guideflow.step.completed' and 'guideflow.step.abandoned' returns zero hits; grep of packages/analytics/src returns exactly the six real names (collector.ts:62,65,70,74,79,82), and the guide's table omits tour.abandoned and step.skipped. packages/analytics/README.md and api/analytics/analytics-collector.md:80-89 both list the correct six, so the two taxonomies do conflict as claimed.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "experiment-correlation",
@@ -1178,7 +1195,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`guideflow.config.ts` is documented in three places as the thing `init` creates, but no config file is ever written or read",
       "file": "README.md",
       "line": 533,
@@ -1186,7 +1203,8 @@
       "impact": "The same claim appears at packages/cli/README.md:24 and the file name is used as a documented default at apps/docs/api/cli.md:83 (`| `--config <file>` | `guideflow.config.ts` | Path to the GuideFlow config file |`). `init.ts:95-99` writes `guideflow.ts`, `my-tour.ts`, and `GuideFlowProvider.tsx` — never `guideflow.config.ts`. A repo-wide grep finds no reader for such a file in any package. So there is no project-level configuration mechanism at all: `export`, `push` and `studio` cannot pick up a shared endpoint, api key, flow directory, or framework setting, and every invocation must re-specify everything on the command line. Users following the README will look for a config file that does not exist.",
       "fix": "Pick one: (a) delete the `guideflow.config.ts` claim from README.md:533, packages/cli/README.md:24 and apps/docs/api/cli.md:83 and rename the scaffolded file references to `guideflow.ts`; or (b) implement it — a `loadConfig()` helper (cosmiconfig/jiti) resolving `guideflow.config.{ts,js,mjs,json}` upward from cwd, supplying defaults for `endpoint`, `flows` glob, `outDir`, and `framework`, consumed by all four commands.",
       "effort": "M",
-      "verifierNote": "README.md:533 verbatim. Repo-wide grep for `guideflow.config.ts` returns exactly three hits — README.md:533, packages/cli/README.md:24, apps/docs/api/cli.md:83 — all documentation, no producer and no reader. init.ts:95-99 writes guideflow.ts / my-tour.ts / GuideFlowProvider.tsx only. So the file is never created and no command could consume it; export/push/studio each re-specify everything on argv."
+      "verifierNote": "README.md:533 verbatim. Repo-wide grep for `guideflow.config.ts` returns exactly three hits — README.md:533, packages/cli/README.md:24, apps/docs/api/cli.md:83 — all documentation, no producer and no reader. init.ts:95-99 writes guideflow.ts / my-tour.ts / GuideFlowProvider.tsx only. So the file is never created and no command could consume it; export/push/studio each re-specify everything on argv.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "init-always-prompts-breaks-ci",
@@ -1242,7 +1260,7 @@
       "severity": "P1",
       "kind": "gap",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`push` defaults to https://api.guideflow.dev/v1/flows — a service with no implementation, no signup path, and no documented key issuance",
       "file": "packages/cli/src/commands/push.ts",
       "line": 25,
@@ -1250,7 +1268,8 @@
       "impact": "The default endpoint is the only default a first-time user will hit. Nothing in the monorepo implements or deploys this API: a grep for `guideflow.dev` yields only this line, a marketing link in `packages/devtools/src/popup/popup.tsx:501`, a banner comment in `packages/core/tsup.config.ts:17`, and hardcoded copies in `apps/demo/src/App.tsx:178,783,843`. There is no server package, no OpenAPI spec, no request/response contract, and no documentation anywhere explaining how to obtain the `GUIDEFLOW_API_KEY` the command demands. The failure is also confusing: the user first hits the `requiredOption` error (see push-requiredoption-kills-env-var), and if they invent a key they get `spinner.fail('Network error while pushing flow')` (line 74) plus a raw `console.error(err)` DNS/TLS dump. Meanwhile push.ts:69 unconditionally does `await res.json()` and README/docs advertise \"Publish flows to GuideFlow Cloud\" as a shipped capability (README.md:536, packages/cli/README.md:27, apps/docs/packages/cli.md:25).",
       "fix": "Remove the default so `--endpoint` is required, and error with \"GuideFlow Cloud is not yet available — pass --endpoint for your self-hosted API\" when omitted. Document the expected POST contract (headers `Authorization: Bearer`, `X-GuideFlow-Env`; request body = FlowDefinition JSON; response `{id, url}`) so self-hosting is actually implementable, and mark Cloud as \"planned\" in README.md:536 and apps/docs/packages/cli.md:25 until it exists.",
       "effort": "M",
-      "verifierNote": "push.ts:25 verbatim. Grep for `guideflow.dev` returns only that line, packages/devtools/src/popup/popup.tsx:501, packages/core/tsup.config.ts:17, apps/demo/src/App.tsx:178/783/843 — plus .claude/docs/MCP-AND-SKILLS.md:81 which itself states push ships pointed at 'a service that does not exist'. Grep for GUIDEFLOW_API_KEY across md/ts/tsx finds it only in push.ts:24/35/37 and that same .claude note — no doc anywhere explains how to obtain a key. push.ts:69 `await res.json()` is unconditional as claimed (though it sits inside the try, so a non-JSON 200 surfaces as the same 'Network error' message). README.md:536 'Publish flows to GuideFlow Cloud' verified."
+      "verifierNote": "push.ts:25 verbatim. Grep for `guideflow.dev` returns only that line, packages/devtools/src/popup/popup.tsx:501, packages/core/tsup.config.ts:17, apps/demo/src/App.tsx:178/783/843 — plus .claude/docs/MCP-AND-SKILLS.md:81 which itself states push ships pointed at 'a service that does not exist'. Grep for GUIDEFLOW_API_KEY across md/ts/tsx finds it only in push.ts:24/35/37 and that same .claude note — no doc anywhere explains how to obtain a key. push.ts:69 `await res.json()` is unconditional as claimed (though it sits inside the try, so a non-JSON 200 surfaces as the same 'Network error' message). README.md:536 'Publish flows to GuideFlow Cloud' verified.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "push-requiredoption-kills-env-var",
@@ -1392,7 +1411,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Documented i18n API does not exist (`setLocale`, `getLocale`, arbitrary keys) and `t()` returns undefined for unknown keys",
       "file": "apps/docs/guide/i18n.md",
       "line": 39,
@@ -1400,7 +1419,8 @@
       "impact": "`I18nRegistry` exposes `use(locale)`, an `activeLocale` getter and `getLocale(locale?)` that returns a whole `Locale` object — there is no `setLocale` and no string-returning `getLocale()`, so every code sample on the page throws `TypeError: gf.i18n.setLocale is not a function`. The page also documents free-form keys (`'tour.welcome.title'`, `'btn.next'`), but `t(key: keyof Locale)` accepts only the 8 built-in UI keys (i18n/index.ts:6-15) so those calls do not type-check; and the documented fallback (\"falls back to the default locale (first registered locale)\") is wrong — `t()` falls back to the hard-coded `EN` constant (`locale[key] ?? EN[key]`, line 45), so `t('greeting')` after `register('en', {greeting:'Hello'})` + `use('fr')` returns `undefined`, not `'Hello'`. Any localisation attempt following this page fails, and it would fail anyway because the renderer ignores `instance.i18n` entirely.",
       "fix": "Rewrite apps/docs/guide/i18n.md against the real API (`register`, `use`, `activeLocale`, `t` with the 8 keys) and state clearly that i18n covers chrome strings only, not step content. If arbitrary keys are the intent, widen `Locale` to `Record<string, string>` with typed known keys, make `t()` return the key (not `undefined`) on miss, and implement the documented locale-chain fallback.",
       "effort": "M",
-      "verifierNote": "i18n.md:39 verbatim `gf.i18n.setLocale('es')`. I18nRegistry (i18n/index.ts:28-62) exposes register/use/t/activeLocale/getLocale(locale?) — getLocale returns a Locale object, and there is no setLocale, so every sample on the page throws. `t(key: keyof Locale, …)` (line 44) is typed to the 8 keys declared at lines 6-15, so 'tour.welcome.title'/'btn.next' do not type-check. Line 46 is `let str = locale[key] ?? EN[key]`, i.e. the fallback is the hard-coded EN constant, not the first registered locale — register('en',{greeting}) + use('fr') yields undefined, contradicting i18n.md:57-66."
+      "verifierNote": "i18n.md:39 verbatim `gf.i18n.setLocale('es')`. I18nRegistry (i18n/index.ts:28-62) exposes register/use/t/activeLocale/getLocale(locale?) — getLocale returns a Locale object, and there is no setLocale, so every sample on the page throws. `t(key: keyof Locale, …)` (line 44) is typed to the 8 keys declared at lines 6-15, so 'tour.welcome.title'/'btn.next' do not type-check. Line 46 is `let str = locale[key] ?? EN[key]`, i.e. the fallback is the hard-coded EN constant, not the first registered locale — register('en',{greeting}) + use('fr') yields undefined, contradicting i18n.md:57-66.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "instance-i18n-never-reaches-renderer",
@@ -1671,7 +1691,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "ai-generate guide documents an options object as generate()'s second argument; it is a DOM root",
       "file": "apps/docs/guide/ai-generate.md",
       "line": 55,
@@ -1679,7 +1699,8 @@
       "impact": "packages/ai/src/brain.ts:103 is `async generate(prompt = '', root?: Element | null)` and passes that argument straight to `serializeDOM(root)`. There is no `maxSteps` and no `placement` option anywhere in the AI package. At runtime the plain object is treated as a DOM root; `serializeDOM` calls `root.querySelectorAll(...)` on it and throws `TypeError: root.querySelectorAll is not a function`. The neighbouring page apps/docs/guide/ai.md:43 documents the *correct* second argument (`document.querySelector('#payment-form')`) — the two guide pages contradict each other about the same function.",
       "fix": "Delete the \"Custom Generation Options\" section from ai-generate.md, or implement it: add a third `GenerateOptions` parameter to `GuideBrain.generate` and honour `maxSteps`/`placement` in `validateSteps`. Whichever way, make ai-generate.md and ai.md agree.",
       "effort": null,
-      "verifierNote": "ai-generate.md:55 quote is verbatim. brain.ts:103 is `async generate(prompt = '', root?: Element | null)` and line 104 passes it straight to `serializeDOM(root)`. No maxSteps/placement exists anywhere in packages/ai. ai.md:43 does show the correct usage (`document.querySelector('#payment-form')`), confirming the contradiction between the two guide pages."
+      "verifierNote": "ai-generate.md:55 quote is verbatim. brain.ts:103 is `async generate(prompt = '', root?: Element | null)` and line 104 passes it straight to `serializeDOM(root)`. No maxSteps/placement exists anywhere in packages/ai. ai.md:43 does show the correct usage (`document.querySelector('#payment-form')`), confirming the contradiction between the two guide pages.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "analytics-event-names-wrong",
@@ -1687,7 +1708,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Analytics guide lists three event names the collector never emits and omits two it does",
       "file": "apps/docs/guide/analytics.md",
       "line": 31,
@@ -1695,7 +1716,8 @@
       "impact": "packages/analytics/src/collector.ts emits exactly six events: `guideflow.tour.started` (:62), `.completed` (:65), `.abandoned` (:70), `guideflow.step.viewed` (:74), `.exited` (:79), `.skipped` (:82). The guide's table invents `guideflow.tour.skipped` (:31), `guideflow.step.completed` (:34) and `guideflow.step.abandoned` (:35), and omits the real `guideflow.tour.abandoned` and `guideflow.step.skipped`. A team building dashboards or webhook consumers from this table filters on three event names that never arrive and misses the two that do. The root README.md:339-348 has the correct table, so the two canonical surfaces disagree.",
       "fix": "Replace the table in apps/docs/guide/analytics.md:27-35 with the six names emitted by collector.ts, matching README.md:341-348. Add a unit test that asserts the emitted event-name set equals a frozen constant so the docs table can be generated from it.",
       "effort": null,
-      "verifierNote": "analytics.md:31 `| \\`guideflow.tour.skipped\\` | User dismissed the tour |` is verbatim. collector.ts emits exactly guideflow.tour.started (:62), .completed (:65), .abandoned (:70), guideflow.step.viewed (:74), .exited (:79), .skipped (:82). The guide invents tour.skipped, step.completed, step.abandoned and omits tour.abandoned and step.skipped. README.md:339-348 has the correct six — the two surfaces disagree, as claimed."
+      "verifierNote": "analytics.md:31 `| \\`guideflow.tour.skipped\\` | User dismissed the tour |` is verbatim. collector.ts emits exactly guideflow.tour.started (:62), .completed (:65), .abandoned (:70), guideflow.step.viewed (:74), .exited (:79), .skipped (:82). The guide invents tour.skipped, step.completed, step.abandoned and omits tour.abandoned and step.skipped. README.md:339-348 has the correct six — the two surfaces disagree, as claimed.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "bundle-size-claim-exceeded",
@@ -1703,7 +1725,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "README advertises ~12 kB gzip for core; the built bundle is 14.6 kB and would fail the size-limit gate",
       "file": "README.md",
       "line": 40,
@@ -1711,7 +1733,8 @@
       "impact": "packages/core/package.json:73-79 sets `size-limit` to `{ path: './dist/index.js', limit: '12 kB', gzip: true }`. The bundle currently produced by `pnpm --filter @guideflow/core build` is 63,663 bytes raw / 14,954 bytes gzipped — 24% over the declared limit, so `pnpm size` fails today. The overshoot is partly explained by `packages/core/tsup.config.ts:12` setting `minify: false`, meaning the published ESM/CJS/IIFE artifacts ship unminified. `pnpm size` is listed as a development script in README.md:587 but is not run by ci.yml, so the regression went unnoticed. There is also no bundle-size table for the other seven packages — README.md:41-47 shows `—` for all of them.",
       "fix": "Set `minify: true` in packages/core/tsup.config.ts (keeping sourcemaps) and re-measure; then align README.md:40 and the size-limit `limit` with the real number. Add a `size` step to ci.yml so the budget is enforced. Populate the per-package size column, or drop the column rather than shipping seven em-dashes.",
       "effort": null,
-      "verifierNote": "README.md:40 is verbatim. packages/core/package.json `size-limit` is `[{\"path\":\"./dist/index.js\",\"limit\":\"12 kB\",\"gzip\":true}]`. I measured the built artifact myself: raw 63,663 bytes, gzip 14,954 bytes — matching the auditor's figures exactly, 24.6% over the declared limit. tsup.config.ts:12 is `minify: false` as cited. `pnpm size` exists in root package.json but appears in no ci.yml step. README.md:41-47 shows `—` for the other seven packages."
+      "verifierNote": "README.md:40 is verbatim. packages/core/package.json `size-limit` is `[{\"path\":\"./dist/index.js\",\"limit\":\"12 kB\",\"gzip\":true}]`. I measured the built artifact myself: raw 63,663 bytes, gzip 14,954 bytes — matching the auditor's figures exactly, 24.6% over the declared limit. tsup.config.ts:12 is `minify: false` as cited. `pnpm size` exists in root package.json but appears in no ci.yml step. README.md:41-47 shows `—` for the other seven packages.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "cli-export-emits-stub",
@@ -1719,7 +1742,7 @@
       "severity": "P1",
       "kind": "missing-implementation",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`guideflow export` does not export TypeScript flows — it writes a placeholder object",
       "file": "packages/cli/src/commands/export.ts",
       "line": 232,
@@ -1727,7 +1750,8 @@
       "impact": "For `.ts`/`.js` input — the default (`.argument('[file]', ..., 'my-tour.ts')`, line 204) — the command never parses the flow. It regex-matches the first 500 characters and writes `{_note, rawSnippet}` to disk, then prints `✓ Exported flow to <path>` in green. The output is not a `FlowDefinition` and cannot be consumed by `guideflow push`, by the DevTools extension, or by anything else the file's own docblock (lines 194-197) promises. README.md:535 states \"Export flow definitions to JSON\" and apps/docs/api/cli.md:73 states \"Exports a flow definition to a standalone JSON file\" — neither mentions the stub. Users pipe the result into `push` and upload garbage.",
       "fix": "Either implement real extraction (import the module with `jiti`/`tsx` and serialise the exported FlowDefinition) or make the failure loud: exit non-zero for `.ts`/`.js` with a message directing users to `.json`, and change the success line so it is not printed for stub output. Update README.md:535 and apps/docs/api/cli.md:71-87 to state the real limitation.",
       "effort": null,
-      "verifierNote": "The quoted stub object is verbatim — at export.ts:47-50, not :232 (the file is 64 lines). The `.argument('[file]', ..., 'my-tour.ts')` default is line 19. For .ts/.js the code regex-matches at line 39 and writes `{_note, rawSnippet: match[0].slice(0,500)}`, then line 63 prints `✓ Exported flow to <path>` in green. Mitigating detail the auditor omitted: line 51-53 does emit a yellow '⚠ TypeScript static extraction is limited. Please verify the output.' warning, so it is not entirely silent — but the output is still not a FlowDefinition, and README.md:535 / cli.md:73 promise otherwise."
+      "verifierNote": "The quoted stub object is verbatim — at export.ts:47-50, not :232 (the file is 64 lines). The `.argument('[file]', ..., 'my-tour.ts')` default is line 19. For .ts/.js the code regex-matches at line 39 and writes `{_note, rawSnippet: match[0].slice(0,500)}`, then line 63 prints `✓ Exported flow to <path>` in green. Mitigating detail the auditor omitted: line 51-53 does emit a yellow '⚠ TypeScript static extraction is limited. Please verify the output.' warning, so it is not entirely silent — but the output is still not a FlowDefinition, and README.md:535 / cli.md:73 promise otherwise.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "cli-studio-not-an-editor",
@@ -1735,7 +1759,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`guideflow studio` is documented as a visual tour editor that opens a browser; it is neither",
       "file": "packages/cli/src/commands/studio.ts",
       "line": 78,
@@ -1743,7 +1767,8 @@
       "impact": "README.md:534 says \"Launch the visual tour editor (opens browser)\" and apps/docs/api/cli.md:48 says \"Launches a local visual tour editor powered by Vite and the GuideFlow DevTools panel\". The implementation starts a plain Vite dev server on the user's project root with `open: false` (so no browser opens) and injects one line — `window.__GUIDEFLOW_DEVTOOLS__ = true` (studio.ts:87). Nothing reads that flag in packages/core; the DevTools panel is a separate unpublished Chrome extension. There is no editor, no element picker, and no flow output. Running the documented command gives the user their own app on port 4747 and nothing else.",
       "fix": "Change README.md:534 and apps/docs/api/cli.md:46-67 to describe what it does (\"serves your app with the GuideFlow DevTools bridge enabled — requires the DevTools extension, which is unpublished\"), and set `open: true` if opening the browser is intended. Mark the command experimental until an editor exists.",
       "effort": null,
-      "verifierNote": "`server: { port, open: false }` is verbatim at studio.ts:26 (not :78 — the file is 54 lines). The only injection is `window.__GUIDEFLOW_DEVTOOLS__ = true` at line 34. A repo-wide grep for that flag finds it read only in apps/demo/src/App.tsx:207 — nothing in packages/core reads it, confirming the claim. README.md:534 'Launch the visual tour editor (opens browser)' and cli.md:48 'Launches a local visual tour editor powered by Vite and the GuideFlow DevTools panel' both verified verbatim."
+      "verifierNote": "`server: { port, open: false }` is verbatim at studio.ts:26 (not :78 — the file is 54 lines). The only injection is `window.__GUIDEFLOW_DEVTOOLS__ = true` at line 34. A repo-wide grep for that flag finds it read only in apps/demo/src/App.tsx:207 — nothing in packages/core reads it, confirming the claim. README.md:534 'Launch the visual tour editor (opens browser)' and cli.md:48 'Launches a local visual tour editor powered by Vite and the GuideFlow DevTools panel' both verified verbatim.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "cross-tab-sync-overclaimed",
@@ -1751,7 +1776,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Docs claim cross-tab sync works automatically, but BroadcastSync is only created on a resumed tour",
       "file": "apps/docs/guide/persistence.md",
       "line": 76,
@@ -1759,7 +1784,8 @@
       "impact": "In packages/core/src/index.ts the only assignment to `_broadcastSync` is at line 254, inside `if (snapshot && !snapshot.completed)` — which itself sits inside `if (userId)`. So the channel is created only when a user has a *previously saved, incomplete* snapshot at start time. On a first-ever tour, or any tour without `context.userId`, `_broadcastSync` stays `null` and `_saveProgress`'s `_broadcastSync?.broadcast(...)` (line 338) is a no-op. Cross-tab sync therefore does not work \"out of the box with no configuration\" — it requires a userId *and* a second run. apps/docs/api/progress-store.md:55 repeats the claim (\"works automatically when persistence is enabled\") and README.md:26 advertises \"cross-tab sync via BroadcastChannel\" as a headline feature. No test covers the createGuideFlow wiring at all — there is no test file for packages/core/src/index.ts.",
       "fix": "Create `BroadcastSync` unconditionally whenever `_config.context?.userId` is set (move it out of the snapshot branch in packages/core/src/index.ts), and tear it down in `destroy()`. Add packages/core/src/__tests__/create-guide-flow.test.ts covering: fresh start with userId creates the channel, dismissed flows are skipped, and an incomplete snapshot restores state and step index.",
       "effort": null,
-      "verifierNote": "persistence.md:74-78 is verbatim ('This works out of the box with no configuration required'). packages/core/src/index.ts has exactly one assignment to _broadcastSync, at line 254, nested inside `if (snapshot && !snapshot.completed)` (249) inside `if (userId)` (244). On a first run or without context.userId it stays null and `_broadcastSync?.broadcast(...)` at line 338 is a no-op. api/progress-store.md:55 repeats 'This works automatically when persistence is enabled' and README.md:26 advertises it as a headline feature. No test file exists for src/index.ts."
+      "verifierNote": "persistence.md:74-78 is verbatim ('This works out of the box with no configuration required'). packages/core/src/index.ts has exactly one assignment to _broadcastSync, at line 254, nested inside `if (snapshot && !snapshot.completed)` (249) inside `if (userId)` (244). On a first run or without context.userId it stays null and `_broadcastSync?.broadcast(...)` at line 338 is a no-op. api/progress-store.md:55 repeats 'This works automatically when persistence is enabled' and README.md:26 advertises it as a headline feature. No test file exists for src/index.ts.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "e2e-not-in-ci",
@@ -1801,7 +1827,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "GuideBrain API reference documents a stopWatch() method that does not exist and gets three signatures wrong",
       "file": "apps/docs/api/ai/guide-brain.md",
       "line": 68,
@@ -1809,7 +1835,8 @@
       "impact": "`GuideBrain` (packages/ai/src/brain.ts) has no `stopWatch` member at all — `gf.ai.stopWatch()` throws `TypeError: gf.ai.stopWatch is not a function`. Cleanup is done via the function returned by `watch()`, which the same page documents as `watch(): void` (line 61) — so a reader following this page has no working way to stop intent monitoring and leaks four document-level listeners. `compress(steps)` at line 83 is documented as single-argument, but brain.ts:211 is `compress(steps: Step[], instance: GuideFlowInstance, userId?: string)` with `instance` required. And lines 50-51 print `answer.answer` and `answer.stepId`, while `GuidedAnswer` (types/index.ts:286) is `{ text, highlights, confidence?, suggestedSteps? }` — both log `undefined`.",
       "fix": "Delete the `stopWatch()` section; document `const stop = gf.ai.watch()` / `stop()`. Correct the signatures to `watch(): () => void` and `compress(steps: Step[], instance: GuideFlowInstance, userId?: string): Promise<Step[]>`. Replace `answer.answer`/`answer.stepId` with `answer.text`/`answer.highlights` here and at api/ai/create-ai.md:54 and guide/ai.md:77-78.",
       "effort": null,
-      "verifierNote": "guide-brain.md:68 `### \\`stopWatch()\\`` is verbatim. brain.ts has no stopWatch — cleanup is the closure returned by `watch(): () => void` (brain.ts:124, 173), while the doc types it `watch(): void` at line 61. compress is `compress(steps: Step[], instance: GuideFlowInstance, userId?: string)` (brain.ts:211), doc line 83 shows one arg. Doc lines 50-51 log `answer.answer`/`answer.stepId` while GuidedAnswer (types/index.ts:286) is {text, highlights, confidence?, suggestedSteps?}. Note ai.md:66 documents compress correctly, so the two pages disagree."
+      "verifierNote": "guide-brain.md:68 `### \\`stopWatch()\\`` is verbatim. brain.ts has no stopWatch — cleanup is the closure returned by `watch(): () => void` (brain.ts:124, 173), while the doc types it `watch(): void` at line 61. compress is `compress(steps: Step[], instance: GuideFlowInstance, userId?: string)` (brain.ts:211), doc line 83 shows one arg. Doc lines 50-51 log `answer.answer`/`answer.stepId` while GuidedAnswer (types/index.ts:286) is {text, highlights, confidence?, suggestedSteps?}. Note ai.md:66 documents compress correctly, so the two pages disagree.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "i18n-guide-entirely-fictional",
@@ -1817,7 +1844,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "The i18n guide documents setLocale() and arbitrary translation keys; neither exists",
       "file": "apps/docs/guide/i18n.md",
       "line": 39,
@@ -1825,7 +1852,8 @@
       "impact": "`I18nRegistry` (packages/core/src/i18n/index.ts) exposes `register(locale, strings: Partial<Locale>)`, `use(locale)`, `t(key: keyof Locale, vars?)`, `activeLocale`, and `getLocale(locale?): Locale`. There is no `setLocale` — `gf.i18n.setLocale('es')` is a TypeError at runtime. Worse, `Locale` is a closed interface of exactly 8 UI strings (next, prev, close, skip, stepOf, done, openHint, closeHint), so the guide's entire premise — registering `'tour.welcome.title'` and calling `gf.i18n.t('tour.welcome.title')` — is impossible: `register` rejects the excess properties and `t` rejects the key. The documented API table at i18n.md:84-87 lists four methods of which three (`setLocale`, `getLocale()` returning a string, `t(key)` for arbitrary keys) do not match the implementation. The fallback description (\"falls back to the default locale (first registered locale)\") is also wrong — i18n/index.ts:46 falls back to the hard-coded `EN` constant.",
       "fix": "Rewrite apps/docs/guide/i18n.md around the real API: `gf.i18n.register('es', { next: 'Siguiente', prev: 'Anterior', done: 'Hecho' })` then `gf.i18n.use('es')`, and state explicitly that only the 8 built-in chrome strings are translatable while step content must be localised by the caller (e.g. via an async `content` function). Update the README bullet \"i18n — extensible translation registry\" to match.",
       "effort": null,
-      "verifierNote": "i18n.md:39 is verbatim `gf.i18n.setLocale('es')`. i18n/index.ts exposes register/use/t/activeLocale/getLocale — no setLocale (verified by full read of the 64-line file). Locale is the closed 8-key interface at lines 6-15, so `register('en', {'tour.welcome.title': ...})` and `t('tour.welcome.title')` are both type errors and return the wrong thing. The fallback claim is also wrong: line 45 `this._locales.get(this._active) ?? EN` and line 46 `locale[key] ?? EN[key]` fall back to the hard-coded EN constant, not the first registered locale."
+      "verifierNote": "i18n.md:39 is verbatim `gf.i18n.setLocale('es')`. i18n/index.ts exposes register/use/t/activeLocale/getLocale — no setLocale (verified by full read of the 64-line file). Locale is the closed 8-key interface at lines 6-15, so `register('en', {'tour.welcome.title': ...})` and `t('tour.welcome.title')` are both type errors and return the wrong thing. The fallback claim is also wrong: line 45 `this._locales.get(this._active) ?? EN` and line 46 `locale[key] ?? EN[key]` fall back to the hard-coded EN constant, not the first registered locale.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "intent-signal-shape-fabricated",
@@ -1833,7 +1861,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Intent-detection docs describe an IntentSignal shape and field the code does not produce",
       "file": "apps/docs/guide/ai-intent.md",
       "line": 47,
@@ -1841,7 +1869,8 @@
       "impact": "The real `IntentSignal` (packages/core/src/types/index.ts:279) is `{ type; element?: string; confidence: number; duration?: number }` — there is no `context` object, so `signal.context.page` throws `TypeError: Cannot read properties of undefined`. `validateIntentSignal` (packages/ai/src/validation.ts) never constructs a `context` field either. Separately, apps/docs/guide/ai.md:54 branches on `signal.intent === 'checkout'` — `intent` is not a field on the returned object (it is only accepted as an *input* alias by the validator) and `'checkout'` is not one of the four legal `type` values, so that documented handler can never fire.",
       "fix": "Replace the fabricated interface in ai-intent.md with the actual `IntentSignal` from packages/core/src/types/index.ts:279, and fix guide/ai.md:54 to `if (signal.type === 'confused' && signal.confidence > 0.8)`.",
       "effort": null,
-      "verifierNote": "ai-intent.md:47 interface block is verbatim. Real IntentSignal (types/index.ts:279) is `{type; element?; confidence; duration?}` — no `context`. ai.md:54 branches on `signal.intent === 'checkout'`; `intent` is not a field on IntentSignal and 'checkout' is not one of the four legal type values, so that handler can never fire."
+      "verifierNote": "ai-intent.md:47 interface block is verbatim. Real IntentSignal (types/index.ts:279) is `{type; element?; confidence; duration?}` — no `context`. ai.md:54 branches on `signal.intent === 'checkout'`; `intent` is not a field on IntentSignal and 'checkout' is not one of the four legal type values, so that handler can never fire.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "license-wrong-owner-url",
@@ -1849,7 +1878,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "LICENSE names a GitHub account that does not own the repository",
       "file": "LICENSE",
       "line": 3,
@@ -1857,7 +1886,8 @@
       "impact": "The MIT copyright line points at `github.com/johnmugabe` while repo.config.json:5 and every package manifest declare `github.com/RealNerdZW/GuideFlow`. Meanwhile README.md:609 attributes copyright to \"GuideFlow Contributors\" and apps/docs/.vitepress/config.ts:310 renders \"Copyright © {year} GuideFlow Contributors\". Three different copyright holders across the three surfaces a downstream legal review would check, and the one in the legally operative file names an account unconnected to the project.",
       "fix": "Settle on one holder and make LICENSE, README.md:609 and the VitePress footer agree. Update LICENSE line 3 to the repo.config.json `authorUrl`, and add LICENSE to the sync-repo-meta.mjs replacement list.",
       "effort": null,
-      "verifierNote": "LICENSE:3 is verbatim `Copyright (c) 2026 John Mugabe (https://github.com/johnmugabe)`. repo.config.json:5 is `\"githubUrl\": \"https://github.com/RealNerdZW/GuideFlow\"`. README.md:609 reads `[MIT](LICENSE) © 2026 GuideFlow Contributors` and apps/docs/.vitepress/config.ts:310 renders `Copyright © ${year} GuideFlow Contributors` — all three cited lines match exactly, giving three divergent copyright holders."
+      "verifierNote": "LICENSE:3 is verbatim `Copyright (c) 2026 John Mugabe (https://github.com/johnmugabe)`. repo.config.json:5 is `\"githubUrl\": \"https://github.com/RealNerdZW/GuideFlow\"`. README.md:609 reads `[MIT](LICENSE) © 2026 GuideFlow Contributors` and apps/docs/.vitepress/config.ts:310 renders `Copyright © ${year} GuideFlow Contributors` — all three cited lines match exactly, giving three divergent copyright holders.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "migration-guides-wrong-events-and-fields",
@@ -1865,7 +1895,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "Both migration guides map old APIs onto GuideFlow events and options that do not exist",
       "file": "apps/docs/guide/migrate-driver.md",
       "line": 19,
@@ -1873,7 +1903,8 @@
       "impact": "`TourEvents` (packages/core/src/types/index.ts:202-216) contains no `tour:end` — the real events are `tour:complete` and `tour:abandon`. `Step` (types/index.ts:53-72) has no `allowDismiss`. migrate-driver.md:55 shows `createGuideFlow({ spotlight: { opacity: 0.75 } })` but `SpotlightOptions` (types/index.ts:121-133) declares `overlayOpacity`, not `opacity`, so it is a TS excess-property error and a silent no-op. migrate-intro.md is equally wrong: line 15 maps `.exit()` to `gf.end()` (the `GuideFlowInstance` interface exposes `stop()`, not `end()`), and lines 19-20 map `.oncomplete`/`.onexit` to `tour:end` and `tour:skip`, neither of which exists. Because `on()` is typed against `TourEvents`, all of these are compile errors *and* handlers that can never fire — so a migrating user's completion tracking silently breaks. README.md:540-554 compounds this by claiming `data-intro`/`data-step`/`data-position` attributes are supported, while `scanAttributeTour` (packages/core/src/compat/intro-compat.ts:9-13) only reads `data-gf-step`/`data-gf-title`/`data-gf-body`/`data-gf-placement`; apps/docs/guide/vanilla.md:90 repeats the same false claim.",
       "fix": "Correct both mapping tables to the real event names (`tour:complete`, `tour:abandon`, `step:skip`), `stop()`, and `spotlight.overlayOpacity`; delete the `allowDismiss` row. Either implement real `data-intro`/`data-step`/`data-position` aliases in intro-compat.ts (which would make the Intro.js migration claim true) or fix README.md:546 and vanilla.md:90 to show `data-gf-*`.",
       "effort": null,
-      "verifierNote": "Most sub-claims verified: TourEvents (types/index.ts:202-216) has tour:complete/tour:abandon but no `tour:end` or `tour:skip`; Step (53-72) has no `allowDismiss`; SpotlightOptions (121-133) declares `overlayOpacity`, not `opacity`, so migrate-driver.md:55 is a no-op; scanAttributeTour (intro-compat.ts:9-13) reads only data-gf-step/-title/-body/-placement, so README.md:544 and vanilla.md:90 are false. Two errors though: (1) `gf.end()` DOES work at runtime — TourEngine.end() is defined at tour.ts:159 and survives the Object.assign (index.ts:214), so it is only missing from the GuideFlowInstance type, not 'not exposed'; (2) the quoted row `stagePadding → config.spotlight.padding` is actually CORRECT — SpotlightOptions.padding exists at types/index.ts:122. So one of the three quoted evidence rows is not a defect."
+      "verifierNote": "Most sub-claims verified: TourEvents (types/index.ts:202-216) has tour:complete/tour:abandon but no `tour:end` or `tour:skip`; Step (53-72) has no `allowDismiss`; SpotlightOptions (121-133) declares `overlayOpacity`, not `opacity`, so migrate-driver.md:55 is a no-op; scanAttributeTour (intro-compat.ts:9-13) reads only data-gf-step/-title/-body/-placement, so README.md:544 and vanilla.md:90 are false. Two errors though: (1) `gf.end()` DOES work at runtime — TourEngine.end() is defined at tour.ts:159 and survives the Object.assign (index.ts:214), so it is only missing from the GuideFlowInstance type, not 'not exposed'; (2) the quoted row `stagePadding → config.spotlight.padding` is actually CORRECT — SpotlightOptions.padding exists at types/index.ts:122. So one of the three quoted evidence rows is not a defect.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "no-coverage-thresholds",
@@ -1949,7 +1980,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Six package entry points carry a different author identity than every manifest and repo.config.json",
       "file": "packages/core/src/index.ts",
       "line": 5,
@@ -1957,7 +1988,8 @@
       "impact": "This identical header block appears at lines 5 and 7 of packages/core/src/index.ts, packages/react/src/index.ts, packages/vue/src/index.ts, packages/svelte/src/index.ts, packages/ai/src/index.ts, packages/analytics/src/index.ts and packages/cli/src/index.ts — seven files. Every one names `github.com/johnmugabe` and a `263tickets.co.zw` address, while repo.config.json:2 says `RealNerdZW` and all eight package.json manifests say `\"author\": \"John Mugabe (https://github.com/RealNerdZW)\"`. Because `\"files\"` includes `src` in every publishable manifest, both identities ship to npm inside the same tarball. `github.com/johnmugabe` is a different account from the one that owns the repository, so bug reports and security contacts route to a dead address.",
       "fix": "Replace `@github`/`@email` in the seven `src/index.ts` headers with the values from repo.config.json, or drop the personal fields and keep only `@license`. Then extend scripts/sync-repo-meta.mjs to cover them (see the sync-script finding).",
       "effort": null,
-      "verifierNote": "packages/core/src/index.ts:5 and :7 are verbatim `@email jonesmugabe@263tickets.co.zw` / `@github https://github.com/johnmugabe`. grep confirms the same line-7 header in ai, analytics, cli, core, react, svelte, vue = seven files (the title says 'six', the body correctly says seven). repo.config.json:2 is `\"owner\": \"RealNerdZW\"` and all eight manifests read `John Mugabe (https://github.com/RealNerdZW)`. packages/core/package.json `\"files\"` includes `src`, so both identities ship in the tarball."
+      "verifierNote": "packages/core/src/index.ts:5 and :7 are verbatim `@email jonesmugabe@263tickets.co.zw` / `@github https://github.com/johnmugabe`. grep confirms the same line-7 header in ai, analytics, cli, core, react, svelte, vue = seven files (the title says 'six', the body correctly says seven). repo.config.json:2 is `\"owner\": \"RealNerdZW\"` and all eight manifests read `John Mugabe (https://github.com/RealNerdZW)`. packages/core/package.json `\"files\"` includes `src`, so both identities ship in the tarball.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "stale-version-strings",
@@ -1965,7 +1997,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Two published documentation surfaces still advertise v0.1.4 while packages are at 0.1.9",
       "file": "apps/docs/packages/index.md",
       "line": 44,
@@ -1973,7 +2005,8 @@
       "impact": "Every package manifest says `\"version\": \"0.1.9\"`, and packages/devtools/src/panel/app.tsx:1018 renders \"Extension v0.1.9\". But the deployed VitePress \"Version Matrix\" says 0.1.4, and the legacy docs/index.html:54 shows a `v0.1.4` badge with docs/changelog.html:38 declaring \"v0.1.4 — Latest, Released: April 7, 2026\". Users reading the published site under-install by five patch releases and the changelog omits every change since. The same packages/index.md:40 claims \"released together via Changesets\", yet `.changeset/` contains only config.json and the git history shows the bumps were manual (`chore: bump all packages to 0.1.8`, `chore: bump all packages to 0.1.7`) — so the stated release process is not the one in use.",
       "fix": "Delete the hard-coded version from apps/docs/packages/index.md:44 (link to the npm badge instead), and either delete docs/*.html or regenerate index.html/changelog.html. Restore the Changesets workflow — `pnpm changeset` per PR — so versions and changelogs are generated rather than hand-edited.",
       "effort": null,
-      "verifierNote": "Every cited line matched exactly: apps/docs/packages/index.md:44 `| **0.1.4** | MIT |`, docs/index.html:54 `<span class=\"badge\">v0.1.4</span>`, docs/changelog.html:38 `<h2>v0.1.4 <span class=\"version-badge\">Latest</span></h2>` with 'Released: April 7, 2026', devtools/src/panel/app.tsx:1018 'Extension v0.1.9'. All eight manifests are 0.1.9. packages/index.md:40 claims Changesets release while `ls -a .changeset` shows only config.json and git log shows manual `chore: bump all packages to 0.1.8/0.1.7`."
+      "verifierNote": "Every cited line matched exactly: apps/docs/packages/index.md:44 `| **0.1.4** | MIT |`, docs/index.html:54 `<span class=\"badge\">v0.1.4</span>`, docs/changelog.html:38 `<h2>v0.1.4 <span class=\"version-badge\">Latest</span></h2>` with 'Released: April 7, 2026', devtools/src/panel/app.tsx:1018 'Extension v0.1.9'. All eight manifests are 0.1.9. packages/index.md:40 claims Changesets release while `ls -a .changeset` shows only config.json and git log shows manual `chore: bump all packages to 0.1.8/0.1.7`.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "theme-tokens-fabricated",
@@ -1981,7 +2014,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Every CSS custom property listed in the theme and custom-token docs has the wrong name",
       "file": "apps/docs/themes/custom.md",
       "line": 16,
@@ -1989,7 +2022,8 @@
       "impact": "Of the 21 tokens documented across custom.md and the five theme pages, only `--gf-popover-bg`, `--gf-popover-border` and `--gf-overlay-color`/`--gf-overlay-opacity` are real (packages/core/src/styles/tokens.css:3-53). The rest are invented: the real names are `--gf-popover-text` (not `-color`), `--gf-border-radius` (not `--gf-popover-border-radius`), `--gf-shadow` (not `--gf-popover-shadow`), `--gf-accent-color`/`--gf-accent-fg` (not `--gf-btn-primary-bg`/`-color`), `--gf-popover-width` (not `--gf-popover-max-width`), `--gf-font-family` (not `--gf-popover-font`), `--gf-spacing` (not `--gf-popover-padding`), `--gf-hotspot-size` (not `--gf-beacon-size`); `--gf-popover-backdrop`, `--gf-beacon-color`, `--gf-btn-secondary-bg` and `--gf-btn-secondary-color` do not exist at all. Compounding this, every code sample targets `.guideflow-popover` (custom.md:55, :77, :88; themes/index.md:34) while the actual class is `.gf-popover` (default-renderer.ts:150). A user following the entire \"Custom Tokens\" page changes nothing on screen.",
       "fix": "Generate the token tables directly from packages/core/src/styles/tokens.css so they cannot drift, and replace `.guideflow-popover` with `:root` / `.gf-popover` in all four samples. Add a docs test that asserts every `--gf-*` name mentioned in apps/docs/themes/*.md appears in tokens.css.",
       "effort": null,
-      "verifierNote": "custom.md:16-19 is verbatim. tokens.css:3-53 defines --gf-popover-bg/-text/-border/-width, --gf-accent-color/-fg, --gf-overlay-opacity/-color, --gf-border-radius(-sm), --gf-shadow, --gf-font-family/-size(-sm), --gf-line-height, --gf-spacing(-sm), --gf-progress-bg/-fill, --gf-btn-radius/-padding/-font-size, --gf-arrow-size, --gf-hotspot-size, z-index. Every renamed token the auditor lists checks out, and --gf-popover-backdrop / --gf-beacon-color / --gf-btn-secondary-* appear nowhere. default-renderer.ts:150 sets `className = 'gf-popover'`, so the `.guideflow-popover` selectors at custom.md:55/77/88 and themes/index.md:34 match nothing."
+      "verifierNote": "custom.md:16-19 is verbatim. tokens.css:3-53 defines --gf-popover-bg/-text/-border/-width, --gf-accent-color/-fg, --gf-overlay-opacity/-color, --gf-border-radius(-sm), --gf-shadow, --gf-font-family/-size(-sm), --gf-line-height, --gf-spacing(-sm), --gf-progress-bg/-fill, --gf-btn-radius/-padding/-font-size, --gf-arrow-size, --gf-hotspot-size, z-index. Every renamed token the auditor lists checks out, and --gf-popover-backdrop / --gf-beacon-color / --gf-btn-secondary-* appear nowhere. default-renderer.ts:150 sets `className = 'gf-popover'`, so the `.guideflow-popover` selectors at custom.md:55/77/88 and themes/index.md:34 match nothing.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "ttl-zero-doc-inverted",
@@ -1997,7 +2031,7 @@
       "severity": "P1",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Persistence guide says ttl:0 disables expiry; it actually expires all progress immediately",
       "file": "apps/docs/guide/persistence.md",
       "line": 99,
@@ -2005,7 +2039,8 @@
       "impact": "packages/core/src/persistence/progress-store.ts:95 is `this._ttl = config.ttl ?? DEFAULT_TTL` — nullish coalescing, so `0` is kept, not replaced. `saveSnapshot` then writes `expiresAt: Date.now() + 0` (line 104) and `loadSnapshot` evicts on `if (Date.now() > entry.expiresAt)` (line 113). With `ttl: 0` every snapshot, every dismissal, and every completion record is discarded on the very next read — the exact opposite of the documented behaviour. A team that follows this guide to make onboarding state permanent instead makes it entirely non-persistent, and users are re-shown tours they already dismissed. Nothing tests this: progress-store.test.ts:136 only covers `ttl: 1`.",
       "fix": "Either implement the documented semantics (`const ttl = config.ttl === 0 ? Infinity : config.ttl ?? DEFAULT_TTL`) or correct persistence.md:99 to say `ttl: 0` expires immediately and that `Infinity` is the way to disable expiry. Add a progress-store test for `ttl: 0` and for `ttl: Infinity`.",
       "effort": null,
-      "verifierNote": "persistence.md:101 (cited 99) reads `Set \\`ttl: 0\\` to disable expiry (progress persists indefinitely).` progress-store.ts:31 (cited 95) is `this._ttl = config.ttl ?? DEFAULT_TTL` — nullish coalescing preserves 0. Lines 40/67/98 write `expiresAt: Date.now() + this._ttl` and lines 49/76/110 evict on `Date.now() > entry.expiresAt`, so with ttl:0 every snapshot, dismissal and completion record is dropped on the next read (any read ≥1ms later). progress-store.test.ts:136 covers only ttl:1."
+      "verifierNote": "persistence.md:101 (cited 99) reads `Set \\`ttl: 0\\` to disable expiry (progress persists indefinitely).` progress-store.ts:31 (cited 95) is `this._ttl = config.ttl ?? DEFAULT_TTL` — nullish coalescing preserves 0. Lines 40/67/98 write `expiresAt: Date.now() + this._ttl` and lines 49/76/110 evict on `Date.now() > entry.expiresAt`, so with ttl:0 every snapshot, dismissal and completion record is dropped on the next read (any read ≥1ms later). progress-store.test.ts:136 covers only ttl:1.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "vacuous-tests",
@@ -2757,7 +2792,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "The documented generate() options object is passed to serializeDOM as a root element and throws",
       "file": "apps/docs/guide/ai-generate.md",
       "line": 55,
@@ -2765,7 +2800,8 @@
       "impact": "`generate(prompt = '', root?: Element | null)` (brain.ts:103) forwards its second argument straight to `serializeDOM(root)`, which does `const rootEl = root ?? document.body; Array.from(rootEl.querySelectorAll('*'))` (dom-context.ts:128-129). A plain options object is truthy, so `rootEl` becomes `{maxSteps: 5, placement: 'bottom'}` and the call throws `TypeError: rootEl.querySelectorAll is not a function`. Neither `maxSteps` nor `placement` exists anywhere in the package — there is no way to cap generated step count (`serializeDOM`'s `maxElements` caps input elements, not output steps) or set a default placement. The same page also claims under \"How It Works\" that \"steps are validated against the actual DOM before returning\" (line 39); `validateSteps` never touches the DOM, so a step targeting a nonexistent selector is returned as valid.",
       "fix": "Delete the \"Custom Generation Options\" section, or implement it: change the signature to `generate(prompt?: string, options?: { root?: Element | null; maxSteps?: number; placement?: PopoverPlacement })` while keeping backward compatibility with an `Element` second argument (`options instanceof Element ? {root: options} : options`), apply `maxSteps` as a slice and `placement` as a per-step default in `validateSteps`. Fix the \"Validation\" bullet at line 39 to say what actually happens, or add real DOM verification (drop or flag steps whose `target` matches nothing) — which would also mitigate `nth-of-type-selector-unscoped`.",
       "effort": "M",
-      "verifierNote": "ai-generate.md:55-58 verbatim. brain.ts:103 is `async generate(prompt = '', root?: Element | null)` and line 104 passes root straight to serializeDOM. dom-context.ts:128-129 does `const rootEl = root ?? document.body; Array.from(rootEl.querySelectorAll('*'))` — a truthy options object survives the ?? and throws TypeError on querySelectorAll. Grepped maxSteps and placement across packages/ai/src: neither exists as an option; serializeDOM's `maxElements` (line 123, default 80) caps input elements only. ai-generate.md:39's 'steps are validated against the actual DOM before returning' is also false — validation.ts touches no DOM API."
+      "verifierNote": "ai-generate.md:55-58 verbatim. brain.ts:103 is `async generate(prompt = '', root?: Element | null)` and line 104 passes root straight to serializeDOM. dom-context.ts:128-129 does `const rootEl = root ?? document.body; Array.from(rootEl.querySelectorAll('*'))` — a truthy options object survives the ?? and throws TypeError on querySelectorAll. Grepped maxSteps and placement across packages/ai/src: neither exists as an option; serializeDOM's `maxElements` (line 123, default 80) caps input elements only. ai-generate.md:39's 'steps are validated against the actual DOM before returning' is also false — validation.ts touches no DOM API.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-guide-ai-broken-api",
@@ -2773,7 +2809,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "apps/docs/guide/ai.md and ai-intent.md document IntentSignal and GuidedAnswer fields that do not exist",
       "file": "apps/docs/guide/ai.md",
       "line": 54,
@@ -2781,7 +2817,8 @@
       "impact": "`IntentSignal` is `{ type, element?, confidence, duration? }` (packages/core/src/types/index.ts:279-284) — there is no `intent` field, and `'checkout'` is not one of the four legal `type` values, so this condition is `undefined === 'checkout'` and never fires. The same page's conversational-help example reads `answer.answer` and `answer.highlightSelector` (lines 77-83), neither of which exists on `GuidedAnswer` (`{ text, highlights, confidence?, suggestedSteps? }`, types/index.ts:286-291) — `validateGuidedAnswer` deliberately *maps* the provider's `answer`/`highlightSelector` into `text`/`highlights` (validation.ts:101-115), so the docs describe the wire format, not the returned object. `console.log(answer.answer)` prints `undefined`. apps/docs/guide/ai-intent.md:47-56 goes further and documents a `context: { page, duration, interactions }` object on `IntentSignal` that no provider or validator ever produces. apps/docs/api/ai/create-ai.md:54 repeats `answer.answer`. Note apps/docs/guide/ai-chat.md:53-55 gets it right (`response.text`, `response.highlights`), so the docs contradict each other.",
       "fix": "Fix the four snippets to the real shapes: `signal.type === 'confused'` (as ai-intent.md:26 already does correctly), `answer.text`, `answer.highlights[0]`. Delete the fabricated `context` block from ai-intent.md:47-56 or implement it — `duration` already exists on `IntentSignal` but nothing populates it, so populating `{ duration, interactions }` in `GuideBrain.detectIntent` from the event buffer would be a cheap way to make the doc true. Also fix `gf.start({ id: 'ai-checkout', steps })` at ai.md:40 and 70 to the `{ id, initial, states }` form.",
       "effort": "S",
-      "verifierNote": "ai.md:54 verbatim. IntentSignal (core types 279-284) is {type, element?, confidence, duration?} with type constrained to confused|stuck|exploring|engaged, so `signal.intent === 'checkout'` is undefined === 'checkout' and never fires. ai.md:77-78 and 81-82 read answer.answer/answer.highlightSelector; GuidedAnswer (286-291) is {text, highlights, confidence?, suggestedSteps?}, and validateGuidedAnswer (validation.ts:101-115) explicitly maps the wire-format `answer`/`highlightSelector` into `text`/`highlights` — so the docs describe the pre-validation shape. ai-intent.md:47-56 does document a `context: { page, duration, interactions }` object that no provider or validator produces. create-ai.md:54 repeats answer.answer. And ai-chat.md:52-55 does get it right (response.text / response.highlights), so the pages contradict each other as claimed."
+      "verifierNote": "ai.md:54 verbatim. IntentSignal (core types 279-284) is {type, element?, confidence, duration?} with type constrained to confused|stuck|exploring|engaged, so `signal.intent === 'checkout'` is undefined === 'checkout' and never fires. ai.md:77-78 and 81-82 read answer.answer/answer.highlightSelector; GuidedAnswer (286-291) is {text, highlights, confidence?, suggestedSteps?}, and validateGuidedAnswer (validation.ts:101-115) explicitly maps the wire-format `answer`/`highlightSelector` into `text`/`highlights` — so the docs describe the pre-validation shape. ai-intent.md:47-56 does document a `context: { page, duration, interactions }` object that no provider or validator produces. create-ai.md:54 repeats answer.answer. And ai-chat.md:52-55 does get it right (response.text / response.highlights), so the pages contradict each other as claimed.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-guide-brain-phantom-api",
@@ -2789,7 +2826,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "apps/docs/api/ai/guide-brain.md documents a stopWatch() method that does not exist and gets three signatures wrong",
       "file": "apps/docs/api/ai/guide-brain.md",
       "line": 68,
@@ -2797,7 +2834,8 @@
       "impact": "`GuideBrain` has no `stopWatch` — grep of packages/ai/src returns nothing; the real API is the cleanup function returned by `watch()`. A user calling `gf.ai.stopWatch()` gets `TypeError: gf.ai.stopWatch is not a function` and keeps leaking listeners plus LLM calls. Three more mismatches on the same page: `watch(): void` (line 61) — it actually returns `() => void`; `compress(steps: Step[])` (line 83) — the real signature is `compress(steps, instance, userId?)` and omitting `instance` throws on `instance.progress.isCompleted`; and `destroy()` \"clears the event buffer\" (line 118) — `destroy()` clears the timer, cleanups, and listeners but never touches `eventBuffer` (brain.ts:269-274), so up to 200 buffered events survive and are re-sent to the LLM if the brain is re-watched. Line 51's `answer.stepId` also does not exist on `GuidedAnswer`, and line 36's `gf.start({ id: 'ai-tour', steps })` is not a valid `FlowDefinition` (which requires `initial` and `states`).",
       "fix": "Rewrite the page against the real class: document `watch(): () => void` returning a cleanup, delete the `stopWatch()` section (or add the method to brain.ts as an alias that runs all cleanups *and* calls `clearBuffer()`), correct `compress` to its 3-arg form, and correct `destroy()`'s description — or better, add `this.eventBuffer = []` to `destroy()` so the doc becomes true. Replace `answer.stepId` with `answer.text`/`answer.highlights` and the `gf.start` example with the `{ id, initial, states }` shape used in README.md:39-43.",
       "effort": "S",
-      "verifierNote": "Every claim on this page checks out. guide-brain.md:68-74 is verbatim and GuideBrain has no stopWatch (brain.ts exposes watch/generate/detectIntent/compress/chat/on/clearBuffer/destroy only). Line 61 says `watch(): void`; brain.ts:124 is `watch(): () => void`. Line 83 says `compress(steps: Step[])`; brain.ts:211 is `compress(steps, instance, userId?)` and line 223 dereferences `instance.progress`. Line 118 says destroy 'clears the event buffer'; brain.ts:269-274 clears the timer, cleanups and listeners but never touches eventBuffer (maxEventBuffer default 200, line 57). Line 51's `answer.stepId` is absent from GuidedAnswer (core types 286-291). Line 35's `gf.start({ id: 'ai-tour', steps })` is not a FlowDefinition, which requires `initial` and `states` (core types 104-108)."
+      "verifierNote": "Every claim on this page checks out. guide-brain.md:68-74 is verbatim and GuideBrain has no stopWatch (brain.ts exposes watch/generate/detectIntent/compress/chat/on/clearBuffer/destroy only). Line 61 says `watch(): void`; brain.ts:124 is `watch(): () => void`. Line 83 says `compress(steps: Step[])`; brain.ts:211 is `compress(steps, instance, userId?)` and line 223 dereferences `instance.progress`. Line 118 says destroy 'clears the event buffer'; brain.ts:269-274 clears the timer, cleanups and listeners but never touches eventBuffer (maxEventBuffer default 200, line 57). Line 51's `answer.stepId` is absent from GuidedAnswer (core types 286-291). Line 35's `gf.start({ id: 'ai-tour', steps })` is not a FlowDefinition, which requires `initial` and `states` (core types 104-108).",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-providers-phantom-options",
@@ -2967,7 +3005,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Marketing copy claims drop-off tracking and A/B integration with PostHog/Mixpanel/Amplitude; neither exists",
       "file": "apps/docs/guide/index.md",
       "line": 17,
@@ -2975,7 +3013,8 @@
       "impact": "Drop-off measurement requires attributing step events to a flow and knowing the ordinal position; the collector supplies neither (`flow_id: undefined` and no `stepIndex` on step events, collector.ts:74-82), and there is no funnel, cohort, or aggregation code anywhere in the package. apps/docs/index.md:39 goes further — \"A/B Testing Built-in ... Plug into PostHog, Mixpanel, Amplitude, and more\" — but `ExperimentEngine` (src/experiments.ts) has no import of, reference to, or awareness of any transport or of `AnalyticsCollector`; it cannot read a feature flag from PostHog, cannot write an exposure event, and cannot report a result. \"without extra SDKs\" is also inverted: four of the five transports require the vendor SDK to already be on the page and silently drop everything otherwise. Evaluators choosing the library on these two bullets discover after integration that the analytics they were promised have to be built from scratch.",
       "fix": "Downgrade both claims to what ships: \"forwards tour lifecycle events to your existing analytics stack\" and \"deterministic client-side variant assignment (bring your own experiment analysis)\". Re-earn the original claims by fixing missing-flow-id-on-step-events, adding `guideflow.step.completed`, and adding exposure events per no-experiment-persistence-or-exposure — then restore the wording.",
       "effort": "S",
-      "verifierNote": "apps/docs/guide/index.md:17 is verbatim, and apps/docs/index.md:38-39 reads 'A/B Testing Built-in ... Plug into PostHog, Mixpanel, Amplitude, and more.' experiments.ts contains no import or reference to any transport or to AnalyticsCollector, and collector.ts:74-82 supplies neither flow_id nor stepIndex on step events, so drop-off attribution is genuinely impossible. 'without extra SDKs' is contradicted by transports.md:22/36/50/64, which require each vendor SDK to be initialised first."
+      "verifierNote": "apps/docs/guide/index.md:17 is verbatim, and apps/docs/index.md:38-39 reads 'A/B Testing Built-in ... Plug into PostHog, Mixpanel, Amplitude, and more.' experiments.ts contains no import or reference to any transport or to AnalyticsCollector, and collector.ts:74-82 supplies neither flow_id nor stepIndex on step events, so drop-off attribution is genuinely impossible. 'without extra SDKs' is contradicted by transports.md:22/36/50/64, which require each vendor SDK to be initialised first.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "docs-webhook-headers-option",
@@ -2983,7 +3022,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Transports reference documents a `headers` option that does not exist and omits every option that does",
       "file": "apps/docs/api/analytics/transports.md",
       "line": 83,
@@ -2991,7 +3030,8 @@
       "impact": "`WebhookTransportOptions` (packages/analytics/src/transports/webhook.ts:3-14) exposes `url`, `apiKey`, `batchIntervalMs`, `maxQueueSize`, `maxRetries` — and no `headers`. The documented copy-paste example at lines 86-89 (`new WebhookTransport({ url, headers: { Authorization: \\`Bearer ${token}\\` } })`) type-errors under `exactOptionalPropertyTypes`-free configs only because excess-property checks fire on the literal; where it does compile through a variable, the constructor ignores `headers` entirely and the request goes out unauthenticated. The endpoint returns 401, the transport treats it as a flush failure, retries twice, then drops the batch with a console warning — a user following the official docs loses all analytics and gets no indication that the option they set was never read. The four real batching/retry options are undocumented, so nobody can tune them.",
       "fix": "Rewrite the option table to match `WebhookTransportOptions` (all five fields with defaults) and add the missing `headers?: Record<string, string>` to the implementation since it is the more general and more useful API — merge it over the computed headers in `flush()`. Fix the example.",
       "effort": "S",
-      "verifierNote": "transports.md:83 is verbatim and the example at :85-90 passes `headers`. WebhookTransportOptions at webhook.ts:3-14 exposes url, apiKey, batchIntervalMs, maxQueueSize, maxRetries and no headers; the constructor at :30-37 never reads it and headers are rebuilt from scratch at :66-67. batchIntervalMs/maxQueueSize/maxRetries are undocumented in that table. Severity corrected: a TS consumer copying the literal gets an excess-property error that names the offending option, which is a real (if ugly) guard; the silent-401 path is limited to JS consumers or object-variable indirection."
+      "verifierNote": "transports.md:83 is verbatim and the example at :85-90 passes `headers`. WebhookTransportOptions at webhook.ts:3-14 exposes url, apiKey, batchIntervalMs, maxQueueSize, maxRetries and no headers; the constructor at :30-37 never reads it and headers are rebuilt from scratch at :66-67. batchIntervalMs/maxQueueSize/maxRetries are undocumented in that table. Severity corrected: a TS consumer copying the literal gets an excess-property error that names the offending option, which is a real (if ugly) guard; the silent-401 path is limited to JS consumers or object-variable indirection.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "empty-userid-and-zero-weights",
@@ -3293,7 +3333,7 @@
       "severity": "P2",
       "kind": "packaging",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "core builds an IIFE bundle for CDN use but declares no unpkg/jsdelivr/browser field, so script-tag users get the CJS file",
       "file": "packages/core/tsup.config.ts",
       "line": 5,
@@ -3301,7 +3341,8 @@
       "impact": "The IIFE target produces `dist/index.global.js` (67,839 bytes, confirmed present) with a `GuideFlow` global, and packages/core/src/index.ts:344-352 documents `getGuideFlow()` as the \"Default singleton — for script-tag / CDN usage\". But packages/core/package.json declares no `unpkg`, `jsdelivr` or `browser` field and no `./global` export subpath, so unpkg and jsDelivr fall back to `main` (line 48) = `./dist/index.cjs`. A `<script src=\"https://unpkg.com/@guideflow/core\">` therefore loads a CommonJS module and dies on `module.exports`/`require` being undefined. The IIFE build is dead weight in every tarball, and there is no documentation anywhere of the `GuideFlow.*` global.",
       "fix": "Add `\"unpkg\": \"./dist/index.global.js\"`, `\"jsdelivr\": \"./dist/index.global.js\"` and an `\"./global\": \"./dist/index.global.js\"` export subpath to packages/core/package.json, then document the script-tag usage (`<script src=\"…/index.global.js\"></script>` + `GuideFlow.createGuideFlow()`) in README.md. If CDN support is not actually intended, drop `'iife'` and `globalName` from packages/core/tsup.config.ts:5-6 instead.",
       "effort": "S",
-      "verifierNote": "packages/core/tsup.config.ts:5-6 is verbatim `format: ['esm', 'cjs', 'iife'],` / `globalName: 'GuideFlow',`. dist/index.global.js exists at exactly 67,839 bytes. packages/core/package.json has no unpkg, jsdelivr or browser field and no ./global export subpath — I read the full manifest — so `main` (line 48) `./dist/index.cjs` is what unpkg/jsDelivr serve. packages/core/src/index.ts:344-352 does carry the \"Default singleton — for script-tag / CDN usage\" comment above getGuideFlow(), confirming the intent that the IIFE build was meant to satisfy."
+      "verifierNote": "packages/core/tsup.config.ts:5-6 is verbatim `format: ['esm', 'cjs', 'iife'],` / `globalName: 'GuideFlow',`. dist/index.global.js exists at exactly 67,839 bytes. packages/core/package.json has no unpkg, jsdelivr or browser field and no ./global export subpath — I read the full manifest — so `main` (line 48) `./dist/index.cjs` is what unpkg/jsDelivr serve. packages/core/src/index.ts:344-352 does carry the \"Default singleton — for script-tag / CDN usage\" comment above getGuideFlow(), confirming the intent that the IIFE build was meant to satisfy.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "core-styles-export-missing-default",
@@ -3861,7 +3902,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Docs advertise AI-assisted tour authoring in the extension; there is no AI code in the package",
       "file": "apps/docs/packages/index.md",
       "line": 36,
@@ -3869,7 +3910,8 @@
       "impact": "Grepping `packages/devtools/src` for `ai`, `openai`, or `assist` returns zero matches, and `package.json` does not depend on `@guideflow/ai`. The same false claim appears in apps/docs/index.md:45 (\"Visual tour builder, flow inspector, and AI-assist — all from a browser extension panel (Manifest V3)\") and in the SEO frontmatter of apps/docs/packages/devtools.md:2 (\"Manifest V3 Chrome extension with AI-assisted tour authoring\"). A reader arriving from the docs homepage feature grid expects an AI feature that does not exist anywhere in the extension, and the frontmatter description will be indexed by search engines as a factual product claim.",
       "fix": "Remove \"AI assist\"/\"AI-assisted tour authoring\" from apps/docs/packages/index.md:36, apps/docs/index.md:45, and apps/docs/packages/devtools.md:2, and change \"Chrome/Firefox\" to \"Chrome\" until Firefox support actually exists.",
       "effort": null,
-      "verifierNote": "apps/docs/packages/index.md:36, apps/docs/index.md:45, and apps/docs/packages/devtools.md:2 all claim AI assist, verbatim. Grep of packages/devtools/src for /\\bai\\b|openai|assist|anthropic/i returns zero matches, and package.json (14-18) depends only on @guideflow/core, react, react-dom. Downgrading to P2: it is a false marketing/SEO claim with no functional impact, and devtools.md itself frames features as 'Planned'."
+      "verifierNote": "apps/docs/packages/index.md:36, apps/docs/index.md:45, and apps/docs/packages/devtools.md:2 all claim AI assist, verbatim. Grep of packages/devtools/src for /\\bai\\b|openai|assist|anthropic/i returns zero matches, and package.json (14-18) depends only on @guideflow/core, react, react-dom. Downgrading to P2: it is a false marketing/SEO claim with no functional impact, and devtools.md itself frames features as 'Planned'.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "double-start-recording-orphans-badge",
@@ -4198,7 +4240,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "`push` and the demo default to api.guideflow.dev, a service with no evidence of existing",
       "file": "packages/cli/src/commands/push.ts",
       "line": 132,
@@ -4206,7 +4248,8 @@
       "impact": "README.md:31 lists \"push to GuideFlow Cloud\" as a shipped CLI capability and README.md:536 documents `guideflow push` as \"Publish flows to GuideFlow Cloud\". The default endpoint is `api.guideflow.dev`, a domain that appears nowhere else in the repo except as a banner comment (packages/core/tsup.config.ts:17), a devtools popup link (packages/devtools/src/popup/popup.tsx:501) and demo placeholders (apps/demo/src/App.tsx:178, :843). No provisioning, auth-issuance, or account documentation exists anywhere. Users following the docs POST their flow definitions — plus a bearer token they were told to create — to a host that is not documented as operational.",
       "fix": "Either document GuideFlow Cloud (signup, key issuance, API contract, data handling) or remove the default endpoint so `--endpoint` becomes required, and reword README.md:31/536 and apps/docs/api/cli.md:93 to describe `push` as a generic self-hosted publish command.",
       "effort": null,
-      "verifierNote": "Repo facts verified: push.ts:25 (cited 132) is `.option('-e, --endpoint <url>', 'API endpoint', 'https://api.guideflow.dev/v1/flows')`; README.md:31 and :536 market GuideFlow Cloud; grep finds api.guideflow.dev only in push.ts, apps/demo/src/App.tsx (178, 783, 843) and tsup.config.ts:17's banner (guideflow.dev), with no provisioning or auth-issuance docs. But 'a service with no evidence of existing' is an unprovable negative from inside the repo — I cannot verify the domain is not operational, so the stated impact (users POSTing tokens to a dead host) is asserted, not demonstrated."
+      "verifierNote": "Repo facts verified: push.ts:25 (cited 132) is `.option('-e, --endpoint <url>', 'API endpoint', 'https://api.guideflow.dev/v1/flows')`; README.md:31 and :536 market GuideFlow Cloud; grep finds api.guideflow.dev only in push.ts, apps/demo/src/App.tsx (178, 783, 843) and tsup.config.ts:17's banner (guideflow.dev), with no provisioning or auth-issuance docs. But 'a service with no evidence of existing' is an unprovable negative from inside the repo — I cannot verify the domain is not operational, so the stated impact (users POSTing tokens to a dead host) is asserted, not demonstrated.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "committed-build-output",
@@ -4231,7 +4274,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Two full documentation sites coexist; the hand-written docs/*.html is stale, unpublished, and still triggers deploys",
       "file": ".github/workflows/docs.yml",
       "line": 41,
@@ -4239,7 +4282,8 @@
       "impact": "docs.yml builds only VitePress (`pnpm docs:build`) plus the demo and publishes `apps/docs/.vitepress/dist` to gh-pages with `keep_files: false` — so the VitePress site is canonical and the eight `docs/*.html` pages (1,291 lines) are never built, never copied, and never reachable. Yet docs.yml's `paths` filter (line 9) includes `'docs/**'`, so editing the dead site triggers a full deploy of the other one. The dead site actively contradicts the live one: docs/index.html:54 and docs/changelog.html:38 advertise v0.1.4 (packages are 0.1.9); docs/usage.html:42 shows `createGuideFlow({ theme: 'minimal' })` (no such option in `GuideFlowConfig`); docs/usage.html:105 shows `gf.start({ id: 'ai-tour', steps })` (throws); docs/changelog.html:59 lists four themes while VitePress claims five. A contributor cannot tell which surface to update, and search engines may still index the stale copy from an earlier Pages configuration.",
       "fix": "Delete `docs/` (the useful content is already in apps/docs), or convert it into a redirect stub. Remove `'docs/**'` from the docs.yml `paths` trigger. Add a note to CLAUDE.md/CONTRIBUTING stating apps/docs is the single documentation source.",
       "effort": null,
-      "verifierNote": "docs.yml builds only `pnpm docs:build` + demo and publishes apps/docs/.vitepress/dist with keep_files: false — the quoted lines are verbatim at 55-56, not 41. Its paths filter includes 'docs/**' at line 9 (correctly cited). `wc -l docs/*.html` totals 1,291 across eight files, matching exactly. Contradictions verified: docs/index.html:54 and changelog.html:38 say v0.1.4; usage.html:42 shows `createGuideFlow({ theme: 'minimal' })` and GuideFlowConfig (types/index.ts) has no `theme`; usage.html:105 shows the throwing flat-steps start; changelog.html:59 lists four themes vs five pages under apps/docs/themes/."
+      "verifierNote": "docs.yml builds only `pnpm docs:build` + demo and publishes apps/docs/.vitepress/dist with keep_files: false — the quoted lines are verbatim at 55-56, not 41. Its paths filter includes 'docs/**' at line 9 (correctly cited). `wc -l docs/*.html` totals 1,291 across eight files, matching exactly. Contradictions verified: docs/index.html:54 and changelog.html:38 say v0.1.4; usage.html:42 shows `createGuideFlow({ theme: 'minimal' })` and GuideFlowConfig (types/index.ts) has no `theme`; usage.html:105 shows the throwing flat-steps start; changelog.html:59 lists four themes vs five pages under apps/docs/themes/.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "missing-support-docs",
@@ -4295,7 +4339,7 @@
       "severity": "P2",
       "kind": "quality",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "sync-repo-meta.mjs cannot fix the identity drift it exists to prevent — it never touches source headers, the root README, LICENSE, or most docs",
       "file": "scripts/sync-repo-meta.mjs",
       "line": 86,
@@ -4303,7 +4347,8 @@
       "impact": "The script rewrites exactly four surfaces: `packages/*/package.json` (lines 88-92), `packages/*/README.md` (95-102), `apps/docs/.vitepress/config.ts` (106-110), and `apps/docs/index.md` + `apps/docs/packages/*.md` (114-124). It never walks `packages/*/src/**`, so the seven `github.com/johnmugabe` source headers are permanently out of reach. It also skips the root README.md (which hard-codes `RealNerdZW` at lines 5, 13, 568), LICENSE (line 3 still says `johnmugabe`), all of apps/docs/guide/** and apps/docs/api/**, the legacy docs/*.html, and .github/workflows. Running `pnpm sync-repo` reports success while leaving the repo inconsistent — the maintainer's own tooling gives false assurance.",
       "fix": "Add a recursive pass over `packages/*/src/**/*.{ts,tsx}` replacing the `@github`/`@email` header lines, plus explicit passes over README.md, LICENSE, apps/docs/guide/*.md, apps/docs/api/**/*.md, and docs/*.html. Add a `--check` mode that exits non-zero on drift and run it in ci.yml so this can never regress.",
       "effort": null,
-      "verifierNote": "Line 86-88 of sync-repo-meta.mjs is verbatim. Full read confirms it touches exactly four surfaces: packages/*/package.json (88-92), packages/*/README.md (95-102), apps/docs/.vitepress/config.ts (106-110), apps/docs/index.md + apps/docs/packages/*.md (114-124). It replaces only oldGithubUrl/oldAuthorUrl derived from packages/core/package.json (lines 20-35), so `github.com/johnmugabe` in src headers and in LICENSE:3 is unreachable by construction. Root README, docs/*.html and apps/docs/guide|api are never visited. Severity lowered to P2: this is a tooling-completeness gap, not itself a defect in shipped code or docs."
+      "verifierNote": "Line 86-88 of sync-repo-meta.mjs is verbatim. Full read confirms it touches exactly four surfaces: packages/*/package.json (88-92), packages/*/README.md (95-102), apps/docs/.vitepress/config.ts (106-110), apps/docs/index.md + apps/docs/packages/*.md (114-124). It replaces only oldGithubUrl/oldAuthorUrl derived from packages/core/package.json (lines 20-35), so `github.com/johnmugabe` in src headers and in LICENSE:3 is unreachable by construction. Root README, docs/*.html and apps/docs/guide|api are never visited. Severity lowered to P2: this is a tooling-completeness gap, not itself a defect in shipped code or docs.",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "zero-tests-analytics-transports",
@@ -4424,7 +4469,7 @@
       "severity": "P2",
       "kind": "docs",
       "verdict": "UNVERIFIED",
-      "status": "open",
+      "status": "resolved",
       "title": "The only changelog is docs/changelog.html, stuck at v0.1.4 in the unpublished hand-written site, and there is no deprecation policy",
       "file": "docs/changelog.html",
       "line": 1,
@@ -4432,7 +4477,8 @@
       "impact": "There is no root CHANGELOG.md, no per-package CHANGELOG, no GitHub Releases automation, and no release-notes section in the VitePress site. The one changelog that exists lives in docs/ — the orphaned hand-written HTML site that is never built or deployed — and its newest entry is five patch releases behind the published 0.1.9. Consumers upgrading across 0.1.4→0.1.9 have no way to learn what changed, and there is no deprecation policy at all despite packages/core/src/index.ts:355 and :375 already shipping two `@deprecated` public exports with no documented removal timeline or major-version commitment.",
       "fix": "Generate CHANGELOG.md per package via changesets (see changeset-directory-empty-release-inert), delete or redirect docs/changelog.html, add a Releases page to the VitePress sidebar, and write a short versioning/deprecation policy stating what 0.x means and when @deprecated exports get removed.",
       "effort": "S",
-      "verifierNote": null
+      "verifierNote": null,
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "ai-openai-sdk-browser-throw",
@@ -4590,7 +4636,7 @@
       "severity": "P2",
       "kind": "security",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "Documented WebhookTransport `headers` option does not exist — the Authorization header from the docs example is silently dropped",
       "file": "apps/docs/api/analytics/transports.md",
       "line": 80,
@@ -4598,7 +4644,8 @@
       "impact": "`WebhookTransportOptions` (packages/analytics/src/transports/webhook.ts:3-14) declares only `url | apiKey | batchIntervalMs | maxQueueSize | maxRetries` — there is no `headers` field — and the constructor at lines 31-37 copies exactly those five keys, so a `headers` object is discarded. `flush()` (lines 66-67) builds `const headers: Record<string,string> = { 'Content-Type': 'application/json' }; if (this.opts.apiKey) headers['Authorization'] = 'Bearer ' + this.opts.apiKey` — the only auth path is the undocumented `apiKey`. A developer who copies the documented snippet at transports.md:86-89 (`new WebhookTransport({ url: 'https://myapp.com/api/tours/events', headers: { Authorization: 'Bearer ' + token } })`) believes their analytics endpoint is authenticated; in reality every event batch is POSTed with no Authorization header, so either their endpoint rejects everything (silent total data loss, since `flush` swallows the failure after `maxRetries` at lines 81-88) or, if the endpoint was written permissively, it is now an unauthenticated public write endpoint that anyone can spam with forged tour events. Note also that the only working auth mechanism, `apiKey`, is a bearer token embedded in a browser bundle — extractable by any visitor — so neither the documented nor the actual path is safe for a client-side integration.",
       "fix": "Add `headers?: Record<string, string>` to `WebhookTransportOptions` and merge it in `flush()` (`const headers = { 'Content-Type': 'application/json', ...this.opts.headers }`), which makes the documented example work. Deprecate the `apiKey` option and document explicitly that any secret passed to a browser-side transport is public — the supported pattern is a same-origin `url` (e.g. `/api/analytics`) where the browser's own session cookie authenticates and a server-side proxy holds the real credential. Add a runtime `console.warn` when `apiKey` is set and the runtime is a browser.",
       "effort": "S",
-      "verifierNote": "The mismatch is real and the evidence at transports.md:80-83 plus the snippet at 86-89 is verbatim. WebhookTransportOptions (webhook.ts:3-14) declares url|apiKey|batchIntervalMs|maxQueueSize|maxRetries with no `headers`, the constructor at 31-37 copies exactly those five, and flush() at 66-67 builds headers from apiKey only. But the impact overstates the failure mode: `new WebhookTransport({ url, headers: {...} })` is an object literal assigned to a typed parameter, so TypeScript's excess-property check rejects it at compile time — the silent drop only reaches plain-JS integrators, not the TS users the docs target. The 'unauthenticated public write endpoint' consequence is also speculative about a third party's server. Downgrading to P2 (docs/impl mismatch)."
+      "verifierNote": "The mismatch is real and the evidence at transports.md:80-83 plus the snippet at 86-89 is verbatim. WebhookTransportOptions (webhook.ts:3-14) declares url|apiKey|batchIntervalMs|maxQueueSize|maxRetries with no `headers`, the constructor at 31-37 copies exactly those five, and flush() at 66-67 builds headers from apiKey only. But the impact overstates the failure mode: `new WebhookTransport({ url, headers: {...} })` is an object literal assigned to a typed parameter, so TypeScript's excess-property check rejects it at compile time — the silent drop only reaches plain-JS integrators, not the TS users the docs target. The 'unauthenticated public write endpoint' consequence is also speculative about a third party's server. Downgrading to P2 (docs/impl mismatch).",
+      "resolvedIn": "Phase 4"
     },
     {
       "id": "webhook-sendbeacon-documented-not-implemented",
@@ -5287,6 +5334,550 @@
       "fix": "Remove `\"src\"` from the `files` array in packages/{core,react,vue,svelte,ai,analytics,cli}/package.json, leaving `[\"dist\", \"README.md\"]`. Enable `sourcemap: true` in each tsup.config.ts so consumers still get readable stack traces without shipping source. Add an `npm pack --dry-run` review step (or the `publint` / `arethetypeswrong` checks) to ci.yml so future `files` regressions are caught.",
       "effort": "S",
       "verifierNote": "I read the files array from all seven package.json files programmatically — core, react, vue, svelte, ai, analytics and cli all return exactly [\"dist\",\"src\",\"README.md\"] — and confirmed no .npmignore exists under packages/. Downgrading to P3: consequence (b) is not a real security consequence, since npm tarballs are public by definition and dist is trivially readable regardless of whether src ships; (c) is a hypothetical about files that do not exist in the tree. What remains verified is roughly doubled install size and the loss of a second line of defence — a minor packaging hygiene issue."
+    },
+    {
+      "id": "defaultrenderer-s-injected-css-shadows-six-documented",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "DefaultRenderer's injected CSS shadows six documented tokens that popover.css honours",
+      "file": "packages/core/src/renderer/default-renderer.ts",
+      "line": 0,
+      "evidence": "POPOVER_CSS duplicates popover.css but hard-codes values where the stylesheet uses tokens: `.gf-progress-bar-fill{background:var(--gf-accent-color)}` vs popover.css `var(--gf-progress-fill)`; `.gf-btn{padding:8px 18px;font-size:13px}` vs `var(--gf-btn-padding)`/`var(--gf-btn-font-size)`; margins of 10px/12px vs `var(--gf-spacing-sm)`; `.gf-popover-step-info{font-size:12px}` vs `var(--gf-font-size-sm)`; `z-index:999999` vs `var(--gf-z-popover)`. injectStyles() appends to document.head at runtime, after any bundled stylesheet, at equal specificity — so with the default `injectStyles: true` these six tokens are silently inert. Documented as a caveat, but the duplication is the real defect.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "popover-css-styles-a-progress-class-the",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "popover.css styles a progress class the renderer never emits",
+      "file": "packages/core/src/styles/popover.css",
+      "line": 0,
+      "evidence": "popover.css defines `.gf-popover-progress { font-size: var(--gf-font-size-sm); ... }`, but default-renderer.ts:205 emits `<span class=\"gf-popover-step-info\">` and react/src/components/GuidePopover.tsx:156 uses the same 'gf-popover-step-info'. The .gf-popover-progress rule matches nothing in either renderer.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "gf-arrow-size-and-gf-popover-arrow",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "--gf-arrow-size and .gf-popover-arrow are dead — no arrow element is ever created",
+      "file": "packages/core/src/styles/popover.css",
+      "line": 0,
+      "evidence": "popover.css declares a full `.gf-popover-arrow` rule using `calc(var(--gf-arrow-size) * 2)`, and tokens.css declares `--gf-arrow-size: 12px`. Grepping packages/core/src and packages/react/src for 'gf-popover-arrow' returns only the CSS declaration — neither DefaultRenderer._buildHTML nor GuidePopover renders such an element, though ComputedPosition already carries arrowX/arrowY.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "two-tokens-declared-in-tokens-css-are",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Two tokens declared in tokens.css are referenced by nothing",
+      "file": "packages/core/src/styles/tokens.css",
+      "line": 0,
+      "evidence": "`--gf-overlay-color: rgba(0,0,0,0.5)` and `--gf-z-overlay: 999998` have zero var() consumers across packages/core/src, react/src, vue/src and svelte/src. The overlay's colour comes from SpotlightOverlay._overlayPaint() (JS options) and its z-index is hard-coded in SPOTLIGHT_CSS. Conversely `--gf-spotlight-radius` is consumed in spotlight.ts:31 but never declared in tokens.css — and is overridden by an inline borderRadius on every _update().",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "no-api-to-select-a-theme-data",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "No API to select a theme — data-gf-theme must be set by hand",
+      "file": "packages/core/src/types/index.ts",
+      "line": 0,
+      "evidence": "GuideFlowConfig exposes renderer, persistence, context, spotlight, nonce, injectStyles and debug — there is no `theme` field, and no code in packages/core/src writes the data-gf-theme attribute (grep returns only the CSS blocks). Consumers must set it on <html>/<body> themselves, and because the popover is appended to document.body the attribute cannot be scoped to an app subtree. Worth an explicit config option; not implemented here per instructions.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "usehotspot-returns-an-id-that-is-always",
+      "area": "adapters",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "useHotspot returns an id that is always null to the caller",
+      "file": "packages/react/src/hooks/use-tour-step.ts",
+      "line": 0,
+      "evidence": "Line 97 returns `{ id: idRef.current }`, but `idRef.current` is assigned inside the useEffect at line 87, after that render has already returned. No state update follows, so the hook never re-renders and consumers observe `null` forever. `UseHotspotReturn` is a public exported type, so the API is unusable as declared. I documented the caveat rather than changing source.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "usetourstep-s-jsdoc-claims-it-registers-the",
+      "area": "adapters",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "useTourStep's JSDoc claims it registers the ref as the step target; it does not",
+      "file": "packages/react/src/hooks/use-tour-step.ts",
+      "line": 0,
+      "evidence": "Lines 3-4 and 18-19 say 'connects a DOM element to a specific step id' / 'Register a React ref as the target for a specific step', but the ref created at line 31 is only returned — it is never passed to `gf` or to the engine. The hook is purely an event subscription on step:enter/step:exit. This JSDoc is the likely origin of the fabricated docs.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "tourstep-s-jsdoc-and-example-advertise-props",
+      "area": "adapters",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "TourStep's JSDoc and @example advertise props the component does not accept",
+      "file": "packages/react/src/components/TourStep.tsx",
+      "line": 0,
+      "evidence": "Lines 21-28: the doc comment says the component 'registers the step with the nearest <TourProvider>' (it does not — it only subscribes to events) and the @example shows `<TourStep id=\"...\" target=\"#header\" title=\"Welcome!\" body=\"...\">`, but TourStepProps (lines 10-17) has only `id` and `children`. That example will not compile.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "tourprovider-silently-ignores-later-changes-to-the",
+      "area": "adapters",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "TourProvider silently ignores later changes to the config prop",
+      "file": "packages/react/src/context.tsx",
+      "line": 0,
+      "evidence": "Line 28 captures `config` in a useRef and line 31 reads `configRef.current` inside a useMemo keyed only on `instance`. A parent re-rendering with a different `config` object has no effect and no warning is emitted. Documented as a limitation.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "guideflow-help-still-advertises-the-vapourware-and",
+      "area": "cli",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "`guideflow --help` still advertises the vapourware, and the tests pin the false strings",
+      "file": "packages/cli/src/commands/studio.ts",
+      "line": 0,
+      "evidence": "studio.ts:46 `.description('Start the GuideFlow Studio — a local visual tour editor')` and push.ts:22 `.description('Push a flow JSON file to GuideFlow Cloud or a custom endpoint')` are what users see from `guideflow --help`; index.ts's header JSDoc says 'launch the local visual tour editor' and 'publish a flow to GuideFlow Cloud'; package.json lists the npm keyword `visual-editor`. packages/cli/src/__tests__/index.test.ts:94-97 asserts those exact strings, so fixing the help text requires updating that test. I did not touch source per the task rules — the docs now contradict the CLI's own --help output.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "tourstore-destroy-tears-down-a-guideflow-instance",
+      "area": "adapters",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "TourStore.destroy() tears down a GuideFlow instance it did not create",
+      "file": "packages/svelte/src/index.ts",
+      "line": 0,
+      "evidence": "destroy() runs `cleanups.forEach(fn => fn()); gf.destroy()` unconditionally, even when the caller passed an existing GuideFlowInstance into createTourStore(). Disposing one component's store therefore kills an app-scoped instance and every listener the host registered on it. The React and Vue adapters only detach their own listeners. Pinned as a skipped test at packages/svelte/src/__tests__/store.test.ts:206 (`does not tear down an instance it did not create`). Documented as a warning rather than fixed, per the no-source-changes rule.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "step-state-is-stale-after-a-tour",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Step state is stale after a tour ends, in both the Svelte store and the Vue composable",
+      "file": "packages/core/src/engine/tour.ts",
+      "line": 0,
+      "evidence": "_doEnd() emits tour:complete / tour:abandon at lines 378-382 and only then nulls _machine at line 388. Both adapters' sync handlers run inside that emit, so they latch the last live values: after stop(), the store/refs report currentStepId 's2', currentStepIndex 1, totalSteps 2 while the instance reports null / 0 / 0. isActive is correct because _active is cleared first. Skipped test at packages/svelte/src/__tests__/store.test.ts:123 (`resets the step stores when the tour ends`); the Vue composable has the identical structure at packages/vue/src/composables/use-tour.ts:45. A progress indicator sticks at 'Step 2 of 2' after the tour closes.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "this-guideflow-is-untyped-for-options-api",
+      "area": "adapters",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "this.$guideflow is untyped for Options API TypeScript users",
+      "file": "packages/vue/src/plugin.ts",
+      "line": 0,
+      "evidence": "The plugin sets the global property through a `Record<string, unknown>` cast, and the package contains no `declare module 'vue' { interface ComponentCustomProperties { $guideflow: GuideFlowInstance } }` augmentation (grep for 'declare module' across packages/vue/src returns nothing). `this.$guideflow.start(...)` in a TS Options API component is a compile error. Documented with a pointer to useGuideFlow() instead of adding the augmentation.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "the-only-field-that-could-drive-intent",
+      "area": "ai",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "The only field that could drive intent auto-triggering is requested from the model and then discarded",
+      "file": "packages/ai/src/providers/openai.ts",
+      "line": 0,
+      "evidence": "detectIntent's prompt (line 88) asks for `{ intent: string, confidence: number, suggestedFlowId?: string }`, but `validateIntentSignal` (packages/ai/src/validation.ts:58-89) only preserves `type`, `confidence` and `element`. `suggestedFlowId` is dropped on the floor, so even a model that names a flow to start cannot reach the caller. The Anthropic provider has the same prompt/validator mismatch.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "experimentengine-assign-caches-by-experiment-id-alone",
+      "area": "analytics",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "ExperimentEngine.assign() caches by experiment id alone, so editing variants silently returns a stale assignment",
+      "file": "packages/analytics/src/experiments.ts",
+      "line": 0,
+      "evidence": "Line 65: `const cached = this.cache.get(experiment.id)`. The variant list is not part of the cache key and is not compared. Calling assign() with the same id but a different (or reordered, or reweighted) variants array returns the previous result for the life of the engine, with no warning. Documented as \"bump the id when the variants change\".",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "guidebrain-never-clears-its-event-buffer-so",
+      "area": "ai",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "GuideBrain never clears its event buffer, so every intent call re-sends overlapping history",
+      "file": "packages/ai/src/brain.ts",
+      "line": 0,
+      "evidence": "`detectIntent()` copies the buffer (line 185) but never empties it, and `destroy()` (line 269) clears the timer, cleanups and listeners but not `eventBuffer`. The buffer only shrinks by hitting `maxEventBuffer` (default 200). Successive debounced detections therefore classify largely the same events; the bundled providers paper over it with `events.slice(-20)`.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "compress-swallows-provider-failures-without-emitting-error",
+      "area": "ai",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "compress() swallows provider failures without emitting `error`",
+      "file": "packages/ai/src/brain.ts",
+      "line": 0,
+      "evidence": "Lines 231-233: `catch { return steps }`. Every other brain method emits `error` on the mini-emitter before rethrowing. A failing provider during compress is completely invisible — no event, no rejection, no log — and the caller sees an uncompressed list indistinguishable from a successful no-op.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "stepaction-action-type-collapses-so-documented-custom",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "StepAction['action'] type collapses, so documented custom FSM event names do not compile",
+      "file": "packages/core/src/types/index.ts",
+      "line": 0,
+      "evidence": "`action: 'next' | 'prev' | 'skip' | 'end' | (string & object)`. `string & object` reduces away (the idiom needs `string & {}`), so tsc reports: Type '\"DEVELOPER\"' is not assignable to type '\"next\" | \"prev\" | \"skip\" | \"end\"'. The runtime dispatches any other string to instance.send(action) (packages/core/src/index.ts:202), so the behaviour exists but is untypable. Documented as a warning box in flows-and-steps.md and state-machine.md rather than shown as working code.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "last-step-of-a-non-final-state",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Last step of a non-final state renders a Done button that stops the tour instead of transitioning",
+      "file": "packages/core/src/renderer/default-renderer.ts",
+      "line": 0,
+      "evidence": "renderStep receives `total = machine.totalSteps`, which is the CURRENT STATE's step count (fsm/machine.ts:61). DefaultRenderer computes `isLast = index === total - 1` and emits `action: 'end'` → instance.stop() → tour:abandon. In any multi-state flow the primary button therefore kills the tour at each state boundary; only the keyboard/gf.next() path follows the NEXT transition. Documented as a caveat with a workaround (`actions: [{ label: 'Continue', action: 'next' }]`).",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "top-level-config-nonce-never-reaches-the",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Top-level `config.nonce` never reaches the spotlight stylesheet",
+      "file": "packages/core/src/index.ts",
+      "line": 0,
+      "evidence": "TourEngine is constructed with `spotlight: _config.spotlight` only; SpotlightOverlay reads its nonce from `options.nonce` (engine/spotlight.ts:63) and injects SPOTLIGHT_CSS with it. The top-level nonce is passed to HotspotManager/HintSystem and to renderer.onInit, but not to the spotlight — so a strict CSP blocks the overlay stylesheet unless the nonce is also duplicated inside `spotlight: { nonce }`. Documented as 'set both' in spotlight-popover.md.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "step-media-is-part-of-the-public",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "step.media is part of the public Step type but is never rendered",
+      "file": "packages/core/src/types/index.ts",
+      "line": 0,
+      "evidence": "grep for `media` across packages/core/src/renderer and packages/react/src/components returns nothing. StepMediaOptions is accepted, typed and ignored. Flagged as a warning in flows-and-steps.md.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "hotspotoptions-placement-is-never-read",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "HotspotOptions.placement is never read",
+      "file": "packages/core/src/types/index.ts",
+      "line": 0,
+      "evidence": "HotspotManager uses options.title, body, color and size; `placement` appears nowhere in engine/hotspot.ts. Removed from the vanilla.md example.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "locale-openhint-closehint-are-dead-keys",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Locale.openHint / closeHint are dead keys",
+      "file": "packages/core/src/i18n/index.ts",
+      "line": 0,
+      "evidence": "grep for openHint/closeHint across packages/core/src outside i18n/index.ts returns nothing — the hint system hardcodes `aria-label` as `Hint N: <text>` (engine/hint.ts:124). Documented as declared-but-unused.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "progressstore-resetuser-has-an-unreachable-fallback-branch",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "ProgressStore.resetUser has an unreachable fallback branch",
+      "file": "packages/core/src/persistence/progress-store.ts",
+      "line": 0,
+      "evidence": "The `else if (this._driver instanceof LocalStorageDriver …)` branch can never run: LocalStorageDriver implements keys() (persistence/drivers.ts:37), so the first `if (this._driver.keys)` always wins for it. A custom driver without keys() silently resets nothing.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "turbo-lint-has-no-dependson-build-so",
+      "area": "build",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "turbo `lint` has no `dependsOn: [\"^build\"]`, so a cold-cache lint of react/analytics fails with ~154 spurious type-aware errors",
+      "file": "turbo.json",
+      "line": 0,
+      "evidence": "turbo.json:23-25 declares `\"lint\": { \"outputs\": [] }` while `test`, `type-check` and `test:e2e` all declare `dependsOn: [\"^build\"]`. On the first run of `pnpm turbo run build type-check lint --filter=!storybook --filter=!docs --filter=!e2e`, @guideflow/react:lint emitted 154 errors of the form `Unsafe member access .start on an 'error' typed value` / `no-unsafe-return` and the run failed at @guideflow/analytics#lint — because typed linting resolved `@guideflow/core` before its dist/*.d.ts existed. Re-running after core built, both linted clean and all 26 tasks passed. This makes the release gate order-dependent and flaky in CI on a cold cache.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "source-headers-are-shipped-to-npm-but",
+      "area": "build",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Source headers are shipped to npm but nothing tests or enforces them",
+      "file": "scripts/sync-repo-meta.mjs",
+      "line": 0,
+      "evidence": "`packages/*/package.json` `files` includes `src`, so the identity block reaches consumers, yet the only thing keeping it correct is a manually-invoked `pnpm sync-repo`. There is no CI step running the script and failing on a non-empty diff, which is exactly how the headers drifted from repo.config.json in the first place. A `sync-repo --check` mode wired into ci.yml would close it; not implemented here since it is outside the documentation scope.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "hotspot-hint-and-cross-tab-events-are",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Hotspot, hint and cross-tab events are unreachable from the public instance",
+      "file": "packages/core/src/index.ts",
+      "line": 0,
+      "evidence": "createGuideFlow() constructs HotspotManager, HintSystem and BroadcastSync as private locals and never forwards their events. HotspotManager emits 'hotspot:open' (hotspot.ts:108,112) and HintSystem emits 'hint:click' (hint.ts:138,142) on their own emitters, and BroadcastSync emits 'progress:sync' (broadcast-sync.ts:36). All four are declared in TourEvents, so gf.on('hint:click', …) type-checks and silently never fires. 'hotspot:close' is declared but has no emitter at all.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "step-media-is-accepted-by-the-type",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Step.media is accepted by the type and rendered by nothing",
+      "file": "packages/core/src/types/index.ts",
+      "line": 0,
+      "evidence": "StepMediaOptions and Step.media are exported (types/index.ts:42-69), but grepping `media` across packages/core/src (excluding types) and packages/react/src returns zero hits — DefaultRenderer never reads it.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "config-nonce-never-reaches-the-spotlight-stylesheet",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "config.nonce never reaches the spotlight stylesheet",
+      "file": "packages/core/src/engine/tour.ts",
+      "line": 0,
+      "evidence": "tour.ts:51 does `new SpotlightOverlay(options.spotlight)`, and spotlight.ts:85 injects SPOTLIGHT_CSS with `this._options.nonce`. Top-level GuideFlowConfig.nonce is only plumbed to the renderer (default-renderer.ts:99) and to hotspots/hints. Under a strict CSP the overlay's <style> is blocked unless the integrator also sets spotlight.nonce.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "injectstyles-false-only-suppresses-the-popover-css",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "injectStyles: false only suppresses the popover CSS",
+      "file": "packages/core/src/engine/spotlight.ts",
+      "line": 0,
+      "evidence": "DefaultRenderer.onInit gates on `config.injectStyles !== false` (default-renderer.ts:97-100), but spotlight.ts:85, hotspot.ts:87 and hint.ts:81 call injectStyles() unconditionally — a consumer who opts out still gets three GuideFlow stylesheets.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "flow-context-is-silently-ignored-whenever-any",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "flow.context is silently ignored whenever any other context is supplied",
+      "file": "packages/core/src/engine/tour.ts",
+      "line": 0,
+      "evidence": "tour.ts:126 builds the machine with `context ?? this._options.context`, and FlowMachine falls back to `flow.context` only when both are undefined (machine.ts:23). A flow that declares its own `context` alongside createGuideFlow({ context }) loses it entirely, with no warning.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "keyboard-control-cannot-be-disabled",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Keyboard control cannot be disabled",
+      "file": "packages/core/src/engine/tour.ts",
+      "line": 0,
+      "evidence": "tour.ts:395-417 binds a document keydown handler for ArrowRight/Down (next), ArrowLeft/Up (prev) and Escape (skip) whenever a tour is active, with no config flag. Driver.js `allowKeyboardControl` and Intro.js `exitOnEsc` have no equivalent, which is now documented as a gap in both migration guides.",
+      "impact": "",
+      "fix": "",
+      "effort": null,
+      "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
+      "foundIn": "Phase 4 docs verification"
     }
   ]
 }

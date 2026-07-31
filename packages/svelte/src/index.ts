@@ -2,9 +2,8 @@
  * @guideflow/svelte
  *
  * @author  John Mugabe
- * @email   jonesmugabe@263tickets.co.zw
  * @country Zimbabwe
- * @github  https://github.com/johnmugabe
+ * @github  https://github.com/RealNerdZW
  * @license MIT
  *
  * Copyright (c) 2026 John Mugabe. All rights reserved.
@@ -39,7 +38,12 @@ export interface TourStore {
   send: (event: string) => Promise<void>
   /** End / stop the tour */
   stop: () => void
-  /** Clean up all event listeners */
+  /**
+   * Detach this store's core event listeners AND destroy the underlying
+   * GuideFlow instance — including one that was passed in rather than created
+   * here. Do not call it while another part of the app is still using that
+   * instance.
+   */
   destroy: () => void
   /** The underlying GuideFlow instance */
   instance: GuideFlowInstance
@@ -48,15 +52,22 @@ export interface TourStore {
 /**
  * Create a Svelte-friendly tour store.
  *
+ * The returned object is a plain object whose state fields are individual
+ * readable stores. Svelte's `$` auto-subscription only applies to an
+ * identifier that is itself a store, so `$tour.isActive` does not compile —
+ * destructure the fields you need and prefix those.
+ *
  * @example
  * ```svelte
  * <script>
  *   import { createTourStore } from '@guideflow/svelte'
+ *
  *   const tour = createTourStore({ debug: true })
+ *   const { isActive, currentStepIndex, totalSteps } = tour
  * </script>
  *
  * <button on:click={() => tour.start(myFlow)}>Start</button>
- * {#if $tour.isActive}Step {$tour.currentStepIndex + 1}</>
+ * {#if $isActive}Step {$currentStepIndex + 1} of {$totalSteps}{/if}
  * ```
  */
 export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowInstance): TourStore {

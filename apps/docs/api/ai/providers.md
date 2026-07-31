@@ -5,7 +5,7 @@ keywords: GuideFlow AI providers, OpenAI, Anthropic, Ollama, MockProvider, @guid
 
 # AI Providers
 
-`@guideflow/ai` ships with four built-in providers. Pass any of them to [`createAI()`](./create-ai).
+`@guideflow/ai` ships with five built-in providers. Pass any of them to [`createAI()`](./create-ai).
 
 ## ProxyProvider
 
@@ -128,10 +128,17 @@ Returns deterministic stub responses. Useful for tests and Storybook.
 ```ts
 import { MockProvider } from '@guideflow/ai'
 
-new MockProvider()
+new MockProvider(delayMs?: number)
 ```
 
-No options — produces a fixed set of generated steps and a fixed chat answer.
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `delayMs` | `number` | `120` | Artificial latency before each response resolves. Pass `0` in tests. |
+
+Responses are derived from the input, so they are stable for the same DOM: `generateSteps()` returns
+one step per captured element up to five, `detectIntent()` always returns
+`{ type: 'exploring', confidence: 0.75 }`, and `answerQuestion()` echoes the question and the page
+URL.
 
 ```ts
 import { createAI, MockProvider } from '@guideflow/ai'
@@ -147,21 +154,35 @@ const steps = await gf.ai.generate()   // returns predictable stub steps
 
 Implement the `AIProvider` interface to bring your own backend:
 
+All three methods are required.
+
 ```ts
 import type { AIProvider, PageContext } from '@guideflow/ai'
-import type { Step, GuidedAnswer } from '@guideflow/core'
+import type { Step, DOMContext, UserEvent, IntentSignal, GuidedAnswer } from '@guideflow/core'
 
 class MyProvider implements AIProvider {
-  async generateSteps(context: PageContext, prompt: string): Promise<Step[]> {
+  async generateSteps(context: DOMContext, prompt: string): Promise<Step[]> {
     // Call your API…
     return []
   }
 
-  async answerQuestion(context: PageContext, question: string): Promise<GuidedAnswer> {
-    return { answer: '…', stepId: null }
+  async detectIntent(events: UserEvent[]): Promise<IntentSignal> {
+    return { type: 'exploring', confidence: 0 }
+  }
+
+  async answerQuestion(question: string, context: PageContext): Promise<GuidedAnswer> {
+    return { text: '…', highlights: [] }
   }
 }
 ```
+
+Note the argument order and types: `generateSteps` receives a `DOMContext` (what `serializeDOM()`
+returns), and `answerQuestion` takes the **question first**, then a `PageContext` — a `DOMContext`
+wrapped with `url`, `title` and an optional `currentStepId`.
+
+The bundled providers run their responses through `validateSteps`, `validateIntentSignal` and
+`validateGuidedAnswer`, all exported from `@guideflow/ai`. Reuse them if your backend returns
+model output verbatim.
 
 ## See Also
 

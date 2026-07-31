@@ -43,7 +43,10 @@ async function loadVite(): Promise<ViteModule> {
 }
 
 export const studioCommand = new Command('studio')
-  .description('Start the GuideFlow Studio — a local visual tour editor')
+  // Not "a visual tour editor": no editor exists. This serves the project with
+  // Vite and sets a flag on the page. Saying more than that in --help is how
+  // the docs came to describe a product that was never built.
+  .description('Serve your project with the GuideFlow DevTools flag enabled (experimental)')
   .option('-p, --port <port>', 'Port to listen on', '4747')
   .option('--root <dir>', 'Project root directory', '.')
   .option('--host <host>', 'Interface to bind to', '127.0.0.1')

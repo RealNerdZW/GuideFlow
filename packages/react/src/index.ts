@@ -2,9 +2,8 @@
  * @guideflow/react
  *
  * @author  John Mugabe
- * @email   jonesmugabe@263tickets.co.zw
  * @country Zimbabwe
- * @github  https://github.com/johnmugabe
+ * @github  https://github.com/RealNerdZW
  * @license MIT
  *
  * Copyright (c) 2026 John Mugabe. All rights reserved.
