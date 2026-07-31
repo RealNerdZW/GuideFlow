@@ -302,6 +302,25 @@ CI (`.github/workflows/release.yml`) runs this automatically on `master` via
 `changesets/action@v1`. `docs`, `e2e`, `storybook` and `@guideflow/demo` are in the changesets
 `ignore` list, so they are never versioned or published.
 
+### Every package shares one version
+
+`fixed: [["@guideflow/*", "!@guideflow/demo"]]` puts all eight real packages —
+`core`, `react`, `vue`, `svelte`, `ai`, `analytics`, `cli`, `devtools` — in one fixed group. They
+always carry the same version number, and the group takes the largest bump any member was given.
+**A changeset against a single package releases all eight.** That is the intended trade-off: a
+matched set is easier to reason about than eight independently drifting versions, and it removes
+the question of which `core` a given `react` was built against.
+
+`@guideflow/demo` is excluded because it is a private example app sitting on its own `0.1.0`;
+adding it would drag it into the shared version for no benefit. Note the group is a glob, so a new
+`@guideflow/*` package joins automatically — that is deliberate.
+
+This also keeps the peer ranges honest. Every package declares `@guideflow/core` as a peer at
+`>=0.1.9 <1.0.0`, and fixed versioning means the matching core is always released alongside.
+**Do not "tighten" those peers to `workspace:^`.** A caret publishes as `^0.2.0`, which the next
+minor falls outside of; Changesets majors a peer dependent whose range goes out of range, and a
+fixed group takes the largest bump — so one caret would take all eight packages to `1.0.0`.
+
 `@guideflow/devtools` is deliberately **not** in that list. `private: true` already stops
 `changeset publish` from pushing it to npm, but it does *not* stop versioning — `privatePackages.version`
 defaults to `true`, so `ignore` is the only thing that would freeze the version. The extension needs
