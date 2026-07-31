@@ -458,31 +458,84 @@ Both were invisible until the browser suite actually ran for the first time:
 
 ---
 
-## Phase 7 — Close the product gaps (ongoing)
+## Phase 7 — Close the product gaps (in progress)
 
 Driven by [`PRODUCT-ROADMAP.md`](PRODUCT-ROADMAP.md). Highest impact first.
 
-- [ ] **7.1 SPA route-change handling.** ⭐ Closes `no-spa-route-change-handling`.
-      **Nothing** in the monorepo handles `popstate`, `pushState` or `hashchange`. A tour cannot span two
-      routes — the most common real-world onboarding requirement, and a category table-stake that
-      Shepherd and react-joyride both meet. Needs `waitForTarget` with a timeout, a per-step `route`
-      hint, a history adapter, and re-anchoring after navigation.
-- [ ] **7.2 Target-only interaction** — rework the overlay so `clickThrough` exposes the *target*, not
-      the whole page (revisits `ADR-004`).
-- [ ] **7.3 Flow versioning** — closes `no-flow-versioning-stale-snapshot-resume`.
-- [ ] **7.4 Targeting, scheduling and frequency capping** — closes `no-targeting-or-audience-rules`,
-      `no-frequency-capping-or-flow-orchestration`.
-- [ ] **7.5 Make A/B testing able to change something** — closes `experiment-variant-cannot-affect-any-tour`.
-- [ ] **7.6 Wire intent to flows** — closes `intent-never-wired-to-flows`.
-- [ ] **7.7 AI reliability** — structured outputs, retries, timeouts, abort, spend caps. Closes
-      `no-json-mode-hand-parsed`, `uncapped-llm-calls-per-pause`, `brain-unhandled-rejection`,
-      `provider-no-timeout-abort`, `anthropic-default-model-retired`.
-- [ ] **7.8 Checklists, banners, surveys** — closes `no-checklists-surveys-banners-resource-centre`.
+A 13-agent design pass produced a full implementation brief for 7.1/7.3/7.4/7.5, with a byte budget
+for every piece. Its headline finding drove the order below: **the remaining core work is ~830 B and
+the budget could not absorb it**, so the packaging change had to come first.
+
+### Done
+
+- [x] **7.2 Target-only interaction.** Closed `clickthrough-exposes-whole-page`,
+      `clickthrough-overlay-still-blocks`, and ADR-004's recorded limitation.
+      The overlay carves a hole with `clip-path` rather than dropping pointer capture. Clipping
+      affects hit-testing, so the target is genuinely clickable and the rest of the page is not.
+      One element, one style assignment — the four-panel arrangement competitors use costs several
+      hundred bytes more. 11 unit tests on the geometry, 5 e2e tests that click the target for real.
+      *Known cosmetic gap: the hole's corners are square while the cutout's are rounded.*
+
+- [x] **7.1e Evict `content.html` to `@guideflow/core/html`.** See **ADR-009**.
+      Not housekeeping — 7.2 took core to 14.55 kB against a 14.5 kB limit, and ADR-008's condition
+      on the next raise was to move `content.html` out *first*. Doing so freed 420 B and the limit
+      did not move at all: **14.13 kB, ~370 B spare**. The sanitiser is passed explicitly rather
+      than registered by a side-effect import, because a bundler giving the subpath its own copy of
+      a registry module would fail silently. Breaking for `content.html` users.
+
+- [x] **Two render-lifecycle defects the design pass found by reading.**
+      `detached-target-paints-black-screen` (P1) — a target removed mid-step is still a non-null
+      Element with a zero rect, so the cutout collapsed to 0x0 while keeping a 9999px shadow: a
+      fully black, click-blocking screen. `generation-not-bumped-on-navigation` (P2) —
+      `_renderGeneration` was never bumped by `next`/`prev`/`goTo`/`send`, so two rapid navigations
+      shared a generation and the older render could land last. Both are prerequisites for 7.1f.
+
+- [x] **7.6 Wire intent detection to flows.** Closed `intent-never-wired-to-flows`.
+      `createAI({ intentTriggers })` maps a signal type + confidence floor to a flow. Opt-in; never
+      interrupts a live tour; `minConfidence` defaults to 0.7 so a failed detection (which falls
+      back to `confidence: 0`) cannot fire a rule; once-per-flow by default.
+
+- [x] **7.7 AI reliability.** Closed `no-json-mode-hand-parsed`, `provider-no-timeout-abort`,
+      `uncapped-llm-calls-per-pause`, `brain-unhandled-rejection`, `anthropic-default-model-retired`.
+      Structured output per provider with a parse-and-recover fallback that *warns* rather than
+      returning `[]`; timeouts, abort and retry on all four; detection capped by a new-event floor,
+      a cooldown and a session ceiling; the unhandled rejection on a timer removed.
+
+### Remaining
+
+- [ ] **7.1 SPA route-change handling.** * **The last open P0** (`no-spa-route-change-handling`).
+      The design brief's conclusion, worth recording: **`route` belongs on `StateNode`, not on
+      `Step`, and not as a transition.** `FlowMachine._defaultPath` walks `NEXT` only, so a `ROUTE`
+      transition would put the target state off that path and reintroduce `total-steps-is-per-state`
+      — the bug ADR-008 paid 1.3 kB to fix. State-level `route` leaves the walk untouched, and
+      `prevStep()` already crosses state boundaries, so Back-across-a-route works for free.
+      Per-step `waitForTarget` stays load-bearing: a route change is only one of five reasons a
+      selector misses, alongside lazy chunks, Suspense, portals and drawers.
+      Sub-parts: `step:target-missing` (~34 B), the engine seam (~430 B),
+      `DefaultRenderer.setWaiting` (~110 B), and `@guideflow/core/navigation` (~1.6 kB, its own
+      subpath, zero core cost).
+- [ ] **7.3 Flow versioning** — `no-flow-versioning-stale-snapshot-resume`. ~162 B.
+      Note the audit was **wrong** on one point: `FlowMachine.restore` *does* already clamp
+      `stepIndex`. What it gets wrong is returning `true` for a state with zero steps, and ignoring
+      step identity entirely.
+- [ ] **7.4 Targeting, scheduling and frequency capping** — `no-targeting-or-audience-rules`,
+      `no-frequency-capping-or-flow-orchestration`. ~130 B in core, the rest in a
+      `@guideflow/core/targeting` subpath.
+- [ ] **7.5 Make A/B testing able to change something** — `experiment-variant-cannot-affect-any-tour`.
+      Lands in `@guideflow/analytics` (no size gate) as `startVariant`. The brief argues `theme` in
+      core is **not** needed: `RendererContract.onInit?(config)` already lets a renderer read config
+      and set `data-gf-theme` for zero bytes.
+- [ ] **7.8 Checklists, banners, surveys** — `no-checklists-surveys-banners-resource-centre`.
 - [ ] **7.9 A real authoring path** — finish the recorder, then build the studio on it. Closes
       `no-authoring-path-for-non-engineers`.
-- [ ] **7.10 Backend / flow CMS** — closes `no-backend-cms-or-self-hosting-story`. See
-      `MCP-AND-SKILLS.md` for the stack recommendation.
-- [ ] **7.11 Ship a GuideFlow MCP server** — see `MCP-AND-SKILLS.md` §3.
+- [ ] **7.10 Backend / flow CMS** — `no-backend-cms-or-self-hosting-story`. See `MCP-AND-SKILLS.md`.
+- [ ] **7.11 Ship a GuideFlow MCP server** — see `MCP-AND-SKILLS.md` section 3.
+
+> **Budget note for whoever picks this up.** Core is at 14.13 kB / 14.5 kB. The projected remainder
+> (7.1f + 7.3 + 7.4) is ~830 B, landing near 14.96 kB. **A raise to 15 kB will be needed, and it
+> must land in the same changeset as the work that needs it, with an ADR and a real measurement** —
+> ADR-009 deliberately did not raise it pre-emptively. The lever after that is splitting navigation
+> and targeting into their own subpaths, which the design already assumes.
 
 ---
 

@@ -118,10 +118,15 @@ marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOve
 
 > The size budget has been raised three times: 12 → 12.5 kB in Phase 1 (seven correctness fixes),
 > 12.5 → 13 kB in Phase 3 (the parse-and-allowlist sanitiser, ADR-007), and 13 → 14.5 kB in Phase 6
-> (focus trap, live region, keyboard guards, reduced-motion, flow-wide counters — ADR-008). ~210 B
-> of headroom remains. **Before raising it a fourth time, move `content.html` support out of the
-> default bundle into an opt-in subpath export** — that is now required work for the next major, not
-> an option. Any docs figure quoting a bundle size must say **~14 kB**.
+> (ADR-008). **The fourth raise did not happen.** ADR-008's condition — move `content.html` out of
+> the default bundle first — was discharged in Phase 7 (**ADR-009**): the sanitiser ships as
+> `@guideflow/core/html` and is passed via `createGuideFlow({ sanitizeHTML })`. That freed 420 B, so
+> core sits at **14.13 kB against an unchanged 14.5 kB limit** with ~370 B spare, and the subpath
+> carries its own 1 kB budget.
+>
+> The remaining Phase 7 core work is projected at ~830 B and **will** need 15 kB. When it does:
+> raise it in the same changeset as the work, with a real measurement and an ADR — never
+> pre-emptively. Any docs figure quoting a bundle size must say **~14 kB**.
 
 ## 4. Code conventions
 
@@ -258,6 +263,25 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
   that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
   app" report is this.
+- **`content.html` needs an opt-in import; `content.body` does not.** The sanitiser lives in
+  `@guideflow/core/html` and is passed as `createGuideFlow({ sanitizeHTML })` (ADR-009). Without it
+  the markup is escaped and rendered as text with a one-time warning — safe, visible, debuggable.
+  It is passed explicitly rather than registered by a side-effect import on purpose: a bundler
+  handing the subpath its own copy of a registry module would break it *silently*.
+- **Backticks inside a CSS template literal terminate the string.** `injectStyles` payloads in
+  `spotlight.ts`, `hotspot.ts`, `hint.ts` and `default-renderer.ts` are template literals, so a
+  comment like `/* sets `pointer-events` */` produces a wall of TS1005s that point at the wrong
+  line. Write those comments without backticks.
+- **Every entry point that starts a render must bump `_renderGeneration` first.** `next`, `prev`,
+  `goTo` and `send` do; a no-op navigation deliberately does not, because bumping there would
+  cancel a render that is legitimately in flight.
+- **A detached target is not a null target.** `spotlight._update()` branches on
+  `!this._currentTarget?.isConnected`, because a removed element is still a non-null `Element` that
+  returns a zero rect — and a 0×0 cutout keeps its `box-shadow: 0 0 0 9999px`, i.e. a black
+  click-blocking screen.
+- **`clickThrough` carves a `clip-path` hole; it does not drop pointer capture.** The overlay stays
+  `pointer-events: all` and excludes the target's rect. Setting `pointer-events: none` on it — the
+  old implementation — makes the entire page interactive and throws away the tour's modality.
 - **`page.goto('/')` in a Playwright spec does not go where you think.** Playwright resolves it as
   `new URL(url, baseURL)`, and a leading slash discards `baseURL`'s path. This repo's `baseURL` is
   `http://127.0.0.1:4173/apps/e2e/fixtures/`, so `'/'` lands on the repo root. Use `'index.html'`.
