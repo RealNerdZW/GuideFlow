@@ -28,8 +28,9 @@ build, plus stylesheets under `@guideflow/core/styles`.
 
 ## Framework adapters
 
-Each adapter depends on `@guideflow/core` directly, so installing the adapter is
-enough — add core explicitly as well if you import from it in your own code.
+Every GuideFlow package declares `@guideflow/core` as a **peer dependency** rather than bundling it,
+so install core alongside the adapter you want. That is what keeps a single copy of the engine in
+your app — two copies would mean two independent tour states.
 
 ::: code-group
 
@@ -47,22 +48,26 @@ pnpm add @guideflow/core @guideflow/svelte
 
 :::
 
-The framework itself is a peer dependency:
+Your framework is a peer dependency too:
 
 | Adapter | Peer range |
 |---------|-----------|
-| `@guideflow/react` | `react` / `react-dom` ^17 \|\| ^18 \|\| ^19 |
+| `@guideflow/react` | `react` / `react-dom` ^18 \|\| ^19 |
 | `@guideflow/vue` | `vue` ^3 |
 | `@guideflow/svelte` | `svelte` ^4 \|\| ^5 |
+
+React 17 is not supported: the adapter uses `useId` and `useSyncExternalStore`, both React 18.
 
 ## Optional packages
 
 ```bash
-# AI capabilities
-pnpm add @guideflow/ai
+# AI capabilities (pick your provider)
+pnpm add @guideflow/core @guideflow/ai                    # ProxyProvider / Ollama — no SDK needed
+pnpm add @guideflow/core @guideflow/ai openai             # OpenAIProvider (server-side only)
+pnpm add @guideflow/core @guideflow/ai @anthropic-ai/sdk  # AnthropicProvider (server-side only)
 
 # Analytics & A/B testing
-pnpm add @guideflow/analytics
+pnpm add @guideflow/core @guideflow/analytics
 
 # CLI tools
 pnpm add -D @guideflow/cli

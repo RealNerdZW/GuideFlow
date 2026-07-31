@@ -58,7 +58,7 @@ work needed to close it.
 | Access raw instance | ✅ `useGuideFlow()` | ✅ `useGuideFlow()` / `tour.instance` | ✅ `store.instance` | |
 | start/stop | ✅ | ✅ | ✅ | |
 | next/prev/goTo/send | ✅ | ✅ | ✅ | |
-| pause/resume | ❌ | ✅ + reactive `isPaused` | ✅ + `isPaused` store | Updated from `tour:pause`/`tour:resume`, but seeded and re-read from core's `isPaused` getter (added 2026-07-31), so a consumer created while a tour is already paused is correct. |
+| pause/resume | ✅ + `isPaused` in the snapshot | ✅ + reactive `isPaused` | ✅ + `isPaused` store | All three read core's `isPaused` getter (added 2026-07-31), so a consumer created while a tour is already paused is correct. React's `useSyncExternalStore` snapshot reads it fresh on every call and keeps no mirror at all; Vue and Svelte seed a ref/store from it and re-read it in their pause/resume handlers. |
 | skip | ❌ | ✅ | ✅ | |
 | reactive isActive/index/total | partial | ✅ resets to idle on tour end | ✅ resets to idle on tour end | |
 | reactive currentStep/currentContent | ❌ | ✅ `shallowRef` | ✅ `Readable` | |
@@ -149,10 +149,13 @@ Found while closing Phase 5.2. Each one makes an adapter do something it should 
 1. ~~**No `isPaused` getter.**~~ **Closed 2026-07-31.** `TourEngine` kept `_paused` private, so every
    adapter derived paused-ness from `tour:pause` / `tour:resume` into a parallel boolean seeded with
    a literal `false` — wrong for any consumer created *after* the pause. `isPaused` is now a getter
-   on `TourEngine` and a `readonly` field on `GuideFlowInstance`; Vue and Svelte seed their
-   ref/store from `gf.isPaused` and read it in their pause/resume handlers. Adapters still keep a
-   local ref/store — the getter is not reactive, so the events are still what drives an update.
-   React (Phase 5.1) has no `isPaused` at all yet.
+   on `TourEngine` and a `readonly` field on `GuideFlowInstance`, and all three adapters read it.
+   Vue and Svelte still keep a local ref/store, because the getter is not reactive — the events are
+   what drives an update, the getter is what supplies the value. React needs no mirror at all: its
+   `useSyncExternalStore` snapshot recomputes from the instance on every call, so deleting the
+   mirror also fixed a second bug the others cannot have — its engine subscription is ref-counted,
+   and unmounting the last consumer both reset the mirror and stopped observing the events, so a
+   remount into a still-paused tour reported it as running.
 2. **`_doEnd()` emits before it clears state.** `tour:complete` / `tour:abandon` fire while
    `_machine`, `_currentStep` and `_currentContent` are still set, so any handler that reads the
    instance sees the last live step. Every adapter now hard-codes the idle values on those two

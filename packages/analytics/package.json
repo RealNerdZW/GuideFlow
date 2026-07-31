@@ -63,7 +63,7 @@
     "clean": "node ../../scripts/fsx.mjs rm dist .turbo"
   },
   "peerDependencies": {
-    "@guideflow/core": "^0.1.9"
+    "@guideflow/core": ">=0.1.9 <1.0.0"
   },
   "devDependencies": {
     "@guideflow/core": "workspace:*",

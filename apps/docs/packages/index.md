@@ -15,18 +15,20 @@ GuideFlow is published as a collection of scoped npm packages. Install only what
 
 ## Framework Adapters
 
+Each adapter takes `@guideflow/core` as a peer dependency, so install core alongside it.
+
 | Package | Description | Install |
 |---------|-------------|---------|
-| [@guideflow/react](./react) | React hooks & components (`TourProvider`, `useTour`, `TourStep`) | `npm i @guideflow/react` |
-| [@guideflow/vue](./vue) | Vue 3 plugin & composables (`GuideFlowPlugin`, `useTour`) | `npm i @guideflow/vue` |
-| [@guideflow/svelte](./svelte) | Svelte store adapter (`createTourStore`) | `npm i @guideflow/svelte` |
+| [@guideflow/react](./react) | React hooks & components (`TourProvider`, `useTour`, `TourStep`) | `npm i @guideflow/core @guideflow/react` |
+| [@guideflow/vue](./vue) | Vue 3 plugin & composables (`GuideFlowPlugin`, `useTour`) | `npm i @guideflow/core @guideflow/vue` |
+| [@guideflow/svelte](./svelte) | Svelte store adapter (`createTourStore`) | `npm i @guideflow/core @guideflow/svelte` |
 
 ## AI & Analytics
 
 | Package | Description | Install |
 |---------|-------------|---------|
-| [@guideflow/ai](./ai) | Auto-generate tours, intent detection, conversational help | `npm i @guideflow/ai` |
-| [@guideflow/analytics](./analytics) | Event tracking, transports (PostHog, Mixpanel, Amplitude), A/B testing | `npm i @guideflow/analytics` |
+| [@guideflow/ai](./ai) | Auto-generate tours, intent detection, conversational help | `npm i @guideflow/core @guideflow/ai` |
+| [@guideflow/analytics](./analytics) | Event tracking, transports (PostHog, Mixpanel, Amplitude), A/B testing | `npm i @guideflow/core @guideflow/analytics` |
 
 ## Tooling
 

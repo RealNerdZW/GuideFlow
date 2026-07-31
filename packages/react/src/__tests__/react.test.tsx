@@ -131,6 +131,39 @@ describe('useTour', () => {
     expect(api.currentStepId).toBe('s1')
   })
 
+  it('subscribes to an already-paused tour and reports isPaused true immediately', async () => {
+    // The component mounts *after* pause(), so there is no `tour:pause` event
+    // left for it to observe. The value has to come off the instance — the
+    // store used to seed a local mirror with `false` and render a paused tour
+    // as running.
+    await act(async () => { await gf.start(flow) })
+    act(() => { gf.pause() })
+
+    wrap(<Consumer />)
+
+    expect(api.isPaused).toBe(true)
+    expect(api.isActive).toBe(true)
+    expect(api.currentStepId).toBe('s1')
+  })
+
+  it('keeps isPaused correct across a full unmount and remount', async () => {
+    // The engine subscription is ref-counted: unmounting the last consumer
+    // detaches it. A store-local mirror was reset to `false` by that detach —
+    // and saw no events at all while detached — so a consumer remounting into
+    // a still-paused tour reported it as running.
+    const first = wrap(<Consumer />)
+    await act(async () => { await api.start(flow) })
+    act(() => { api.pause() })
+    expect(api.isPaused).toBe(true)
+
+    act(() => { first.unmount() })
+    wrap(<Consumer />)
+
+    expect(api.isPaused).toBe(true)
+    expect(api.isActive).toBe(true)
+    expect(api.currentStepId).toBe('s1')
+  })
+
   it('exposes skip, which dismisses the tour', async () => {
     wrap(<Consumer />)
     const dismissed = vi.fn()

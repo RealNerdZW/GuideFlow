@@ -46,15 +46,26 @@ function same(a: TourSnapshot, b: TourSnapshot): boolean {
 export function createTourStore(gf: GuideFlowInstance): TourStore {
   const listeners = new Set<() => void>()
   let offs: Array<() => void> = []
-  // `_paused` is private to TourEngine and there is no public getter, so the
-  // store tracks it from the tour:pause / tour:resume events instead.
-  let paused = false
 
+  /**
+   * Every field is read from the instance at call time — the store keeps no
+   * mirrored copy of anything, `isPaused` included. A mirror fed only by
+   * `tour:pause` / `tour:resume` was wrong twice over: it started at `false`,
+   * so the first consumer to mount during an already-paused tour saw a running
+   * one; and because the subscription is ref-counted, pause/resume that
+   * happened while no component was subscribed were never observed at all.
+   *
+   * Ending a tour needs no special case here. `_doEnd()` clears `_active`
+   * *before* it emits `tour:complete` / `tour:abandon`, so `gf.isActive` is
+   * already false by the time those handlers run and this returns IDLE — which
+   * is why the Vue and Svelte stores hard-code their idle values and this does
+   * not.
+   */
   function read(): TourSnapshot {
     if (!gf.isActive) return IDLE
     return {
       isActive: true,
-      isPaused: paused,
+      isPaused: gf.isPaused,
       currentStepId: gf.currentStepId,
       currentStepIndex: gf.currentStepIndex,
       totalSteps: gf.totalSteps,
@@ -70,13 +81,15 @@ export function createTourStore(gf: GuideFlowInstance): TourStore {
     listeners.forEach((listener) => listener())
   }
 
+  // These events carry no state — they exist only to tell React when to
+  // re-read. The values themselves always come from the instance, via read().
   function attach(): void {
     offs = [
-      gf.on('tour:start', () => { paused = false; refresh() }),
-      gf.on('tour:complete', () => { paused = false; refresh() }),
-      gf.on('tour:abandon', () => { paused = false; refresh() }),
-      gf.on('tour:pause', () => { paused = true; refresh() }),
-      gf.on('tour:resume', () => { paused = false; refresh() }),
+      gf.on('tour:start', () => refresh()),
+      gf.on('tour:complete', () => refresh()),
+      gf.on('tour:abandon', () => refresh()),
+      gf.on('tour:pause', () => refresh()),
+      gf.on('tour:resume', () => refresh()),
       gf.on('step:enter', () => refresh()),
       gf.on('step:exit', () => refresh()),
     ]
@@ -85,7 +98,6 @@ export function createTourStore(gf: GuideFlowInstance): TourStore {
   function detach(): void {
     offs.forEach((off) => off())
     offs = []
-    paused = false
   }
 
   return {

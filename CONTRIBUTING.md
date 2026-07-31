@@ -16,7 +16,7 @@ architecture notes and traps that are easy to trip over.
 git clone https://github.com/RealNerdZW/GuideFlow.git
 cd GuideFlow
 pnpm install
-pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e
+pnpm turbo run build --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
 > **Windows users:** some package scripts use POSIX `cp -r` and `rm -rf`. Run builds from **Git
@@ -25,7 +25,7 @@ pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e
 Verify your setup — you should see 197 passing unit tests:
 
 ```bash
-pnpm turbo run test --filter=!storybook --filter=!docs --filter=!e2e
+pnpm turbo run test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
 ### Useful entry points
@@ -97,7 +97,7 @@ Most of these are enforced; the linter will tell you. The reasoning is in `CLAUD
    `gf.i18n.use()` affects rendered strings" — not "fix i18n bug".
 5. Run the full gate before pushing:
    ```bash
-   pnpm turbo run build type-check lint test --filter=!storybook --filter=!docs --filter=!e2e
+   pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
    pnpm --filter @guideflow/core size
    ```
 

@@ -1,5 +1,6 @@
 ---
 '@guideflow/core': minor
+'@guideflow/react': patch
 '@guideflow/vue': patch
 '@guideflow/svelte': patch
 ---
@@ -16,3 +17,10 @@ literal `false`, because there was nothing to read. A `useTour()` mounted — or
 `createTourStore(gf)` created — while a tour was already paused therefore started out claiming the
 tour was running, and stayed wrong until the next pause or resume. Both now seed from
 `gf.isPaused` and read the getter in their pause/resume handlers.
+
+**Fixed: React had the same bug, plus one of its own.** `useTour().isPaused` came from a mirror
+inside the `useSyncExternalStore` store, seeded `false` for the same reason. That store's engine
+subscription is also ref-counted, and unmounting the last consumer both reset the mirror and
+stopped observing `tour:pause` / `tour:resume` — so a component remounting into a tour that was
+still paused reported it as running, even though an earlier consumer had seen the pause. The
+snapshot now reads `gf.isPaused` directly and keeps no mirror, so it cannot drift.
