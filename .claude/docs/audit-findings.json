@@ -13,9 +13,9 @@
     "total": 325,
     "P0": 12,
     "P1": 86,
-    "P2": 116,
+    "P2": 115,
     "P3": 42,
-    "resolved": 69
+    "resolved": 70
   },
   "findings": [
     {
@@ -3259,7 +3259,7 @@
       "severity": "P2",
       "kind": "packaging",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "packages/cli puts vite in `dependencies` for one command, forcing every CLI install to download Vite and its esbuild binary",
       "file": "packages/cli/package.json",
       "line": 56,
@@ -3267,7 +3267,8 @@
       "impact": "README.md:528 tells users to `pnpm add -g @guideflow/cli`. Because vite is a hard dependency, that global install pulls Vite 5 plus rollup and a platform-specific esbuild binary — tens of megabytes — even for users who only ever run `guideflow init`, `export` or `push`. Vite is used by exactly one command, and packages/cli/src/commands/studio.ts:6 imports it statically at module top level (`import { createServer } from 'vite'`), so the cost is paid on every CLI startup, not just for `studio`.",
       "fix": "Move `vite` from `dependencies` to `optionalDependencies` (or `peerDependenciesMeta.optional`) in packages/cli/package.json:56, and change packages/cli/src/commands/studio.ts:6 to a lazy `const { createServer } = await import('vite')` inside the `.action()` handler, wrapped so a missing module prints \"guideflow studio requires vite — install it with `npm i -D vite`\". `vite` is already in the tsup `external` list (packages/cli/tsup.config.ts:10), so the emitted bundle needs no change.",
       "effort": "S",
-      "verifierNote": "packages/cli/package.json:56 is verbatim `\"vite\": \"^5.2.0\"` inside `dependencies` (lines 51-57), not devDependencies. packages/cli/src/commands/studio.ts:6 is `import { createServer } from 'vite';` at module top level, and packages/cli/src/index.ts:31 imports studioCommand unconditionally, so vite is loaded on every CLI invocation including `init`, `export` and `push`. README.md:528 does instruct `pnpm add -g @guideflow/cli`."
+      "verifierNote": "packages/cli/package.json:56 is verbatim `\"vite\": \"^5.2.0\"` inside `dependencies` (lines 51-57), not devDependencies. packages/cli/src/commands/studio.ts:6 is `import { createServer } from 'vite';` at module top level, and packages/cli/src/index.ts:31 imports studioCommand unconditionally, so vite is loaded on every CLI invocation including `init`, `export` and `push`. README.md:528 does instruct `pnpm add -g @guideflow/cli`.",
+      "resolvedIn": "Phase 3.6 (945a437)"
     },
     {
       "id": "core-build-cp-posix-only",
