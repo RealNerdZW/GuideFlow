@@ -1,6 +1,21 @@
 /* GuideFlow — Dark Mode */
+
+/*
+ * `:not([data-gf-theme])` is the whole fix.
+ *
+ * This block used to be a plain `:root {...}`, imported *after* themes.css.
+ * `:root` and `[data-gf-theme="bold"]` have identical specificity (0,1,0), so
+ * source order decided it and the OS dark preference silently overwrote every
+ * token of whichever theme the developer had explicitly chosen — a "bold" tour
+ * on a dark-mode machine rendered in the default dark palette instead
+ * (AUDIT `dark-css-clobbers-themes`).
+ *
+ * An explicit theme is a stated intention and outranks an inferred preference.
+ * A theme that wants to respond to dark mode can carry its own
+ * `@media (prefers-color-scheme: dark)` block.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-gf-theme]) {
     --gf-popover-bg: #1e1e2e;
     --gf-popover-text: #cdd6f4;
     --gf-popover-border: rgba(255, 255, 255, 0.08);
@@ -11,7 +26,8 @@
   }
 }
 
-/* Manual dark mode via data attribute */
+/* Manual dark mode via data attribute. Explicit, so it may sit alongside an
+   explicit theme — a developer who sets both means both. */
 [data-gf-dark],
 .gf-dark {
   --gf-popover-bg: #1e1e2e;

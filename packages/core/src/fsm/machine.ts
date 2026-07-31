@@ -3,13 +3,14 @@
 // XState-compatible API surface for optional adapter compatibility
 // ---------------------------------------------------------------------------
 
-import type { GuidanceContext, FlowDefinition } from '../types/index.js'
+import type { GuidanceContext, FlowDefinition, FlowTransition, StateNode } from '../types/index.js'
 
 import type { MachineContext, MachineListener } from './types.js'
 
 export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
   private _ctx: MachineContext<TContext>
   private _listeners = new Set<MachineListener<TContext>>()
+  private _pathCache: string[] | null = null
 
   constructor(flow: FlowDefinition<TContext>, context?: TContext) {
     // Validate that the initial state exists in the flow definition
@@ -58,8 +59,89 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return this._ctx.flow.states[this._ctx.currentState]?.final === true
   }
 
+  /** Steps in the current state only. */
   get totalSteps(): number {
     return this.currentSteps.length
+  }
+
+  /**
+   * The states a plain next()-only run visits, in order, starting from
+   * `initial`.
+   *
+   * Computed once and cached: a flow definition is immutable for the life of a
+   * machine, and `_renderCurrentStep` reads the progress counters on every step.
+   * The walk follows each state's `NEXT` transition — or its single outgoing
+   * transition, if it has exactly one — and stops at a final state, at a state
+   * with no unambiguous successor, or on revisiting a state (a loop has no
+   * finite length).
+   */
+  private get _defaultPath(): string[] {
+    if (this._pathCache) return this._pathCache
+
+    const path: string[] = []
+    const seen = new Set<string>()
+    let state = this._ctx.flow.initial as string | undefined
+
+    while (state !== undefined && !seen.has(state)) {
+      seen.add(state)
+      path.push(state)
+      state = this._defaultSuccessor(state)
+    }
+
+    this._pathCache = path
+    return path
+  }
+
+  /**
+   * The state a plain next() would land in from `from`, or `undefined` if
+   * next() would end the tour there instead.
+   *
+   * `NEXT` only, deliberately. `nextStep()` falls back to exactly `send('NEXT')`
+   * when a state's steps run out, so a state reachable only by some other event
+   * — a `HELP` branch, a `JUMP` — is not on the path a next()-only run takes and
+   * must not be counted in it.
+   *
+   * A separate method rather than inline in the loop above: assigning the loop
+   * variable from an expression that reads `flow.states[state]` makes the whole
+   * chain self-referential, and TypeScript refuses to infer it (TS7022).
+   */
+  private _defaultSuccessor(from: string): string | undefined {
+    const node: StateNode<TContext> | undefined = this._ctx.flow.states[from]
+    if (!node || node.final === true) return undefined
+
+    const transition: string | FlowTransition<TContext> | undefined = node.on?.['NEXT']
+    const target: string | undefined =
+      typeof transition === 'string' ? transition : transition?.target
+    return target !== undefined && target in this._ctx.flow.states ? target : undefined
+  }
+
+  /**
+   * Steps across the whole flow, not just the current state.
+   *
+   * `totalSteps` counted the current state only, so a two-state flow announced
+   * "Step 1 of 1" in its first state and the renderer offered "Done" halfway
+   * through — AUDIT `total-steps-is-per-state`. Branching flows have no single
+   * honest total; the default path is the best available answer and degrades to
+   * `totalSteps` when the current state is not on it.
+   */
+  get flowTotalSteps(): number {
+    const path = this._defaultPath
+    if (!path.includes(this._ctx.currentState)) return this.currentSteps.length
+    return path.reduce(
+      (sum, name) => sum + (this._ctx.flow.states[name]?.steps?.length ?? 0),
+      0,
+    )
+  }
+
+  /** Zero-based position of the current step within {@link flowTotalSteps}. */
+  get flowStepIndex(): number {
+    const path = this._defaultPath
+    const at = path.indexOf(this._ctx.currentState)
+    if (at === -1) return this._ctx.stepIndex
+    return path
+      .slice(0, at)
+      .reduce((sum, name) => sum + (this._ctx.flow.states[name]?.steps?.length ?? 0), 0)
+      + this._ctx.stepIndex
   }
 
   // ── Transitions ───────────────────────────────────────────────────────────

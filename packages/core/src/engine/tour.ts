@@ -19,6 +19,31 @@ import { isBrowser } from '../utils/ssr.js'
 import { scrollTargetIntoView } from './popover.js'
 import { SpotlightOverlay } from './spotlight.js'
 
+/**
+ * Elements whose own keyboard handling must never be pre-empted.
+ *
+ * `input` and `textarea` need arrow keys for the caret; `select` and the
+ * listbox/slider/spinbutton/menu roles use them to change value or move
+ * selection; `contenteditable` is a text surface by definition.
+ */
+const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
+const EDITABLE_ROLES = new Set([
+  'textbox', 'searchbox', 'combobox', 'listbox', 'slider', 'spinbutton',
+  'menu', 'menubar', 'menuitem', 'tree', 'grid', 'application',
+])
+
+/** True when a keystroke on this target belongs to the page, not to the tour. */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  if (EDITABLE_TAGS.has(target.tagName)) return true
+  if (target.closest('[contenteditable]:not([contenteditable="false"])') !== null) return true
+
+  const role = target.getAttribute('role')
+  if (role !== null && EDITABLE_ROLES.has(role)) return true
+  // A composite widget can put focus on a descendant of the roled container.
+  return target.closest('[role="listbox"],[role="grid"],[role="tree"],[role="menu"]') !== null
+}
+
 interface TourEngineOptions<TContext extends GuidanceContext = GuidanceContext> {
   renderer: RendererContract
   spotlight?: SpotlightOptions
@@ -74,12 +99,19 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     return this._machine?.currentStep?.id ?? null
   }
 
+  /**
+   * Position in the whole flow, not in the current state.
+   *
+   * These used to report the current state's numbers, so a multi-state tour
+   * counted 1-of-1 in each state and the renderer offered "Done" on the first
+   * step — AUDIT `total-steps-is-per-state`.
+   */
   get currentStepIndex(): number {
-    return this._machine?.stepIndex ?? 0
+    return this._machine?.flowStepIndex ?? 0
   }
 
   get totalSteps(): number {
-    return this._machine?.totalSteps ?? 0
+    return this._machine?.flowTotalSteps ?? 0
   }
 
   get flowId(): string | null {
@@ -340,8 +372,16 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
         target,
       })
 
-      // Delegate to renderer — cast away TContext since renderer never calls showIf
-      this._renderer.renderStep(step as Step, content, this._machine.stepIndex, this._machine.totalSteps)
+      // Delegate to renderer — cast away TContext since renderer never calls showIf.
+      // Flow-wide counters, not per-state: the renderer derives "Back", "Next"
+      // and "Done" from index/total, so per-state numbers put a Done button on
+      // the first step of a multi-state tour.
+      this._renderer.renderStep(
+        step as Step,
+        content,
+        this._machine.flowStepIndex,
+        this._machine.flowTotalSteps,
+      )
     } catch (err) {
       // Error boundary — log, emit, and clean up so the page is not left in a broken state
       const flowId = this._flow?.id ?? 'unknown'
@@ -405,6 +445,32 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // advance it and re-show the UI that pause() had just hidden, and Escape
       // silently abandoned a tour the caller meant to keep.
       if (!this._active || this._paused) return
+
+      // Mid-composition keystrokes belong to the IME, not to us. Escape there
+      // cancels the composition; arrows move through the candidate list.
+      if (e.isComposing || e.keyCode === 229) return
+      // A modified key is a browser or OS shortcut.
+      if (e.altKey || e.ctrlKey || e.metaKey) return
+      // Something closer to the user already claimed this key.
+      if (e.defaultPrevented) return
+
+      // Escape closes the dialog from anywhere, per the ARIA authoring
+      // practices — including from inside a field, where it is the user's only
+      // keyboard escape hatch.
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        this.skip()
+        return
+      }
+
+      // Never steal a keystroke the user is aiming at a control. This handler
+      // is on `document`, so without this guard ArrowLeft/Right could not move
+      // a caret, adjust a slider or change a select while a tour was running —
+      // worst of all on `clickThrough` steps, which exist precisely so the user
+      // can interact with the highlighted element.
+      // AUDIT `arrow-keys-break-inputs`.
+      if (isEditableTarget(e.target)) return
+
       switch (e.key) {
         case 'ArrowRight':
         case 'ArrowDown':
@@ -415,10 +481,6 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
         case 'ArrowUp':
           e.preventDefault()
           void this.prev()
-          break
-        case 'Escape':
-          e.preventDefault()
-          this.skip()
           break
       }
     }

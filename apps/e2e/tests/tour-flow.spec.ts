@@ -9,7 +9,11 @@ import { test, expect } from '@playwright/test';
  */
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  // 'index.html', not '/'. Playwright resolves a goto() argument with
+  // `new URL(url, baseURL)`, and a leading slash discards baseURL's path —
+  // '/' landed on the repo root the static server exposes, where nothing ever
+  // sets __gfReady. Every spec in this suite then timed out in beforeEach.
+  await page.goto('index.html');
   await page.waitForFunction(() => window.__gfReady === true);
   // Persisted progress from a previous spec would suppress or resume a tour.
   await page.evaluate(() => localStorage.clear());
@@ -33,8 +37,11 @@ test.describe('Tour flow', () => {
     await page.click('[data-gf-action="next"]');
     await expect(page.locator('.gf-popover')).toContainText('Step Three');
 
-    // Last step offers Done rather than Next.
-    await page.click('[data-gf-action="end"]');
+    // The last step's primary button reads "Done" but still dispatches `next`:
+    // `end` maps to stop(), which reports the tour as abandoned rather than
+    // completed. Regression for `done-button-abandons-tour`.
+    await expect(page.locator('.gf-popover .gf-btn-primary')).toHaveText('Done');
+    await page.click('.gf-popover .gf-btn-primary');
     await expect(page.locator('.gf-popover')).toBeHidden();
 
     expect(await page.evaluate(() => window.__gfEnters)).toEqual(['s1', 's2', 's3']);

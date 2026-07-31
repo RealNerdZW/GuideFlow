@@ -150,15 +150,36 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(pnpm --filter e2e exec playwright --version | sed 's/^Version //')" >> "$GITHUB_OUTPUT"
+
+      # Restore and save are split deliberately. The combined `actions/cache`
+      # only writes its cache in a post step when the job SUCCEEDS, and these
+      # jobs failed on every run since they were added — so nothing was ever
+      # stored and every run reported "Cache not found". A separate save step,
+      # placed before the steps that can fail, breaks that loop.
+      - name: Restore Playwright browsers
+        uses: actions/cache/restore@v4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ matrix.browser }}
+          # Keyed on the Playwright version, not on pnpm-lock.yaml. Browser
+          # builds only change when Playwright does, but the lockfile hash
+          # rotates on any dependency change anywhere in the monorepo — 12 of
+          # the last dozen lockfile-touching commits would each have thrown the
+          # browser cache away.
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ matrix.browser }}
 
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ matrix.browser }}
 
       - name: Build core
         run: pnpm --filter @guideflow/core build

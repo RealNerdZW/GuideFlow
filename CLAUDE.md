@@ -80,37 +80,48 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (after Phases 0–3, 2026-07-31)
+### Known-good baseline (after Phases 0–6, 2026-07-31)
 
-Build, type-check, lint and unit tests are **all green**: **443 unit tests pass**, 6 skipped
-(core 201, ai 90, analytics 78, cli 30, vue 18, react 14, svelte 12). `@guideflow/core` measures
-**12.62 kB gzip against a 13 kB limit**. If any of these regress, you broke it — do not paper
+Build, type-check, lint and unit tests are **all green**: **644 unit tests pass**, 2 skipped
+(core 291, react 114, ai 90, analytics 78, vue 47, cli 37, svelte 34). `@guideflow/core` measures
+**14.29 kB gzip against a 14.5 kB limit**. If any of these regress, you broke it — do not paper
 over it.
 
-Every package now has a real `test` script; `--passWithNoTests` has been removed everywhere, so a
-package with no tests fails rather than reporting green. Six packages carry coverage thresholds,
-set as **ratchets** just below measured coverage — raise them as coverage improves, never lower
-them to make a build pass. The one remaining hole is `@guideflow/devtools`, which still has no
-tests (needs an extension harness; tracked in Phase 5.3).
+**The Playwright e2e suite now actually runs: 156/156 across chromium, firefox, webkit and Mobile
+Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
+`page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
+discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
+waiting for `__gfReady`. Verify with:
 
-Six skipped tests remain, each tagged with the audit finding that un-skips it. The eleven that
-encoded the sanitiser bypasses are now ACTIVE and passing — see ADR-007.
+```bash
+pnpm --filter e2e test:e2e
+```
 
-**The Playwright e2e suite has been rebuilt and wired into CI, but has not yet been executed** —
-browsers could not launch in the environment it was written in. Run
-`pnpm --filter e2e test:e2e` on a machine with browsers before trusting that job. See
-`.claude/docs/REMEDIATION-PLAN.md` 2.1 for exactly what was and was not verified.
+That suite is the only place in the repo where layout, tab order and `getComputedStyle` are real.
+happy-dom reports `offsetParent === null` for every element and has no layout engine, so both
+geometry P0s and every focus-order defect were structurally invisible to unit tests. **When you
+touch positioning, focus or CSS, run the e2e suite — a green `pnpm test` proves nothing about any
+of them.**
 
-**The Phase 3 devtools hardening has also not been exercised in a browser** — the nonce handshake,
+Every package has a real `test` script; `--passWithNoTests` has been removed everywhere. Six
+packages carry coverage thresholds set as **ratchets** just below measured coverage — raise them as
+coverage improves, never lower them to make a build pass. The one remaining hole is
+`@guideflow/devtools`, which still has no tests (needs an extension harness).
+
+**The Phase 3 devtools hardening has still not been exercised in a browser** — the nonce handshake,
 the relay allowlist and `optional_host_permissions` were reasoned about by reading. A mismatch would
 present as *silence*, not an error. Run `/gf-extension-dev` before trusting the extension.
 
-> The size budget has been raised twice: 12 kB to 12.5 kB in Phase 1 (seven correctness fixes),
-> and 12.5 kB to 13 kB in Phase 3 (the parse-and-allowlist sanitiser — see ADR-007). ~380 B of
-> headroom remains. **Do not raise it a third time** without first moving `content.html` support
-> out of the default bundle into an opt-in subpath export.
+**No manual screen-reader pass has been run.** Phase 6's a11y work is verified by axe and by
+assertion, which catches structure but not usability. Do not restore the "accessible by default"
+marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOver.
 
----
+> The size budget has been raised three times: 12 → 12.5 kB in Phase 1 (seven correctness fixes),
+> 12.5 → 13 kB in Phase 3 (the parse-and-allowlist sanitiser, ADR-007), and 13 → 14.5 kB in Phase 6
+> (focus trap, live region, keyboard guards, reduced-motion, flow-wide counters — ADR-008). ~210 B
+> of headroom remains. **Before raising it a fourth time, move `content.html` support out of the
+> default bundle into an opt-in subpath export** — that is now required work for the next major, not
+> an option. Any docs figure quoting a bundle size must say **~14 kB**.
 
 ## 4. Code conventions
 
@@ -247,6 +258,34 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
   that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
   app" report is this.
+- **`page.goto('/')` in a Playwright spec does not go where you think.** Playwright resolves it as
+  `new URL(url, baseURL)`, and a leading slash discards `baseURL`'s path. This repo's `baseURL` is
+  `http://127.0.0.1:4173/apps/e2e/fixtures/`, so `'/'` lands on the repo root. Use `'index.html'`.
+  This single character kept the entire e2e suite at a 0% pass rate through two phases.
+- **Counters are flow-wide, not per-state.** `totalSteps` / `currentStepIndex` walk the `NEXT`-only
+  path from `initial` (`FlowMachine.flowTotalSteps` / `flowStepIndex`, cached and cycle-guarded).
+  `machine.totalSteps` is still the *current state's* count — do not confuse them. The renderer
+  derives "Back" / "Next" / "Done" from index vs total, so per-state numbers put a Done button on
+  step one of a multi-state tour.
+- **The Done button dispatches `next`, not `end`.** `end` maps to `stop()`, which emits
+  `tour:abandon`. Only `next()` past the last step takes the completed path that emits
+  `tour:complete` and clears the saved snapshot. If you add a "finish" affordance anywhere, wire it
+  to `next`.
+- **`prefers-reduced-motion` has a JS half.** The smooth scroll in `scrollTargetIntoView()` and the
+  spotlight cutout transition are both assigned from script, so `motion.css` cannot reach them.
+  Both call `prefersReducedMotion()` from `utils/ssr.ts`. Add an animation from script and you must
+  call it too.
+- **Most "RTL fixes" are bugs.** Flexbox and block layout already follow the inherited `direction`.
+  `rtl.css` is deliberately almost empty; it used to carry three rules that undid the browser's own
+  correct mirroring. Only add a `[dir="rtl"]` rule for something genuinely direction-blind — a
+  physical `transform`, or a JS-assigned offset. In `computePosition`, `-start`/`-end` mirror and
+  `left`/`right` deliberately do not.
+- **`forced-color-adjust: none` inside a `forced-colors` block is backwards.** It opts the element
+  *out* of the palette the user asked the OS for. It sat on `.gf-popover` for exactly that reason.
+  Declare system colour keywords instead.
+- **De-emphasis goes through `--gf-muted-opacity`, not a literal.** `#111827` at `opacity: 0.5` over
+  white is 3.4:1 and fails WCAG AA; the token is 0.72 (6.6:1) and the high-contrast theme resets it
+  to 1. Same for `--gf-accent-color`: any override must clear 4.5:1 against `--gf-accent-fg`.
 - **Two documentation sites exist.** `.github/workflows/docs.yml` publishes
   `apps/docs/.vitepress/dist` to GitHub Pages. The root `docs/*.html` files are stale leftovers that
   nothing builds — yet `docs.yml` still *triggers* on `docs/**`. Edit `apps/docs/`, never `docs/`.

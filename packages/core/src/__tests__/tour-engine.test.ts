@@ -61,7 +61,11 @@ describe('TourEngine', () => {
       expect.objectContaining({ id: 'step-1' }),
       expect.any(Object),
       0,
-      1,
+      // 3, not 1. The renderer is handed flow-wide counters now: this
+      // assertion used to encode `total-steps-is-per-state`, where each of
+      // simpleFlow's three single-step states reported "1 of 1" and the
+      // renderer therefore drew a Done button on step one.
+      3,
     )
   })
 
@@ -285,11 +289,66 @@ describe('TourEngine', () => {
     expect(engine.isActive).toBe(false) // Tour should end
   })
 
-  it('reports totalSteps correctly', async () => {
+  it('counts every step in the flow, not just the current state', async () => {
     renderer = createMockRenderer()
     engine = new TourEngine({ renderer })
     await engine.start(simpleFlow)
-    expect(engine.totalSteps).toBe(1)
+    // Three states, one step each, joined by NEXT.
+    expect(engine.totalSteps).toBe(3)
+    expect(engine.currentStepIndex).toBe(0)
+  })
+
+  it('keeps counting across a state boundary', async () => {
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    await engine.start(simpleFlow)
+    await engine.next()
+
+    expect(engine.currentStepId).toBe('step-2')
+    // Not back to 0, which is what the per-state index reported.
+    expect(engine.currentStepIndex).toBe(1)
+    expect(engine.totalSteps).toBe(3)
+  })
+
+  it('counts only what next() would reach, and falls back off that path', async () => {
+    // `aside` is reachable only by an explicit HELP event. `nextStep()` falls
+    // back to `send('NEXT')` and nothing else, so a next()-only run never
+    // enters `aside` — counting its steps would overstate the tour's length.
+    const branching: FlowDefinition = {
+      id: 'branching',
+      initial: 'main',
+      states: {
+        main: {
+          steps: [{ id: 'b1', content: { title: 'Main' } }],
+          on: { NEXT: 'end', HELP: 'aside' },
+        },
+        aside: {
+          steps: [
+            { id: 'a1', content: { title: 'Aside one' } },
+            { id: 'a2', content: { title: 'Aside two' } },
+            { id: 'a3', content: { title: 'Aside three' } },
+            { id: 'a4', content: { title: 'Aside four' } },
+          ],
+        },
+        end: { steps: [{ id: 'b2', content: { title: 'End' } }], final: true },
+      },
+    }
+
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    await engine.start(branching)
+    expect(engine.totalSteps).toBe(2)
+
+    // Off the default path entirely: report the current state's own numbers
+    // rather than a total this state has no place in.
+    await engine.send('HELP')
+    expect(engine.currentStepId).toBe('a1')
+    // 4, the aside's own length — distinct from the default path's 2, so this
+    // really is exercising the fallback.
+    expect(engine.totalSteps).toBe(4)
+    expect(engine.currentStepIndex).toBe(0)
+    await engine.next()
+    expect(engine.currentStepIndex).toBe(1)
   })
 
   it('flowId returns the active flow id', async () => {

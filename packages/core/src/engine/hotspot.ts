@@ -21,12 +21,25 @@ const HOTSPOT_CSS = `
   z-index: 99997;
   pointer-events: all;
   cursor: pointer;
+  /* WCAG 2.5.8 asks for a 24x24 CSS px target. The visible dot is 12px, so the
+     container carries the rest as an invisible hit area centred on it —
+     AUDIT hotspot-touch-target-and-tooltip-invisible-to-at. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+}
+.gf-hotspot:focus-visible {
+  outline: 2px solid var(--gf-accent-color, #4f46e5);
+  outline-offset: 2px;
+  border-radius: 50%;
 }
 .gf-hotspot-beacon {
   width: var(--gf-hotspot-size, 12px);
   height: var(--gf-hotspot-size, 12px);
   border-radius: 50%;
-  background: var(--gf-accent-color, #6366f1);
+  background: var(--gf-accent-color, #4f46e5);
   animation: gf-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   display: block;
 }
@@ -53,6 +66,16 @@ const HOTSPOT_CSS = `
 .gf-hotspot:hover .gf-hotspot-tooltip,
 .gf-hotspot:focus-within .gf-hotspot-tooltip {
   opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* A beacon that pulses forever is the worst offender on the page. Keep it
+     visible at full size; stop it moving. */
+  .gf-hotspot-beacon { animation: none; }
+  .gf-hotspot-tooltip { transition: none; }
+}
+@media (forced-colors: active) {
+  .gf-hotspot-beacon { background: Highlight; }
+  .gf-hotspot-tooltip { border: 1px solid CanvasText; }
 }
 `
 
@@ -88,7 +111,7 @@ export class HotspotManager extends EventEmitter<Pick<TourEvents, 'hotspot:open'
 
     const id = `gf-hotspot-${++_hotspotCounter}`
     const beacon = this._createBeacon(id, options)
-    const tooltip = this._createTooltip(options)
+    const tooltip = this._createTooltip(id, options)
 
     beacon.appendChild(tooltip)
 
@@ -155,6 +178,11 @@ export class HotspotManager extends EventEmitter<Pick<TourEvents, 'hotspot:open'
     container.setAttribute('tabindex', '0')
     container.setAttribute('aria-label', options.title ?? 'Guidance hint')
     container.setAttribute('data-gf-hotspot-id', id)
+    // The tooltip is `role="tooltip"` but nothing pointed at it, so a screen
+    // reader announced the button's label and never its body.
+    if (options.body !== undefined) {
+      container.setAttribute('aria-describedby', `${id}-tooltip`)
+    }
 
     const beaconDot = document.createElement('span')
     beaconDot.className = 'gf-hotspot-beacon'
@@ -170,10 +198,11 @@ export class HotspotManager extends EventEmitter<Pick<TourEvents, 'hotspot:open'
     return container
   }
 
-  private _createTooltip(options: HotspotOptions): HTMLElement {
+  private _createTooltip(id: string, options: HotspotOptions): HTMLElement {
     const tooltip = document.createElement('div')
     tooltip.className = 'gf-hotspot-tooltip'
     tooltip.setAttribute('role', 'tooltip')
+    tooltip.id = `${id}-tooltip`
 
     if (options.title) {
       const title = document.createElement('strong')
@@ -192,11 +221,16 @@ export class HotspotManager extends EventEmitter<Pick<TourEvents, 'hotspot:open'
 
   private _positionBeacon(beacon: HTMLElement, target: Element): void {
     const rect = target.getBoundingClientRect()
-    const scrollX = window.scrollX
-    const scrollY = window.scrollY
+
+    // Centre the 24x24 hit area on the target's trailing top corner — the
+    // *left* corner in RTL. Half of 24, not half of the 12px dot: the container
+    // grew to meet the WCAG 2.5.8 target size, and offsetting by 6 would push
+    // the dot off the corner it is meant to mark.
+    const rtl = getComputedStyle(target).direction === 'rtl'
+    const inlineEnd = rtl ? rect.left : rect.right
 
     beacon.style.position = 'absolute'
-    beacon.style.left = `${rect.right + scrollX - 6}px`
-    beacon.style.top = `${rect.top + scrollY - 6}px`
+    beacon.style.left = `${inlineEnd + window.scrollX - 12}px`
+    beacon.style.top = `${rect.top + window.scrollY - 12}px`
   }
 }

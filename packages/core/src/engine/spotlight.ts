@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { SpotlightOptions } from '../types/index.js'
-import { isBrowser } from '../utils/ssr.js'
+import { isBrowser, prefersReducedMotion } from '../utils/ssr.js'
 import { injectStyles, removeStyles, gfId } from '../utils/styles.js'
 
 const SPOTLIGHT_CSS_ID = 'gf-spotlight'
@@ -188,7 +188,10 @@ export class SpotlightOverlay {
     const paint = this._overlayPaint()
 
     // `animated: false` is a documented option that previously did nothing.
-    this._cutoutEl.style.transition = this._options.animated
+    // `prefers-reduced-motion` forces it off regardless: a cutout sliding
+    // across the page is a large moving element, which is what that setting is
+    // for (AUDIT `ignores-prefers-reduced-motion`).
+    this._cutoutEl.style.transition = this._options.animated && !prefersReducedMotion()
       ? 'top 200ms ease, left 200ms ease, width 200ms ease, height 200ms ease, border-radius 200ms ease'
       : 'none'
 

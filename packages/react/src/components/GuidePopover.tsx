@@ -118,6 +118,8 @@ function ReactPopover({
         popoverRect,
         state.step.placement ?? 'bottom',
         getViewportRect(),
+        // `-start`/`-end` alignment is logical and mirrors in RTL.
+        getComputedStyle(el).direction === 'rtl' ? 'rtl' : 'ltr',
       ))
       : {
         x: window.innerWidth / 2 - popoverRect.width / 2,
@@ -150,13 +152,12 @@ function ReactPopover({
   }, [state, updatePosition])
 
   // Move focus into the dialog on every step, and hand it back when the tour
-  // ends or pauses. A full focus trap is Phase 6 — this closes
-  // AUDIT `react-popover-never-focuses`.
+  // ends or pauses. Closes AUDIT `react-popover-never-focuses`.
   useEffect(() => {
     if (!state) {
       const previous = restoreFocusRef.current
       restoreFocusRef.current = null
-      previous?.focus()
+      if (previous?.isConnected) previous.focus()
       return
     }
     const el = popoverRef.current
@@ -167,6 +168,36 @@ function ReactPopover({
     }
     const focusable = el.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     ;(focusable ?? el).focus()
+  }, [state])
+
+  // Keep Tab inside the dialog. `aria-modal="true"` tells assistive technology
+  // the rest of the page is inert; without a trap Tab walked straight out of it
+  // into the page behind the overlay (AUDIT `no-focus-trap-or-restore`).
+  useEffect(() => {
+    if (!state) return undefined
+    const onKeyDown = (e: KeyboardEvent): void => {
+      const el = popoverRef.current
+      if (e.key !== 'Tab' || !el) return
+      const focusables = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+      if (focusables.length === 0) return
+
+      const first = focusables[0]!
+      const last = focusables[focusables.length - 1]!
+      const active = document.activeElement
+
+      if (!el.contains(active)) {
+        e.preventDefault()
+        ;(e.shiftKey ? last : first).focus()
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => { document.removeEventListener('keydown', onKeyDown, true) }
   }, [state])
 
   if (!state) return null
@@ -208,11 +239,25 @@ function ReactPopover({
   const actions: StepAction[] = step.actions ?? defaultActions
 
   return createPortal(
+    <>
+      {/*
+        Announce each step. React reuses the dialog element across steps, so a
+        screen reader sees no new node to read, and focusing a button only
+        reads that button — not the step body (AUDIT `no-live-region`).
+      */}
+      <div aria-live="polite" aria-atomic="true" role="status" style={SR_ONLY}>
+        {[content.title, content.body, total > 1 ? i18n.t('stepOf', { current: index + 1, total }) : '']
+          .filter(Boolean)
+          .join('. ')}
+      </div>
     <div
       ref={popoverRef}
       role="dialog"
       aria-modal="true"
+      // A dialog with neither name falls back to "dialog" in a screen
+      // reader's landmark list (AUDIT `dangling-aria-labelledby`).
       aria-labelledby={content.title ? titleId : undefined}
+      aria-label={content.title ? undefined : i18n.t('dialogLabel')}
       aria-describedby={bodyId}
       tabIndex={-1}
       className={`gf-popover${className ? ` ${className}` : ''}`}
@@ -234,9 +279,13 @@ function ReactPopover({
             <div
               className="gf-progress-bar"
               role="progressbar"
-              aria-valuenow={progressPct}
-              aria-valuemin={0}
-              aria-valuemax={100}
+              aria-label={i18n.t('progressLabel')}
+              aria-valuenow={index + 1}
+              aria-valuemin={1}
+              aria-valuemax={total}
+              // "50 percent" tells a screen-reader user nothing; the step
+              // count does (AUDIT `progressbar-announces-percentage`).
+              aria-valuetext={i18n.t('stepOf', { current: index + 1, total })}
             >
               <div className="gf-progress-bar-fill" style={{ width: `${progressPct}%` }} />
             </div>
@@ -276,7 +325,8 @@ function ReactPopover({
           </div>
         </>
       )}
-    </div>,
+    </div>
+    </>,
     document.body,
   )
 }
@@ -285,6 +335,22 @@ function ReactPopover({
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/**
+ * Visually hidden, but still in the accessibility tree — `display:none` and
+ * `visibility:hidden` would remove it from both.
+ */
+const SR_ONLY: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+}
 
 function StepMedia({ media }: { media: NonNullable<Step['media']> }): React.JSX.Element {
   if (media.type === 'video') {

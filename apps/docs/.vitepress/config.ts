@@ -174,6 +174,7 @@ export default defineConfig({
             { text: 'State Machine', link: '/guide/state-machine' },
             { text: 'Spotlight & Popover', link: '/guide/spotlight-popover' },
             { text: 'Persistence', link: '/guide/persistence' },
+            { text: 'Accessibility', link: '/guide/accessibility' },
             { text: 'Privacy', link: '/guide/privacy' },
             { text: 'i18n', link: '/guide/i18n' },
           ],

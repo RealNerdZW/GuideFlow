@@ -54,6 +54,8 @@ export function ConversationalPanel({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
   // Tracks the in-flight request so a second question — or unmounting the panel
   // — discards the answer to the first instead of setting state afterwards.
   const abortRef = useRef<AbortController | null>(null)
@@ -132,6 +134,36 @@ export function ConversationalPanel({
     }
   }, [gf, input, loading, revealHighlight])
 
+  // Move focus to the question field when the panel opens and hand it back when
+  // it closes. A `role="dialog"` that never takes focus is one a keyboard user
+  // has to hunt for at the end of the tab order (AUDIT `panel-accessibility`).
+  useEffect(() => {
+    if (!open) {
+      const previous = restoreFocusRef.current
+      restoreFocusRef.current = null
+      if (previous?.isConnected) previous.focus()
+      return
+    }
+    const active = typeof document !== 'undefined' ? document.activeElement : null
+    if (active instanceof HTMLElement) restoreFocusRef.current = active
+    inputRef.current?.focus()
+  }, [open])
+
+  // Escape closes it. Deliberately *not* a focus trap: this panel is
+  // non-modal — it sits beside the page and the user is meant to keep using
+  // both — so trapping Tab would strand them.
+  useEffect(() => {
+    if (!open || !onClose) return undefined
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && !e.isComposing) {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [open, onClose])
+
   if (!open) return null
 
   return (
@@ -163,7 +195,7 @@ export function ConversationalPanel({
           <button
             onClick={onClose}
             aria-label="Close help panel"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, fontSize: 18, lineHeight: 1, padding: '2px 6px' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 'var(--gf-muted-opacity, .72)', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}
             type="button"
           >×</button>
         )}
@@ -188,7 +220,7 @@ export function ConversationalPanel({
           >
             <div
               style={{
-                background: msg.role === 'user' ? 'var(--gf-accent-color, #6366f1)' : 'rgba(0,0,0,0.05)',
+                background: msg.role === 'user' ? 'var(--gf-accent-color, #4f46e5)' : 'rgba(0,0,0,0.05)',
                 color: msg.role === 'user' ? 'var(--gf-accent-fg, #fff)' : 'inherit',
                 borderRadius: 8,
                 padding: '8px 12px',
@@ -227,7 +259,10 @@ export function ConversationalPanel({
           </div>
         ))}
         {loading && (
-          <div style={{ alignSelf: 'flex-start', opacity: 0.5, fontSize: 13 }}>Thinking…</div>
+          <div
+            role="status"
+            style={{ alignSelf: 'flex-start', opacity: 'var(--gf-muted-opacity, .72)', fontSize: 13 }}
+          >Thinking…</div>
         )}
         <div ref={bottomRef} />
       </div>
@@ -238,6 +273,7 @@ export function ConversationalPanel({
         style={{ padding: '12px 16px', borderTop: '1px solid var(--gf-popover-border, rgba(0,0,0,.08))', display: 'flex', gap: 8 }}
       >
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={placeholder}
@@ -252,7 +288,6 @@ export function ConversationalPanel({
             fontFamily: 'inherit',
             background: 'transparent',
             color: 'inherit',
-            outline: 'none',
           }}
         />
         <button

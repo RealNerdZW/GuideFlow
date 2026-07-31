@@ -384,35 +384,77 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
 
 ---
 
-## Phase 6 — Accessibility (4–5 days)
+## Phase 6 — Accessibility ✅ COMPLETE (2026-07-31)
 
-Requires Phase 2 (nothing here is verifiable without a browser).
+Required Phase 2 — and it turned out Phase 2 was not finished. Every spec still navigated to
+`page.goto('/')`, which Playwright resolves as `new URL('/', baseURL)`: the leading slash discards
+the base path, so all three specs loaded the repo root and every `beforeEach` timed out waiting for
+`__gfReady`. The suite had a 0% pass rate even after the harness rebuild and the browser install.
+Fixed here (`e2e-goto-discards-base-path`). **The e2e suite now runs: 156/156 across chromium,
+firefox, webkit and Mobile Chrome.**
 
-- [ ] **6.1 Focus management.**
-      Closes `no-focus-trap-or-restore`, `react-popover-never-focuses`, `renderer-no-focus-trap-or-restore`.
-      `role="dialog" aria-modal="true"` with no focus trap, no focus restoration, and no `inert` on the
-      background. The React popover never moves focus at all.
+- [x] **6.1 Focus management.**
+      Closed `no-focus-trap-or-restore`, `react-popover-never-focuses`,
+      `renderer-no-focus-trap-or-restore`.
+      Both popovers trap Tab and Shift+Tab, pull focus back when the page steals it, and restore
+      focus to the pre-tour element on close. `inert` on the background was considered and rejected:
+      it would break `clickThrough` steps, whose entire purpose is letting the user interact with
+      the highlighted element.
 
-- [ ] **6.2 Stop hijacking the keyboard.**
-      Closes `arrow-keys-break-inputs`.
-      The document-level handler `preventDefault`s arrow keys with no check for editable fields, native
-      controls, or IME composition — so a user cannot type in an input while a tour is active. This is
-      worst on `clickThrough` steps, which exist precisely so the user *can* interact.
+- [x] **6.2 Stop hijacking the keyboard.**
+      Closed `arrow-keys-break-inputs`.
+      `isEditableTarget()` covers inputs, textareas, selects, `contenteditable` (walking up from the
+      event target) and widget roles; plus guards for IME composition, modifier keys and
+      `defaultPrevented`. Escape is deliberately exempt — it is a keyboard user's only exit from a
+      modal, so it fires from inside a field too.
 
-- [ ] **6.3 Announcements and semantics.**
-      Closes `no-live-region`, `dangling-aria-labelledby`, `progressbar-no-name-or-valuetext`,
-      `hotspot-touch-target-and-tooltip-invisible-to-at`, `conversational-panel-a11y`, `panel-accessibility`.
+- [x] **6.3 Announcements and semantics.**
+      Closed `no-live-region`, `dangling-aria-labelledby`, `progressbar-no-name-or-valuetext`,
+      `hotspot-touch-target-and-tooltip-invisible-to-at`, `conversational-panel-a11y`,
+      `panel-accessibility`.
+      Polite live region outside the popover in both renderers; conditional
+      `aria-labelledby`/`aria-label`/`aria-describedby`; progressbar reports a step count with
+      `aria-valuetext`; hotspot gets a 24×24 target (WCAG 2.5.8), a focus ring and a real
+      `aria-describedby`; ConversationalPanel focuses on open, restores on close, closes on Escape,
+      and keeps its focus ring.
 
-- [ ] **6.4 Motion, contrast, RTL, theming.**
-      Closes `no-reduced-motion-guard`, `default-button-contrast-fails`, `rtl-double-flip`,
-      `dark-css-clobbers-themes`, `forced-colors-adjust-none-defeats-hc`, `placement-math-not-direction-aware`.
-      There is no `prefers-reduced-motion` guard anywhere. The default primary button fails AA contrast
-      in both light and dark. `rtl.css` double-reverses the footer back into LTR order.
+- [x] **6.4 Motion, contrast, RTL, theming.**
+      Closed `no-reduced-motion-guard`, `default-button-contrast-fails`, `rtl-double-flip`,
+      `dark-css-clobbers-themes`, `forced-colors-adjust-none-defeats-hc`,
+      `placement-math-not-direction-aware`, plus `accent-fails-contrast`,
+      `muted-text-fails-contrast`, `forced-colors-opt-out`, `dead-progress-selector`,
+      `rtl-hint-badge` found while doing it.
+      `styles/motion.css` plus `prefersReducedMotion()` for the two motions CSS cannot reach (the
+      smooth scroll and the spotlight transition, both assigned from script). The default accent
+      moved to indigo-600 because white on indigo-500 measures 4.46:1 against a 4.5:1 requirement.
+      `rtl.css` is now essentially empty, and that *is* the fix — it was fighting the browser's own
+      correct mirroring.
 
-- [ ] **6.5 Automated + manual verification.**
-      Closes `no-visual-regression-or-a11y-unit-tests`.
-      axe in e2e and Storybook, plus one manual NVDA/VoiceOver pass. Then remove the
-      `docs-claim-accessible-by-default` claim, or earn it.
+- [x] **6.5 Automated verification.**
+      Closed `no-visual-regression-or-a11y-unit-tests` (partially — see below).
+      47 a11y unit tests in `packages/core`, 19 in `packages/react`, and 17 axe/keyboard/RTL specs
+      in `apps/e2e/tests/accessibility.spec.ts`. axe reports zero critical or serious violations on
+      the open popover, in LTR and RTL.
+
+### Found while doing Phase 6 — engine defects the e2e suite exposed
+
+Both were invisible until the browser suite actually ran for the first time:
+
+- [x] `total-steps-is-per-state` — `totalSteps`/`currentStepIndex` counted the current *state*, so a
+      two-state tour reported "Step 1 of 1" in each and the renderer drew a **Done** button on step
+      one. Now counts along the path a `next()`-only run actually takes.
+- [x] `done-button-abandons-tour` — the Done button dispatched `end` → `stop()` → `tour:abandon`, so
+      a completed tour never emitted `tour:complete`, never cleared its snapshot, and reopened on the
+      next visit. `@guideflow/react` had already fixed this; the two had diverged silently.
+
+### Still open from Phase 6
+
+- [ ] **Manual screen-reader pass.** No NVDA or VoiceOver session has been run. Everything above is
+      verified by axe and by assertion, which catches structure but not whether the result is
+      *usable*. Until someone drives a tour end-to-end with a screen reader, do not restore the
+      `docs-claim-accessible-by-default` marketing claim — that finding stays open.
+- [ ] **Storybook axe integration.** The e2e suite covers the popover; component stories are not yet
+      linted for a11y.
 
 ---
 

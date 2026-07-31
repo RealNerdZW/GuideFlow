@@ -172,7 +172,12 @@ describe('GuidePopover — default layout', () => {
       })
     })
 
-    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('50')
+    // A step number, not a percentage — "50 percent" is not something a screen
+    // reader can turn into "where am I". See a11y.test.tsx for the rest.
+    const bar = screen.getByRole('progressbar')
+    expect(bar.getAttribute('aria-valuenow')).toBe('1')
+    expect(bar.getAttribute('aria-valuemax')).toBe('2')
+    expect(bar.getAttribute('aria-valuetext')).toBe('Step 1 of 2')
     expect(screen.getByText('Step 1 of 2')).toBeTruthy()
   })
 

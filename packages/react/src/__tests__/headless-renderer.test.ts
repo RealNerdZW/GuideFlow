@@ -132,7 +132,10 @@ describe('createHeadlessRenderer — wired into createGuideFlow', () => {
     await gf.start(flow)
 
     expect(renderer.getSnapshot()?.step.id).toBe('s1')
-    expect(renderer.getSnapshot()?.total).toBe(1)
+    // 2, not 1: the engine reports counters for the whole flow now, so the
+    // headless renderer sees "1 of 2" across the a -> b boundary rather than
+    // "1 of 1" twice (AUDIT `total-steps-is-per-state`).
+    expect(renderer.getSnapshot()?.total).toBe(2)
     // The whole point: core's DefaultRenderer never runs.
     expect(document.querySelector('.gf-popover')).toBeNull()
   })

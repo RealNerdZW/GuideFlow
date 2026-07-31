@@ -168,3 +168,42 @@ into other people's pages is not a defensible trade for 122 bytes.
   ever binds again** — it is a breaking change, so it belongs in a major, not a patch.
 - Do not raise this number a third time without moving `content.html` out of the default bundle
   first.
+
+## ADR-008 — WCAG AA is not an optional feature; the budget moves to 14.5 kB
+2026-07-31 · Status: Accepted · Amends ADR-002, ADR-007
+
+**Context.** ADR-007 closed with an explicit instruction: *"Do not raise this number a third time
+without moving `content.html` out of the default bundle first."* This is that third raise, and it
+is being taken without the split. That deserves an argument, not a shrug.
+
+Phase 6 added, to `@guideflow/core`:
+
+| Addition | Why it cannot be dropped |
+|---|---|
+| Focus trap + restore in `DefaultRenderer` | `role="dialog" aria-modal="true"` is a *promise* that the rest of the page is inert. Without a trap the promise is a lie, and Tab walks into a page the user cannot see behind the overlay. WCAG 2.4.3. |
+| Polite live region | The popover element is reused across steps, so a screen reader sees no new node and reads nothing. Moving focus reads the button, not the step. WCAG 4.1.3. |
+| Editable-target / IME / modifier guards on the keyboard handler | The document-level handler `preventDefault`ed arrow keys, so a caret could not move while a tour ran — worst on `clickThrough` steps, which exist precisely to let the user type. WCAG 2.1.2. |
+| Conditional `aria-labelledby` / `aria-label` / `aria-describedby` | The old markup pointed `aria-labelledby` at an element it had not emitted, leaving the dialog unnamed. WCAG 4.1.2. |
+| `flowTotalSteps` / `flowStepIndex` in `FlowMachine` | Not strictly a11y, but the counters feed `aria-valuetext` *and* decide which button says "Done". Per-state counting put a Done button on step one of a multi-state tour. |
+| `prefersReducedMotion()` | The smooth scroll and the sliding spotlight cutout are set from script; a CSS media query cannot reach either. WCAG 2.3.3. |
+
+Measured cost: **12.61 kB → 13.91 kB gzip**, 1.30 kB. Compacting the injected CSS recovered 20 B —
+gzip had already collapsed the whitespace. There is no cheap saving here either.
+
+**Decision.** Raise the `size-limit` budget to **14.5 kB gzip**, and do not pretend this is free.
+
+The alternative ADR-007 named — moving `content.html` sanitisation to a subpath export — would free
+~440 B, which does not cover 1.30 kB, and it is a breaking change. Deferring the a11y work until a
+major release was the other option, and it was rejected: a tour library that a keyboard or
+screen-reader user cannot operate is not shippable at any size, and "12 kB" was never the promise
+that mattered.
+
+**Consequences.**
+- ~590 B of headroom remains. Any README or docs figure quoting a bundle size must say **~14 kB**.
+- The subpath split for `content.html` is now **required work for the next major**, not an option.
+  Tracked as a Phase 7 item. That recovers ~440 B and lets the default bundle drop the sanitiser
+  entirely for the majority of users, who pass `content.body`.
+- The headline "smaller than driver.js" comparison needs re-checking against current numbers before
+  it is repeated anywhere.
+- If the budget binds a fourth time, do the subpath split first. This is not a licence to keep
+  raising it.

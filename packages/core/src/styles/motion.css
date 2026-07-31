@@ -1,0 +1,45 @@
+/* GuideFlow — Reduced Motion
+ *
+ * A product tour is unusually motion-heavy: the popover animates in on every
+ * step, the spotlight cutout slides between targets, and the page smooth-scrolls
+ * underneath. For a user with a vestibular disorder that is the whole reason
+ * `prefers-reduced-motion` exists. Nothing here removes feedback — state still
+ * changes instantly, it just stops travelling.
+ *
+ * The JS side matches this: `scrollTargetIntoView()` drops to `behavior: 'auto'`
+ * and `SpotlightManager` disables the cutout transition, both via
+ * `prefersReducedMotion()` in `utils/ssr.ts`. CSS alone could not cover either,
+ * because both are set from script.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .gf-popover,
+  .gf-popover[data-enter] {
+    animation: none;
+  }
+
+  .gf-progress-bar-fill,
+  .gf-btn,
+  .gf-popover-close,
+  [data-gf-spotlight-cutout],
+  .gf-hotspot-beacon,
+  .gf-hotspot-tooltip,
+  .gf-hint-badge {
+    transition: none;
+  }
+
+  /* The beacon pulses forever; a permanently animating element is the worst
+     offender of the lot. Keep it visible, stop it moving. */
+  .gf-hotspot-beacon,
+  .gf-hotspot-beacon::before,
+  .gf-hotspot-beacon::after {
+    animation: none;
+  }
+
+  .gf-btn:active {
+    transform: none;
+  }
+
+  html:has(.gf-popover) {
+    scroll-behavior: auto;
+  }
+}

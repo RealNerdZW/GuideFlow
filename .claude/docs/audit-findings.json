@@ -397,7 +397,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Document-level keyboard handler preventDefaults arrow keys with no check for editable fields, native controls, or IME composition",
       "file": "packages/core/src/engine/tour.ts",
       "line": 324,
@@ -405,7 +405,8 @@
       "impact": "There is no inspection of `e.target`, `e.isComposing`, `e.defaultPrevented`, or `contentEditable` anywhere in this handler, and it is registered on `document` (line 343) for the entire lifetime of the tour. On a `clickThrough: true` step — the documented pattern for \"Try clicking the button\" / \"type your project name here\" (apps/docs/guide/spotlight-popover.md) — a user typing in a text input cannot move the caret: pressing ArrowLeft is preventDefault'd and instead jumps the tour to the previous step, destroying whatever they typed. Native `<select>` keyboard navigation, `<input type=range>` sliders, and any listbox/combobox in the highlighted element are equally dead. The missing `e.isComposing` check is an i18n failure specifically: CJK IME candidate selection uses arrow keys, so Japanese/Chinese/Korean users cannot compose text at all during a tour. The `Escape` case additionally preventDefaults, so Escape cannot close a native `<select>` dropdown or cancel an IME composition — it silently abandons the tour instead.",
       "fix": "At the top of the handler, bail out when `e.isComposing || e.defaultPrevented`, and when `e.target` matches `input, textarea, select, [contenteditable]:not([contenteditable=\"false\"])` or has a role of textbox/combobox/listbox/slider/spinbutton/menu/grid. Restrict arrow-key navigation to events whose target is inside the popover, or gate the whole feature behind an opt-in config flag; leave Escape global but do not preventDefault it.",
       "effort": "S",
-      "verifierNote": "tour.ts:324-341 is verbatim; the handler inspects only `e.key`, has no e.target / isComposing / contentEditable / defaultPrevented check, and is bound to `document` at line 343 for the whole tour. The stated clickThrough scenario is undercut by the fact that clickThrough itself is non-functional (overlay still intercepts pointer events), so the reachable paths are Tab-to-background-input and inputs inside `content.html` in the popover — narrower than claimed, but real, and the IME/isComposing gap holds for both. P1 rather than P0 on that reduced reach."
+      "verifierNote": "tour.ts:324-341 is verbatim; the handler inspects only `e.key`, has no e.target / isComposing / contentEditable / defaultPrevented check, and is bound to `document` at line 343 for the whole tour. The stated clickThrough scenario is undercut by the fact that clickThrough itself is non-functional (overlay still intercepts pointer events), so the reachable paths are Tab-to-background-input and inputs inside `content.html` in the popover — narrower than claimed, but real, and the IME/isComposing gap holds for both. P1 rather than P0 on that reduced reach.",
+      "resolvedIn": "Phase 6.2 — isEditableTarget() plus IME/modifier/defaultPrevented guards in TourEngine._keyboardHandler. Escape is deliberately exempt so a keyboard user keeps an exit."
     },
     {
       "id": "dangling-aria-labelledby",
@@ -413,7 +414,7 @@
       "severity": "P1",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "aria-labelledby/aria-describedby are emitted unconditionally but the referenced elements are conditional — a step without a title has no accessible name",
       "file": "packages/core/src/renderer/default-renderer.ts",
       "line": 96,
@@ -421,7 +422,8 @@
       "impact": "Line 174 emits the title only when `content.title` is truthy: `${content.title ? `<h2 class=\"gf-popover-title\" id=\"${this._popoverId}-title\">…` : '<span></span>'}` — and lines 177-181 emit the `-body` id only when `content.body` or `content.html` exist. A perfectly legal step such as `{ id: 's1', content: { body: 'Click here to continue' } }` therefore produces `<div role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"gf-popover-1-title\">` pointing at an element that does not exist. Per accname, an `aria-labelledby` whose IDREF resolves to nothing contributes an empty string and, because the attribute is present, blocks fallback to any other naming path — NVDA/JAWS/VoiceOver announce the dialog as an unnamed \"dialog\". WCAG 4.1.2 (Name, Role, Value) fails. The identical bug exists in `packages/react/src/components/GuidePopover.tsx` lines 125-126 vs 146/154. The only ARIA unit test (`packages/core/src/__tests__/renderer.test.ts:146`) uses a title-bearing step and asserts only `role` and `aria-modal`, so it cannot catch this.",
       "fix": "Only set `aria-labelledby`/`aria-describedby` when the corresponding element is actually rendered; when there is no title, fall back to `aria-label` populated from an i18n key (e.g. a new `tourStep` string) or from the `stepOf` progress text. Add a regression test rendering `{ content: { body: 'x' } }` and asserting the computed accessible name is non-empty.",
       "effort": "S",
-      "verifierNote": "Lines 96-97 emit both attributes unconditionally; line 174 emits the `-title` id only under `content.title ? ... : '<span></span>'` and 177-181 emit `-body` only when body/html exist. React GuidePopover.tsx has the identical shape: aria-labelledby={titleId} at 125 vs `{content.title && <h2 id={titleId}>}` at 146 and `{content.body && <p id={bodyId}>}` at 154. renderer.test.ts:146 ('sets correct ARIA attributes on popover') uses `{ title: 'Accessible' }` and asserts only role and aria-modal — verified verbatim. Accname behaviour as described is correct. P1: a WCAG 4.1.2 name failure, not a broken/exploitable ship."
+      "verifierNote": "Lines 96-97 emit both attributes unconditionally; line 174 emits the `-title` id only under `content.title ? ... : '<span></span>'` and 177-181 emit `-body` only when body/html exist. React GuidePopover.tsx has the identical shape: aria-labelledby={titleId} at 125 vs `{content.title && <h2 id={titleId}>}` at 146 and `{content.body && <p id={bodyId}>}` at 154. renderer.test.ts:146 ('sets correct ARIA attributes on popover') uses `{ title: 'Accessible' }` and asserts only role and aria-modal — verified verbatim. Accname behaviour as described is correct. P1: a WCAG 4.1.2 name failure, not a broken/exploitable ship.",
+      "resolvedIn": "Phase 6.3 — aria-labelledby is set only when a title exists; otherwise a localised aria-label. aria-describedby dropped when there is no body."
     },
     {
       "id": "default-button-contrast-fails",
@@ -429,7 +431,7 @@
       "severity": "P1",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Default primary button and all muted-opacity text fail WCAG AA contrast in both light and dark tokens",
       "file": "packages/core/src/styles/tokens.css",
       "line": 11,
@@ -437,7 +439,8 @@
       "impact": "`.gf-btn-primary { background: var(--gf-accent-color); color: var(--gf-accent-fg); }` renders #ffffff on #6366f1 at `font-size: 13px; font-weight: 500` — relative luminance 0.1851, contrast ratio 4.47:1, below the 4.5:1 required by WCAG 1.4.3 for normal-size text. The Next/Done button, the single most important control in the library, fails out of the box. Worse are the opacity-dimmed elements: `default-renderer.ts:55 .gf-popover-step-info { font-size:12px; opacity:.5 }` and `:63 .gf-btn-ghost { … opacity:.45; font-size:12px }` composite `#111827` over white to roughly rgb(136,140,147) — 3.4:1 — so the \"Skip tour\" button and the \"Step 2 of 5\" indicator both fail at 12px. `default-renderer.ts:48 .gf-popover-close { … opacity:.4 }` yields about rgb(160,163,169) on white, 2.5:1, failing even the relaxed 3:1 threshold for non-text UI components (WCAG 1.4.11). The dark palette is no better: `#cdd6f4` at 50% over `#1e1e2e` is ~3.9:1. Low-vision users cannot read the skip affordance or see the close control.",
       "fix": "Darken the default accent to at least #4f46e5 (contrast 5.5:1 with white) or set `--gf-accent-fg` explicitly per theme after verifying the pair. Replace every `opacity:` dimming on text/controls with an explicit token colour chosen to meet 4.5:1 (e.g. `--gf-text-muted: #4b5563`), in both `default-renderer.ts`'s inlined POPOVER_CSS and `styles/popover.css`. Add a contrast assertion to the test suite over the token pairs.",
       "effort": "M",
-      "verifierNote": "tokens.css:11-12 verbatim. I recomputed #ffffff on #6366f1: linearised channels 0.1247/0.1330/0.8796, L=0.18514, ratio = 1.05/0.23514 = 4.47:1 — below 4.5 for 13px/500 text (.gf-btn-primary, default-renderer.ts:59). The opacity composites are also real: line 55 step-info opacity .5 and line 63 btn-ghost opacity .45 at 12px, line 48 close opacity .4 (popover.css uses .45). None of these is overridden anywhere. The primary-button failure is marginal, but the close control at ~2.5:1 clearly misses even the 3:1 non-text threshold."
+      "verifierNote": "tokens.css:11-12 verbatim. I recomputed #ffffff on #6366f1: linearised channels 0.1247/0.1330/0.8796, L=0.18514, ratio = 1.05/0.23514 = 4.47:1 — below 4.5 for 13px/500 text (.gf-btn-primary, default-renderer.ts:59). The opacity composites are also real: line 55 step-info opacity .5 and line 63 btn-ghost opacity .45 at 12px, line 48 close opacity .4 (popover.css uses .45). None of these is overridden anywhere. The primary-button failure is marginal, but the close control at ~2.5:1 clearly misses even the 3:1 non-text threshold.",
+      "resolvedIn": "Phase 6.4 — see accent-fails-contrast and muted-text-fails-contrast."
     },
     {
       "id": "e2e-a11y-suite-cannot-run",
@@ -479,7 +482,7 @@
       "severity": "P1",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "role=dialog aria-modal=true with no focus trap, no focus restoration, and no inert/aria-hidden on the background",
       "file": "packages/core/src/renderer/default-renderer.ts",
       "line": 121,
@@ -487,7 +490,8 @@
       "impact": "This is the entire focus implementation. `grep -rn \"inert\\|aria-hidden\\|activeElement\\|focus-trap\"` over packages/ and apps/ returns zero hits in source. A sighted keyboard user opens a 3-step tour, presses Tab four times (Close → Skip → Back → Next), and the fifth Tab lands on a control in the dimmed page behind the overlay — a control the overlay intercepts clicks for, so the focus ring is visible on an element that cannot be activated. Tab continues walking the whole page while `aria-modal=\"true\"` tells screen readers the rest of the document does not exist, producing a contradiction between the AT view and the keyboard view. On `hideStep()` the popover is removed from the DOM (line 130) without ever restoring focus, so focus resets to `document.body` and the next Tab restarts from the top of the page — the user loses their place entirely. WCAG 2.2 AA 2.4.3 (Focus Order) and 2.1.2 (No Keyboard Trap / modal containment) both fail.",
       "fix": "In `DefaultRenderer.renderStep`, capture `document.activeElement` before focusing; add a `keydown` handler on the popover that wraps Tab/Shift+Tab across the focusable list; and set `inert` (with an `aria-hidden=\"true\"` fallback) on every direct child of `document.body` except the popover and overlay while a step is shown. Restore the saved element via `.focus()` in `hideStep()` and un-inert the siblings. Mirror the same logic in `packages/react/src/components/GuidePopover.tsx`.",
       "effort": "M",
-      "verifierNote": "default-renderer.ts:121-125 is verbatim and is the entire focus implementation. My own grep for `inert|aria-hidden|activeElement|focus-trap|focusTrap` over packages/*/src returned zero hits. hideStep() (128-133) removes the node with no focus restoration. Two sub-claims are slightly off: focus lands on a background control that IS still keyboard-activatable (the overlay only blocks pointer events), and the popover is the last body child so Tab exits to browser chrome before wrapping. Core defect (no trap, no restore, no background inertness under aria-modal=true) fully reproduces. Downgrading to P1: serious a11y defect against an advertised feature, but the tour still functions — not on par with the genuinely dead features rated P0 here."
+      "verifierNote": "default-renderer.ts:121-125 is verbatim and is the entire focus implementation. My own grep for `inert|aria-hidden|activeElement|focus-trap|focusTrap` over packages/*/src returned zero hits. hideStep() (128-133) removes the node with no focus restoration. Two sub-claims are slightly off: focus lands on a background control that IS still keyboard-activatable (the overlay only blocks pointer events), and the popover is the last body child so Tab exits to browser chrome before wrapping. Core defect (no trap, no restore, no background inertness under aria-modal=true) fully reproduces. Downgrading to P1: serious a11y defect against an advertised feature, but the tour still functions — not on par with the genuinely dead features rated P0 here.",
+      "resolvedIn": "Phase 6.1 — DefaultRenderer._attachFocusTrap/_detachFocusTrap trap Tab and Shift+Tab; hideStep() restores focus to the pre-tour element. Pinned by core a11y.test.ts and apps/e2e/tests/accessibility.spec.ts (real layout engine)."
     },
     {
       "id": "no-live-region",
@@ -495,7 +499,7 @@
       "severity": "P1",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Step changes are never announced — no live region, and the core renderer's focus target is the Close button",
       "file": "packages/core/src/renderer/default-renderer.ts",
       "line": 93,
@@ -503,7 +507,8 @@
       "impact": "`grep -rn \"aria-live\\|role=\\\"status\\\"\\|role=\\\"alert\\\"\" packages/ apps/` returns no hits in source. On `next()`, the existing dialog element is kept and its `innerHTML` is replaced wholesale; the `role=\"dialog\"` node itself never leaves the accessibility tree, so no AT boundary event fires. Screen-reader users therefore get silence when the tour advances. The only compensating mechanism is the focus move at line 125, which lands on the first focusable element in DOM order — the Close button (the progress bar has no focusables and the header's close button precedes the footer's actions). So the entire announcement a NVDA user receives on every single step of the tour is \"Close, button\": no title, no body, no \"Step 3 of 7\". Pressing Enter/Space — the natural reflex after a focus move — ends the tour. In the React renderer nothing is focused at all, so there is no announcement whatsoever. A blind user cannot complete a GuideFlow tour.",
       "fix": "Render an `aria-live=\"polite\"` `role=\"status\"` visually-hidden region (created once, outside the dialog) and write `\"{stepOf}: {title}. {body}\"` into it on each `step:enter`. Change the initial focus target to the dialog container itself (`tabIndex={-1}`) so the accname (title) plus `aria-describedby` (body) are read, or to the primary Next button — never the destructive Close button.",
       "effort": "M",
-      "verifierNote": "Line 93 verbatim; _popoverEl is reused across steps (_ensurePopover at 147-154 only creates when null), so only innerHTML is swapped and the role=dialog node never leaves the a11y tree. My grep for aria-live/role=status/role=alert across packages/*/src returned nothing. DOM order in _buildHTML confirms the first focusable is the close button (progress bar has none, header close precedes footer buttons) — the repo's own e2e test at accessibility.spec.ts:50-52 asserts exactly that. React renderer focuses nothing at all."
+      "verifierNote": "Line 93 verbatim; _popoverEl is reused across steps (_ensurePopover at 147-154 only creates when null), so only innerHTML is swapped and the role=dialog node never leaves the a11y tree. My grep for aria-live/role=status/role=alert across packages/*/src returned nothing. DOM order in _buildHTML confirms the first focusable is the close button (progress bar has none, header close precedes footer buttons) — the repo's own e2e test at accessibility.spec.ts:50-52 asserts exactly that. React renderer focuses nothing at all.",
+      "resolvedIn": "Phase 6.3 — DefaultRenderer._announce() writes each step into a polite region outside the popover; <GuidePopover> renders the same region in its portal."
     },
     {
       "id": "no-reduced-motion-guard",
@@ -511,7 +516,7 @@
       "severity": "P1",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "No prefers-reduced-motion guard exists anywhere in the codebase",
       "file": "packages/core/src/renderer/default-renderer.ts",
       "line": 40,
@@ -519,7 +524,8 @@
       "impact": "`grep -rn \"prefers-reduced-motion\" packages/ apps/` returns no hits outside a checklist markdown file. Every animated surface runs unconditionally: the popover scale+translate entry animation above and its duplicate at `packages/core/src/styles/popover.css:154-159`; the infinite pulse in `packages/core/src/engine/hotspot.ts:14-18` (`animation: gf-pulse 2s … infinite` at line 30, a permanently moving 2x-scale beacon); the JS-driven spotlight tweens at `packages/core/src/engine/spotlight.ts:33-38` and the duplicated inline `transition: top 200ms ease, left 200ms ease, width 200ms ease, height 200ms ease, border-radius 200ms ease` at line 160, which slide the dim cutout across the screen on every step change; the progress-bar `transition: width 300ms ease`; and `scrollTargetIntoView`'s hardcoded `behavior: 'smooth'` (popover.ts:128-132). Users with vestibular disorders who have set the OS \"reduce motion\" preference get the full motion payload, plus an infinitely looping animation that also violates WCAG 2.2.2 (Pause, Stop, Hide). WCAG 2.3.3 (Animation from Interactions, AAA) and the AA expectation for honouring the media query both fail.",
       "fix": "Add `@media (prefers-reduced-motion: reduce) { .gf-popover, .gf-popover[data-enter], .gf-progress-bar-fill, [data-gf-spotlight-cutout], .gf-hint-badge { animation: none !important; transition: none !important; } .gf-hotspot-beacon { animation: none; } }` to popover.css, the renderer's inlined POPOVER_CSS, hotspot.ts's HOTSPOT_CSS and spotlight.ts's SPOTLIGHT_CSS. Because the spotlight also writes inline transitions in `_ensureElements`, gate that string on `window.matchMedia('(prefers-reduced-motion: reduce)').matches`. Do the same for `scrollTargetIntoView`, passing `behavior: 'auto'` when reduced motion is requested.",
       "effort": "S",
-      "verifierNote": "My own repo-wide grep for `prefers-reduced-motion|reduce.motion` (all files, excluding node_modules/dist) returned zero hits — even the checklist markdown the auditor allowed for. Evidence at default-renderer.ts:40-45 verbatim; duplicated at popover.css ~154-161; hotspot.ts:14-18 keyframes + line 30 `animation: gf-pulse 2s ... infinite`; spotlight.ts:33-38 and the inline duplicate at line 160; progress-bar `transition: width 300ms ease` at line 53; popover.ts:127-132 hardcoded `behavior: 'smooth'`. All unconditional. The infinite pulse independently implicates WCAG 2.2.2."
+      "verifierNote": "My own repo-wide grep for `prefers-reduced-motion|reduce.motion` (all files, excluding node_modules/dist) returned zero hits — even the checklist markdown the auditor allowed for. Evidence at default-renderer.ts:40-45 verbatim; duplicated at popover.css ~154-161; hotspot.ts:14-18 keyframes + line 30 `animation: gf-pulse 2s ... infinite`; spotlight.ts:33-38 and the inline duplicate at line 160; progress-bar `transition: width 300ms ease` at line 53; popover.ts:127-132 hardcoded `behavior: 'smooth'`. All unconditional. The infinite pulse independently implicates WCAG 2.2.2.",
+      "resolvedIn": "Phase 6.4 — styles/motion.css plus prefersReducedMotion() in utils/ssr.ts, used by scrollTargetIntoView() and SpotlightManager (both set from script, unreachable by CSS)."
     },
     {
       "id": "popover-drifts-on-scroll",
@@ -561,7 +567,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "rtl.css applies flex-direction: row-reverse inside a dir=rtl container, double-reversing the footer back into LTR order",
       "file": "packages/core/src/styles/rtl.css",
       "line": 2,
@@ -569,7 +575,8 @@
       "impact": "`flex-direction: row` is already direction-relative: inside a `dir=\"rtl\"` subtree, the main axis runs right-to-left automatically, so `.gf-popover-actions` (Skip, Back, Next) already lays out correctly with no CSS at all. Explicitly setting `row-reverse` reverses it a second time, producing left-to-right visual order in an RTL document — the exact opposite of the file's stated purpose. In an Arabic or Hebrew UI the Next button ends up on the left and Skip on the right, inverting the user's directional expectation for \"forward\". The neighbouring rule `[dir=\"rtl\"] .gf-hint-badge { right: auto; }` is a pure no-op: `hint.ts:131-132` positions the badge with inline `left`/`top`, which this never touches. The whole file is 20 lines and untested.",
       "fix": "Delete the `row-reverse` rules — logical flex ordering already handles RTL. Replace the `.gf-hint-badge` no-op with real logical positioning (compute the badge offset from the target's inline-start edge when `getComputedStyle(document.documentElement).direction === 'rtl'`). Add an RTL story to Storybook rendering the popover under `dir=\"rtl\"`.",
       "effort": "S",
-      "verifierNote": "rtl.css:2-4 verbatim (the file is 20 lines). `flex-direction: row` is already direction-relative, so inside dir=rtl the footer's space-between layout mirrors correctly with no CSS; row-reverse reverses it again back to LTR visual order. Verified the no-op claim too: HINT_CSS `.gf-hint-badge` (hint.ts:14-33) declares no `right` property and positionBadge sets inline `left`/`top` (hint.ts:129-133), so `[dir=\"rtl\"] .gf-hint-badge { right: auto }` changes nothing."
+      "verifierNote": "rtl.css:2-4 verbatim (the file is 20 lines). `flex-direction: row` is already direction-relative, so inside dir=rtl the footer's space-between layout mirrors correctly with no CSS; row-reverse reverses it again back to LTR visual order. Verified the no-op claim too: HINT_CSS `.gf-hint-badge` (hint.ts:14-33) declares no `right` property and positionBadge sets inline `left`/`top` (hint.ts:129-133), so `[dir=\"rtl\"] .gf-hint-badge { right: auto }` changes nothing.",
+      "resolvedIn": "Phase 6.4 — rtl.css stripped to nothing that fights the browser; hint badge mirrored in engine/hint.ts where it is actually positioned."
     },
     {
       "id": "theme-docs-fictional-tokens",
@@ -2377,7 +2384,7 @@
       "severity": "P2",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "ConversationalPanel removes the input focus ring, never announces AI replies, and claims aria-modal on a non-modal panel",
       "file": "packages/react/src/components/ConversationalPanel.tsx",
       "line": 170,
@@ -2385,7 +2392,8 @@
       "impact": "Three defects in one component. (1) `outline: 'none'` with no replacement focus style means the sole text input in the panel has no visible focus indicator — a direct WCAG 2.4.7 (Focus Visible) failure on the component's primary control. (2) The message list at lines 135-157 and the `Thinking…` indicator at line 154 are plain divs with no `aria-live` region, so a screen-reader user who submits a question gets no notification when the assistant's answer arrives; they must blindly navigate back to find it. (3) The root sets `aria-modal=\"true\"` (line 102) while the panel is a corner-docked, non-blocking widget with no overlay, no focus containment, and no Escape handler — the page behind stays fully interactive, so the attribute lies to AT and causes screen readers to hide the rest of the page from browse mode while it is open. The AI answer also triggers `scrollIntoView({ behavior: 'smooth' })` on every message (line 50) and on every highlighted element (line 79) with no reduced-motion guard.",
       "fix": "Replace `outline: 'none'` with a `:focus-visible` outline using `--gf-accent-color`. Wrap the message list in `<div role=\"log\" aria-live=\"polite\" aria-relevant=\"additions\">` and give the loading state `role=\"status\"`. Remove `aria-modal=\"true\"` (keep `role=\"dialog\"` with `aria-label`), or make the panel genuinely modal with a focus trap and Escape-to-close. Gate both `scrollIntoView` calls on `prefers-reduced-motion`.",
       "effort": "S",
-      "verifierNote": "All three verified at the cited lines. (1) The input's style object begins at line 170 with `outline: 'none'` and no :focus replacement (inline styles cannot express one) — the input does carry aria-label='Ask a question', so it is named, but has no visible focus indicator. (2) Message list at 135-157 and the `Thinking…` div at 154 are plain divs; my aria-live/role=status grep over packages/*/src is empty. (3) `aria-modal=\"true\"` is at line 102 on a fixed corner panel (bottom 24 / right 24, width 360) with no overlay, no focus containment, and no Escape handler (grep for Escape|onKeyDown in the file is empty). scrollIntoView({behavior:'smooth'}) at line 50 and line 79 confirmed, with no reduced-motion guard anywhere in the repo."
+      "verifierNote": "All three verified at the cited lines. (1) The input's style object begins at line 170 with `outline: 'none'` and no :focus replacement (inline styles cannot express one) — the input does carry aria-label='Ask a question', so it is named, but has no visible focus indicator. (2) Message list at 135-157 and the `Thinking…` div at 154 are plain divs; my aria-live/role=status grep over packages/*/src is empty. (3) `aria-modal=\"true\"` is at line 102 on a fixed corner panel (bottom 24 / right 24, width 360) with no overlay, no focus containment, and no Escape handler (grep for Escape|onKeyDown in the file is empty). scrollIntoView({behavior:'smooth'}) at line 50 and line 79 confirmed, with no reduced-motion guard anywhere in the repo.",
+      "resolvedIn": "Phase 6.3 — ConversationalPanel focuses the question field on open, restores focus on close, and closes on Escape. Deliberately no focus trap: it is non-modal. The input keeps a focus ring (outline:none removed)."
     },
     {
       "id": "dark-css-clobbers-themes",
@@ -2393,7 +2401,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "dark.css is imported after themes.css at equal specificity, so dark mode silently destroys all five built-in themes",
       "file": "packages/core/src/styles/index.css",
       "line": 4,
@@ -2401,7 +2409,8 @@
       "impact": "`themes.css` scopes each theme with an attribute selector — specificity (0,1,0) — e.g. `[data-gf-theme=\"bold\"] { --gf-popover-bg: #1e1b4b; --gf-accent-color: #a78bfa; … }`. `dark.css:3` re-declares the same custom properties on `:root`, also specificity (0,1,0), inside `@media (prefers-color-scheme: dark)`. Equal specificity means source order decides, and dark.css is imported later, so on any machine with the OS set to dark mode every theme collapses to the same `#1e1e2e`/`#89b4fa` palette. The Bold, Glass, Brutalist, and Enterprise themes visually cease to exist for roughly half the user base, with no warning. The manual `[data-gf-dark]`/`.gf-dark` block at lines 15-24 has the same problem. Note also that `themes.css` never applies without `@guideflow/core/styles` being imported and `data-gf-theme` being set on `:root` — both undocumented.",
       "fix": "Scope the dark declarations so they cannot outrank a theme: use `:root:not([data-gf-theme])` in the media query, or move dark.css before themes.css in index.css and give each theme block a dark variant. Add a visual regression story that renders each theme under `prefers-color-scheme: dark`.",
       "effort": "S",
-      "verifierNote": "index.css:4-5 verbatim, and the specificity analysis is right for one placement: themes.css `[data-gf-theme=\"bold\"]` and dark.css `:root` are both (0,1,0), so later source order wins — but only when both rules land on the SAME element, i.e. the attribute is on <html>. Custom properties inherit by proximity, so `data-gf-theme` on <body> (or any ancestor of the portalled popover) defines the value on a closer element and beats the inherited :root value from dark.css regardless of order. Since the attribute is undocumented everywhere, 'every theme collapses for half the user base' is unproven; it is a real cascade hazard for the root-element case only."
+      "verifierNote": "index.css:4-5 verbatim, and the specificity analysis is right for one placement: themes.css `[data-gf-theme=\"bold\"]` and dark.css `:root` are both (0,1,0), so later source order wins — but only when both rules land on the SAME element, i.e. the attribute is on <html>. Custom properties inherit by proximity, so `data-gf-theme` on <body> (or any ancestor of the portalled popover) defines the value on a closer element and beats the inherited :root value from dark.css regardless of order. Since the attribute is undocumented everywhere, 'every theme collapses for half the user base' is unproven; it is a real cascade hazard for the root-element case only.",
+      "resolvedIn": "Phase 6.4 — the prefers-color-scheme block is scoped to :root:not([data-gf-theme]), so an explicitly chosen theme outranks an inferred OS preference."
     },
     {
       "id": "dead-spotlight-options",
@@ -2442,7 +2451,7 @@
       "severity": "P2",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "forced-color-adjust: none on .gf-popover opts the whole popover subtree out of the user's forced-colors palette",
       "file": "packages/core/src/styles/high-contrast.css",
       "line": 3,
@@ -2450,7 +2459,8 @@
       "impact": "`forced-color-adjust: none` is inherited by descendants, so declaring it on the popover container disables the forced-colors override for every child. In Windows High Contrast the popover keeps author colours for its contents: `.gf-btn-ghost` and `.gf-popover-step-info` retain their `opacity: 0.45`/`0.5` dimming (2.5-3.6:1 against whatever background), `.gf-btn-secondary` keeps `color: inherit; opacity: .6`, and `.gf-progress-bar`/`.gf-progress-bar-fill` keep `#6366f1` on `rgba(0,0,0,.1)` — precisely the low-contrast rendering the user enabled forced colors to escape. The block also covers only four selectors; `.gf-btn-secondary`, `.gf-btn-ghost`, `.gf-progress-bar*`, `.gf-hint-badge`, `.gf-hint-tooltip`, `.gf-hotspot-tooltip`, and both spotlight elements are unhandled, and the spotlight's dimming is a `box-shadow` (spotlight.ts:201) which forced-colors mode suppresses — so in high contrast the tour loses its visual focus indicator entirely. The explicit `.gf-high-contrast` class block (lines 24-32) only overrides six tokens and likewise leaves every `opacity:` rule intact.",
       "fix": "Remove `forced-color-adjust: none` from `.gf-popover` (keep it only on the specific decorative elements that need it, such as the beacon). Extend the `@media (forced-colors: active)` block to neutralise every `opacity` dimming (`opacity: 1`) and to give the progress bar and spotlight cutout an explicit `Highlight`/`CanvasText` outline so the focus indication survives. Add the same `opacity: 1` overrides to the `.gf-high-contrast` class block.",
       "effort": "S",
-      "verifierNote": "high-contrast.css:2-7 verbatim; forced-color-adjust is an inherited property, so the whole popover subtree keeps author colours — the .gf-progress-bar #6366f1-on-rgba(0,0,0,.1) case is a genuine consequence, and the media block covers only four selectors. Two impact clauses are misattributed: `opacity` is never overridden by forced-colors mode in the first place, so btn-ghost/step-info/btn-secondary dimming would survive with or without this declaration; and .gf-btn-secondary's `color: inherit` resolves to CanvasText anyway. Spotlight box-shadow suppression (spotlight.ts:201) and the untouched opacity rules in the .gf-high-contrast block (24-32) check out. P2: forced-colors is a narrow mode and the popover text itself still renders on Canvas/CanvasText."
+      "verifierNote": "high-contrast.css:2-7 verbatim; forced-color-adjust is an inherited property, so the whole popover subtree keeps author colours — the .gf-progress-bar #6366f1-on-rgba(0,0,0,.1) case is a genuine consequence, and the media block covers only four selectors. Two impact clauses are misattributed: `opacity` is never overridden by forced-colors mode in the first place, so btn-ghost/step-info/btn-secondary dimming would survive with or without this declaration; and .gf-btn-secondary's `color: inherit` resolves to CanvasText anyway. Spotlight box-shadow suppression (spotlight.ts:201) and the untouched opacity rules in the .gf-high-contrast block (24-32) check out. P2: forced-colors is a narrow mode and the popover text itself still renders on Canvas/CanvasText.",
+      "resolvedIn": "Phase 6.4 — see forced-colors-opt-out."
     },
     {
       "id": "hotspot-touch-target-and-tooltip-invisible-to-at",
@@ -2458,7 +2468,7 @@
       "severity": "P2",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Hotspot beacon is a 12px touch target whose tooltip body text is never exposed to assistive technology",
       "file": "packages/core/src/engine/hotspot.ts",
       "line": 26,
@@ -2466,7 +2476,8 @@
       "impact": "The `.gf-hotspot` container (lines 19-24) sets no dimensions, so it shrinks to its 12x12 beacon child — half the 24x24 CSS-px minimum required by WCAG 2.2 AA SC 2.5.8 (Target Size, Minimum), with no spacing exception since hotspots sit adjacent to real UI. Users with motor impairments cannot reliably hit it on touch. Separately, the tooltip is built as a child of the `role=\"button\"` container (line 93 `beacon.appendChild(tooltip)`) with `role=\"tooltip\"` and no `aria-describedby` linking it, while the container carries `aria-label` (line 156) — an explicit label that overrides subtree text in the accname/description computation. The result is that `options.body`, the actual explanatory content of the hotspot, is announced to nobody; a screen-reader user hears only the title. The tooltip is also CSS-revealed via `:hover`/`:focus-within` opacity only, so it is inert to AT regardless. `.gf-popover-close` has the same target-size problem: `padding:2px 6px; font-size:18px; line-height:1` computes to roughly 22x23px.",
       "fix": "Give `.gf-hotspot` `min-width:24px; min-height:24px; display:grid; place-items:center` so the hit area meets 2.5.8 while the visual dot stays 12px; do the same for `.gf-popover-close` (`min-width:24px; min-height:24px`). Give the tooltip a generated id and set `aria-describedby` on the beacon container pointing at it, and drive visibility with a class toggled on focus/hover rather than opacity alone.",
       "effort": "S",
-      "verifierNote": "hotspot.ts:26-27 verbatim; `.gf-hotspot` (19-24) sets only position/z-index/pointer-events/cursor, so the abs-positioned container shrink-wraps to the 12x12 beacon — under the 24x24 SC 2.5.8 minimum. Tooltip is appended into the role=button container (93) which carries aria-label at 156; role=button additionally has children-presentational, so the tooltip role is stripped and options.body is never exposed. The tooltip is revealed only by CSS :hover/:focus-within opacity (53-56) with pointer-events:none. Downgrading to P2: hotspots are a secondary, non-blocking surface, not the tour's critical path."
+      "verifierNote": "hotspot.ts:26-27 verbatim; `.gf-hotspot` (19-24) sets only position/z-index/pointer-events/cursor, so the abs-positioned container shrink-wraps to the 12x12 beacon — under the 24x24 SC 2.5.8 minimum. Tooltip is appended into the role=button container (93) which carries aria-label at 156; role=button additionally has children-presentational, so the tooltip role is stripped and options.body is never exposed. The tooltip is revealed only by CSS :hover/:focus-within opacity (53-56) with pointer-events:none. Downgrading to P2: hotspots are a secondary, non-blocking surface, not the tour's critical path.",
+      "resolvedIn": "Phase 6.3 — .gf-hotspot is a 24x24 flex-centred hit area (WCAG 2.5.8), the beacon has a focus-visible ring, and the container carries aria-describedby to the tooltip id so its body is announced."
     },
     {
       "id": "i18n-no-plural-intl-detection",
@@ -2490,7 +2501,7 @@
       "severity": "P2",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Popover placement math has no direction awareness — -start/-end placements are wrong in RTL",
       "file": "packages/core/src/engine/popover.ts",
       "line": 46,
@@ -2498,7 +2509,8 @@
       "impact": "`-start` and `-end` are logical (writing-mode-relative) names taken from the CSS/floating-UI convention, where in RTL `start` means the inline-start = right edge. This implementation hardcodes `start` to the physical left edge (`x: tx`) and `end` to the physical right (`x: tx + tw - pw`) for all six `-start`/`-end` variants, and there is no `direction`/`dir` read anywhere in the file or the repo (`grep -rn \"dir=\\|direction\" packages/core/src` finds nothing in the engine). In an RTL app every `bottom-start` popover anchors to the wrong edge of its target, so a popover intended to hug the leading edge of an Arabic toolbar button hangs off the trailing side, frequently overlapping the target it is supposed to point at. The fallback sequences (lines 10-22) are also physical: `left: ['left', 'right', …]` never mirrors, so RTL collision recovery flips toward the wrong side of the screen.",
       "fix": "Read the effective direction once per compute (`getComputedStyle(targetElement).direction`) and, when `rtl`, swap the x-axis meaning of `-start`/`-end` and mirror the `left`/`right` entries in `FALLBACK_SEQUENCES`. Accept an optional `direction: 'ltr' | 'rtl'` parameter on `computePosition` so it stays pure and testable, and add RTL cases to `packages/core/src/__tests__/popover.test.ts`.",
       "effort": "M",
-      "verifierNote": "popover.ts:46-48 verbatim; all six -start/-end variants hardcode physical edges (`x: tx` / `x: tx + tw - pw`) at lines 46-48, 51-54, and the -start/-end vertical variants at 57-66 likewise. No `dir`/`direction` read anywhere in the engine (grep clean), and FALLBACK_SEQUENCES (9-23) are physical. The logical-name convention claim is right (floating-ui resolves -start/-end against computed direction). Downgrading to P2: the popover still renders and is usable — it anchors to the mirror-image edge — so this is a layout-correctness gap in RTL, not a broken control."
+      "verifierNote": "popover.ts:46-48 verbatim; all six -start/-end variants hardcode physical edges (`x: tx` / `x: tx + tw - pw`) at lines 46-48, 51-54, and the -start/-end vertical variants at 57-66 likewise. No `dir`/`direction` read anywhere in the engine (grep clean), and FALLBACK_SEQUENCES (9-23) are physical. The logical-name convention claim is right (floating-ui resolves -start/-end against computed direction). Downgrading to P2: the popover still renders and is usable — it anchors to the mirror-image edge — so this is a layout-correctness gap in RTL, not a broken control.",
+      "resolvedIn": "Phase 6.4 — computePosition() takes an optional direction and mirrors -start/-end on the inline axis. left/right stay physical, per floating-ui and the CSS logical-properties convention. Both renderers pass the computed direction."
     },
     {
       "id": "progressbar-no-name-or-valuetext",
@@ -2506,7 +2518,7 @@
       "severity": "P2",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "role=progressbar has no accessible name and no aria-valuetext, so it announces as a bare percentage",
       "file": "packages/core/src/renderer/default-renderer.ts",
       "line": 169,
@@ -2514,7 +2526,8 @@
       "impact": "`role=\"progressbar\"` is in the WAI-ARIA \"name from author\" category — it requires `aria-label` or `aria-labelledby`, and has no content-based naming fallback. As written, a screen reader announces \"67%, progress bar\" with no indication of what is progressing. `aria-valuetext` is also absent, so the far more useful \"Step 2 of 3\" is never spoken through the widget; the equivalent text at line 183 is a plain `<span>` with no programmatic association. This is a WCAG 4.1.2 name failure on an interactive-role element. `packages/react/src/components/GuidePopover.tsx:141` is identical: `<div className=\"gf-progress-bar\" role=\"progressbar\" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100}>`.",
       "fix": "Add `aria-label=\"${i18n.t('progressLabel')}\"` (new i18n key, e.g. \"Tour progress\") and `aria-valuetext=\"${i18n.t('stepOf', { current: index + 1, total })}\"` to both progressbar elements. Alternatively drop the ARIA role entirely and mark the bar `aria-hidden=\"true\"` since the step-of text already conveys the information.",
       "effort": "S",
-      "verifierNote": "default-renderer.ts:169 verbatim — role=progressbar with aria-valuenow/min/max and no aria-label/aria-labelledby/aria-valuetext. GuidePopover.tsx:141 is identical. progressbar is name-from-author with no content fallback, so the 4.1.2 analysis holds. Downgrading to P2: the equivalent 'Step N of M' text is present in the same dialog at line 183, so no information is actually unavailable to AT — the widget is redundant decoration rather than the sole carrier."
+      "verifierNote": "default-renderer.ts:169 verbatim — role=progressbar with aria-valuenow/min/max and no aria-label/aria-labelledby/aria-valuetext. GuidePopover.tsx:141 is identical. progressbar is name-from-author with no content fallback, so the 4.1.2 analysis holds. Downgrading to P2: the equivalent 'Step N of M' text is present in the same dialog at line 183, so no information is actually unavailable to AT — the widget is redundant decoration rather than the sole carrier.",
+      "resolvedIn": "Phase 6.3 — progressbar carries aria-label, aria-valuetext (\"Step n of m\"), and a step-count valuenow/valuemin/valuemax instead of a percentage."
     },
     {
       "id": "storybook-theme-stories-are-identical",
@@ -3804,7 +3817,7 @@
       "severity": "P2",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Popover steals focus with no focus trap and never restores it; aria-labelledby dangles when the step has no title",
       "file": "packages/core/src/renderer/default-renderer.ts",
       "line": 121,
@@ -3812,7 +3825,8 @@
       "impact": "The element declares `role=\"dialog\"` and `aria-modal=\"true\"` (lines 94-95) — which tells screen readers the rest of the page is inert — but there is no focus trap: Tab walks straight out of the popover into page content that the overlay makes unclickable, so keyboard and screen-reader users can focus controls they cannot activate. `hideStep()` removes the node from the DOM (line 130) without restoring focus to whatever was focused before the tour, so focus falls back to `<body>` after every step transition and at tour end — a WCAG 2.4.3 (Focus Order) failure and a common screen-reader dead end. Separately, `aria-labelledby=\"${id}-title\"` / `aria-describedby=\"${id}-body\"` are set unconditionally (lines 96-97) but the referenced nodes only exist when `content.title` / `content.body`|`html` are present (lines 174, 178-180), leaving dangling IDREFs and an unlabelled dialog for steps without a title.",
       "fix": "Record `document.activeElement` in `renderStep` before focusing, restore it in `hideStep()`; add a keydown trap on the popover cycling Tab/Shift+Tab within its focusable set; and set `aria-labelledby`/`aria-describedby` only when the corresponding node is emitted (falling back to `aria-label`).",
       "effort": "M",
-      "verifierNote": "default-renderer.ts:121-125 verbatim. role='dialog' and aria-modal='true' are set at lines 94-95, yet the class contains no keydown/Tab handling at all, so focus can leave the popover into the overlay-blocked page. hideStep (128-133) removes the node with no saved/restored previous activeElement. aria-labelledby/aria-describedby are set unconditionally at 96-97 while the `${id}-title` node exists only when content.title is present (line 174) and `${id}-body` only when body or html is present (177-181), leaving dangling IDREFs."
+      "verifierNote": "default-renderer.ts:121-125 verbatim. role='dialog' and aria-modal='true' are set at lines 94-95, yet the class contains no keydown/Tab handling at all, so focus can leave the popover into the overlay-blocked page. hideStep (128-133) removes the node with no saved/restored previous activeElement. aria-labelledby/aria-describedby are set unconditionally at 96-97 while the `${id}-title` node exists only when content.title is present (line 174) and `${id}-body` only when body or html is present (177-181), leaving dangling IDREFs.",
+      "resolvedIn": "Phase 6.1 — same change as no-focus-trap-or-restore."
     },
     {
       "id": "silent-missing-target",
@@ -4062,7 +4076,7 @@
       "severity": "P2",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Panel controls are not keyboard operable: inline edit via <strong onClick>, drag-only reordering, unlabelled icon buttons, non-semantic toggle and tabs",
       "file": "packages/devtools/src/panel/app.tsx",
       "line": 677,
@@ -4070,7 +4084,8 @@
       "impact": "A `<strong>` is not focusable and has no key handler, so a keyboard user can never rename a step. Step reordering exists only through HTML5 drag events (`draggable` + `onDragStart`/`onDragOver`, lines 659-662) with no keyboard alternative. The delete button at lines 692-697 renders only the glyph `✕` with no `aria-label` and no `title`, so a screen reader announces \"button\" — and it sits next to the identically-shaped 👁 preview button. `Toggle` (lines 308-318) is a bare `<button>` with `aria-label={on ? 'Turn off' : 'Turn on'}` but no `role=\"switch\"`/`aria-checked`, so state is conveyed only by colour. None of the buttons in the file set `type=\"button\"`. The tab strip (lines 1214-1222) uses plain buttons with no `role=\"tablist\"`/`role=\"tab\"`/`aria-selected` and no arrow-key navigation, and the emoji labels have no text alternative. This is notable given apps/docs/index.md:42 advertises \"ARIA roles, keyboard navigation, focus management … out of the box\".",
       "fix": "Replace the `<strong>` with a focusable button (or double-click-to-edit plus an explicit edit button), add ↑/↓ move buttons alongside drag, give every icon button an `aria-label`, convert `Toggle` to `role=\"switch\" aria-checked={on}`, add `type=\"button\"` everywhere, and give the tab strip proper `role=\"tablist\"`/`role=\"tab\"`/`aria-selected` with arrow-key handling.",
       "effort": null,
-      "verifierNote": "All sub-claims verified: `<strong onClick>` at app.tsx:677-684 (not focusable, no key handler); drag-only reorder at 659-662 with no keyboard path; the ✕ button at 692-697 has neither aria-label nor title while the adjacent 👁 at 685-691 has only a title; Toggle at 308-318 is a bare button with aria-label and no role=\"switch\"/aria-checked; `grep -c 'type=\"button\"' app.tsx` returns 0; the tab strip at 1214-1222 uses plain buttons with no tablist/tab/aria-selected. apps/docs/index.md:42 does make the accessibility claim (about the library, which the finding acknowledges)."
+      "verifierNote": "All sub-claims verified: `<strong onClick>` at app.tsx:677-684 (not focusable, no key handler); drag-only reorder at 659-662 with no keyboard path; the ✕ button at 692-697 has neither aria-label nor title while the adjacent 👁 at 685-691 has only a title; Toggle at 308-318 is a bare button with aria-label and no role=\"switch\"/aria-checked; `grep -c 'type=\"button\"' app.tsx` returns 0; the tab strip at 1214-1222 uses plain buttons with no tablist/tab/aria-selected. apps/docs/index.md:42 does make the accessibility claim (about the library, which the finding acknowledges).",
+      "resolvedIn": "Phase 6.3 — see conversational-panel-a11y."
     },
     {
       "id": "panel-active-tour-unreachable",
@@ -5909,6 +5924,134 @@
       "effort": null,
       "verifierNote": "Found in Phase 4 while verifying a documentation claim against source.",
       "foundIn": "Phase 4 docs verification"
+    },
+    {
+      "id": "total-steps-is-per-state",
+      "area": "core",
+      "severity": "P1",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "totalSteps and currentStepIndex count the current state, not the flow",
+      "file": "packages/core/src/fsm/machine.ts",
+      "line": 61,
+      "evidence": "get totalSteps() { return this.currentSteps.length }",
+      "impact": "A multi-state flow reported \"Step 1 of 1\" in every state. DefaultRenderer derives isLast from index === total - 1, so it drew a Done button on the first step of a two-state tour and offered no Next. Found by the e2e suite the first time it actually ran.",
+      "fix": "FlowMachine.flowTotalSteps / flowStepIndex walk the NEXT-only path from initial (cached, cycle-guarded) and fall back to the current state off that path. TourEngine and renderStep use them.",
+      "effort": "M",
+      "resolvedIn": "Phase 6 — pinned by tour-engine.test.ts (three cases incl. the off-path fallback) and apps/e2e/tests/tour-flow.spec.ts."
+    },
+    {
+      "id": "done-button-abandons-tour",
+      "area": "core",
+      "severity": "P1",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "The Done button abandons the tour instead of completing it",
+      "file": "packages/core/src/renderer/default-renderer.ts",
+      "line": 326,
+      "evidence": "action: isLast ? 'end' as const : 'next' as const",
+      "impact": "end maps to stop(), which emits tour:abandon. Clicking Done therefore never emitted tour:complete and never cleared the saved snapshot, so a finished tour reopened on the next visit. @guideflow/react already dispatched next here; the two implementations had silently diverged.",
+      "fix": "Dispatch 'next' on the last step; next() ends the tour through the completed path.",
+      "effort": "S",
+      "resolvedIn": "Phase 6 — pinned by apps/e2e/tests/tour-flow.spec.ts and spotlight-persistence.spec.ts (\"a completed tour does not replay\")."
+    },
+    {
+      "id": "accent-fails-contrast",
+      "area": "core",
+      "severity": "P2",
+      "kind": "a11y",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "The default accent colour fails WCAG AA on the primary button",
+      "file": "packages/core/src/styles/tokens.css",
+      "line": 11,
+      "evidence": "--gf-accent-color: #6366f1 with --gf-accent-fg: #ffffff",
+      "impact": "axe measures 4.46:1 for white on #6366f1 at 13px, against a 4.5:1 requirement. Every default-themed tour shipped a failing primary button.",
+      "fix": "Move to indigo-600 #4f46e5 (6.3:1). Fallbacks in the injected renderer CSS, hint.ts and hotspot.ts updated to match.",
+      "effort": "S",
+      "resolvedIn": "Phase 6.4 — pinned by the axe assertions in apps/e2e/tests/accessibility.spec.ts."
+    },
+    {
+      "id": "muted-text-fails-contrast",
+      "area": "core",
+      "severity": "P2",
+      "kind": "a11y",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "De-emphasised text sits at opacity 0.5, which fails WCAG AA",
+      "file": "packages/core/src/styles/popover.css",
+      "line": 41,
+      "evidence": ".gf-btn-ghost { opacity: 0.5 } and .gf-popover-progress { opacity: 0.5 }",
+      "impact": "#111827 at 0.5 over white measures 3.4:1 against a 4.5:1 requirement. Skip tour and the step counter were both unreadable to low-vision users.",
+      "fix": "--gf-muted-opacity token at 0.72 (6.6:1) and --gf-body-opacity at 0.88; forced-colors and the high-contrast theme reset both to 1.",
+      "effort": "S",
+      "resolvedIn": "Phase 6.4"
+    },
+    {
+      "id": "forced-colors-opt-out",
+      "area": "core",
+      "severity": "P2",
+      "kind": "a11y",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "forced-color-adjust: none opts the popover out of the forced palette",
+      "file": "packages/core/src/styles/high-contrast.css",
+      "line": 5,
+      "evidence": ".gf-popover { forced-color-adjust: none } inside @media (forced-colors: active)",
+      "impact": "Declared inside the very block meant to honour Windows High Contrast, it told the browser to ignore the palette the user asked the OS for — on the popover and the hotspot beacon, the two surfaces that matter most.",
+      "fix": "Removed. The block now declares system colour keywords and lets the OS map them, and adds coverage for buttons, the progress bar and the spotlight cutout.",
+      "effort": "S",
+      "resolvedIn": "Phase 6.4"
+    },
+    {
+      "id": "dead-progress-selector",
+      "area": "core",
+      "severity": "P3",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "popover.css styles .gf-popover-progress, which the renderer never emits",
+      "file": "packages/core/src/styles/popover.css",
+      "line": 76,
+      "evidence": ".gf-popover-progress { font-size: var(--gf-font-size-sm) } vs the renderer writing class=\"gf-popover-step-info\"",
+      "impact": "The step counter rendered at full body size and weight for anyone using the stylesheet.",
+      "fix": "Selector corrected to .gf-popover-step-info, with the old name kept as an alias.",
+      "effort": "S",
+      "resolvedIn": "Phase 6.4"
+    },
+    {
+      "id": "rtl-hint-badge",
+      "area": "core",
+      "severity": "P3",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "The RTL rule for the hint badge is a no-op",
+      "file": "packages/core/src/styles/rtl.css",
+      "line": 18,
+      "evidence": "[dir=\"rtl\"] .gf-hint-badge { right: auto }",
+      "impact": "The badge is positioned entirely from script in absolute page coordinates, so there is no CSS right to reset and the badge stayed on the anchor left edge in RTL.",
+      "fix": "Mirrored in engine/hint.ts, where the position is actually assigned.",
+      "effort": "S",
+      "resolvedIn": "Phase 6.4"
+    },
+    {
+      "id": "e2e-goto-discards-base-path",
+      "area": "e2e",
+      "severity": "P0",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "Every e2e spec navigated to the wrong URL",
+      "file": "apps/e2e/tests/accessibility.spec.ts",
+      "line": 18,
+      "evidence": "await page.goto('/')",
+      "impact": "Playwright resolves goto() with new URL(url, baseURL), and a leading slash discards the base path. Every spec loaded the repo root rather than the fixture, so every beforeEach timed out waiting for __gfReady. This is why the suite still had a 0% pass rate after the Phase 2 harness rebuild and the browser install.",
+      "fix": "goto('index.html') in all three specs.",
+      "effort": "S",
+      "resolvedIn": "Phase 6 — the suite now runs: 156/156 across chromium, firefox, webkit and Mobile Chrome."
     }
   ]
 }

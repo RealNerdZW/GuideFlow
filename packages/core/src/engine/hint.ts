@@ -17,7 +17,7 @@ const HINT_CSS = `
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--gf-accent-color, #6366f1);
+  background: var(--gf-accent-color, #4f46e5);
   color: #fff;
   display: flex;
   align-items: center;
@@ -34,7 +34,7 @@ const HINT_CSS = `
 .gf-hint-badge:hover,
 .gf-hint-badge:focus {
   transform: scale(1.2);
-  outline: 2px solid var(--gf-accent-color, #6366f1);
+  outline: 2px solid var(--gf-accent-color, #4f46e5);
   outline-offset: 2px;
 }
 .gf-hint-tooltip {
@@ -128,7 +128,12 @@ export class HintSystem extends EventEmitter<Pick<TourEvents, 'hint:click'>> {
 
     const positionBadge = () => {
       const rect = target.getBoundingClientRect()
-      badge.style.left = `${rect.left + window.scrollX + rect.width - 12}px`
+      // Pin to the anchor's trailing corner, which is the *left* edge in RTL.
+      // The badge is positioned entirely from script, so the `[dir="rtl"]`
+      // rules in `rtl.css` could never reach it (AUDIT `rtl-hint-badge`).
+      const rtl = getComputedStyle(target).direction === 'rtl'
+      const inlineEnd = rtl ? rect.left - 12 : rect.left + rect.width - 12
+      badge.style.left = `${inlineEnd + window.scrollX}px`
       badge.style.top = `${rect.top + window.scrollY - 12}px`
     }
 

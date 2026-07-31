@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { PopoverPlacement, ComputedPosition } from '../types/index.js'
+import { prefersReducedMotion } from '../utils/ssr.js'
 
 const FALLBACK_SEQUENCES: Record<PopoverPlacement, PopoverPlacement[]> = {
   top: ['top', 'bottom', 'right', 'left', 'center'],
@@ -29,6 +30,29 @@ interface Rect {
   y: number
   width: number
   height: number
+}
+
+/**
+ * Mirror the inline-axis alignment of a placement for right-to-left text.
+ *
+ * `-start` and `-end` are *logical*: "start" is the edge text begins at, which
+ * is the right edge in RTL. `left` and `right` are physical and are deliberately
+ * left alone — that is the convention floating-ui and the CSS logical-property
+ * spec both use, and mirroring them would make `placement: 'left'` mean "right"
+ * for half the world's users.
+ *
+ * The block-axis variants (`left-start`, `right-end`, ...) align on top/bottom,
+ * which follows writing-mode rather than direction, so they do not mirror here
+ * either. AUDIT `placement-math-not-direction-aware`.
+ */
+function mirrorPlacement(placement: PopoverPlacement): PopoverPlacement {
+  switch (placement) {
+    case 'top-start': return 'top-end'
+    case 'top-end': return 'top-start'
+    case 'bottom-start': return 'bottom-end'
+    case 'bottom-end': return 'bottom-start'
+    default: return placement
+  }
 }
 
 function computeForPlacement(
@@ -98,6 +122,7 @@ export function computePosition(
   popover: Rect,
   preferredPlacement: PopoverPlacement = 'bottom',
   viewport?: Rect,
+  direction: 'ltr' | 'rtl' = 'ltr',
 ): ComputedPosition {
   const vp: Rect = viewport ?? {
     x: 0,
@@ -106,7 +131,8 @@ export function computePosition(
     height: typeof window !== 'undefined' ? window.innerHeight : 800,
   }
 
-  const sequence = FALLBACK_SEQUENCES[preferredPlacement] ?? FALLBACK_SEQUENCES.bottom
+  const requested = direction === 'rtl' ? mirrorPlacement(preferredPlacement) : preferredPlacement
+  const sequence = FALLBACK_SEQUENCES[requested] ?? FALLBACK_SEQUENCES.bottom
 
   for (const placement of sequence) {
     const pos = computeForPlacement(placement, target, popover)
@@ -122,11 +148,15 @@ export function computePosition(
 }
 
 /**
- * Smoothly scroll a target element into the centre of the viewport.
+ * Scroll a target element into the centre of the viewport.
+ *
+ * Smooth by default, but instant under `prefers-reduced-motion` — a smooth
+ * scroll on every step is exactly the vestibular trigger that setting exists to
+ * suppress (AUDIT `ignores-prefers-reduced-motion`).
  */
 export function scrollTargetIntoView(element: Element): void {
   element.scrollIntoView({
-    behavior: 'smooth',
+    behavior: prefersReducedMotion() ? 'auto' : 'smooth',
     block: 'center',
     inline: 'nearest',
   })

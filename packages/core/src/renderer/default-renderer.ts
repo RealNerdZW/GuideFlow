@@ -21,7 +21,11 @@ import { injectStyles, gfId } from '../utils/styles.js'
 
 const POPOVER_CSS_ID = 'gf-popover-renderer'
 
-// Inline the popover CSS for the renderer (subset — full CSS imported via styles/index.css)
+// Inline popover CSS for the renderer — a subset of styles/index.css, so a
+// consumer who never imports the stylesheet still gets a usable popover.
+// Keep the two in step: the opacity tokens, the reduced-motion block and the
+// forced-colors block below all mirror rules in styles/, and a user who *has*
+// imported the stylesheet gets those from there instead.
 const POPOVER_CSS = `
 .gf-popover {
   position: fixed;
@@ -46,23 +50,25 @@ const POPOVER_CSS = `
 }
 .gf-popover-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:10px; }
 .gf-popover-title { font-weight:600; font-size:15px; margin:0; flex:1; }
-.gf-popover-close { appearance:none; background:none; border:none; color:inherit; opacity:.4; cursor:pointer; padding:2px 6px; border-radius:4px; font-size:18px; line-height:1; transition:opacity 100ms; }
+.gf-popover-close { appearance:none; background:none; border:none; color:inherit; opacity:var(--gf-muted-opacity,.72); cursor:pointer; padding:2px 6px; border-radius:4px; font-size:18px; line-height:1; transition:opacity 100ms; }
 .gf-popover-close:hover { opacity:.9; }
-.gf-popover-close:focus-visible { outline:2px solid var(--gf-accent-color,#6366f1); outline-offset:2px; opacity:.9; }
-.gf-popover-body { margin:0 0 10px; opacity:.85; }
+.gf-popover-close:focus-visible { outline:2px solid var(--gf-accent-color,#4f46e5); outline-offset:2px; opacity:.9; }
+.gf-popover-body { margin:0 0 10px; opacity:var(--gf-body-opacity,.88); }
 .gf-progress-bar { height:3px; background:var(--gf-progress-bg,rgba(0,0,0,.1)); border-radius:99px; margin-bottom:12px; overflow:hidden; }
-.gf-progress-bar-fill { height:100%; background:var(--gf-accent-color,#6366f1); border-radius:99px; transition:width 300ms ease; }
+.gf-progress-bar-fill { height:100%; background:var(--gf-accent-color,#4f46e5); border-radius:99px; transition:width 300ms ease; }
 .gf-popover-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
-.gf-popover-step-info { font-size:12px; opacity:.5; }
+.gf-popover-step-info { font-size:12px; opacity:var(--gf-muted-opacity,.72); }
 .gf-popover-actions { display:flex; gap:6px; }
 .gf-btn { appearance:none; display:inline-flex; align-items:center; border:none; border-radius:var(--gf-btn-radius,6px); padding:8px 18px; font-size:13px; font-family:inherit; font-weight:500; cursor:pointer; transition:opacity 120ms; line-height:1; }
-.gf-btn:focus-visible { outline:2px solid var(--gf-accent-color,#6366f1); outline-offset:2px; }
-.gf-btn-primary { background:var(--gf-accent-color,#6366f1); color:var(--gf-accent-fg,#fff); }
+.gf-btn:focus-visible { outline:2px solid var(--gf-accent-color,#4f46e5); outline-offset:2px; }
+.gf-btn-primary { background:var(--gf-accent-color,#4f46e5); color:var(--gf-accent-fg,#fff); }
 .gf-btn-primary:hover { opacity:.9; }
-.gf-btn-secondary { background:transparent; color:inherit; opacity:.6; }
+.gf-btn-secondary { background:transparent; color:inherit; opacity:var(--gf-muted-opacity,.72); }
 .gf-btn-secondary:hover { opacity:1; }
-.gf-btn-ghost { background:transparent; color:inherit; opacity:.45; font-size:12px; padding:6px 10px; }
-.gf-btn-ghost:hover { opacity:.8; }
+.gf-btn-ghost { background:transparent; color:inherit; opacity:var(--gf-muted-opacity,.72); font-size:12px; padding:6px 10px; }
+.gf-btn-ghost:hover { opacity:.9; }
+@media (prefers-reduced-motion:reduce){.gf-popover{animation:none}.gf-progress-bar-fill,.gf-btn,.gf-popover-close{transition:none}}
+@media (forced-colors:active){.gf-popover{border:2px solid ButtonText;background:Canvas;color:CanvasText}.gf-btn,.gf-popover-close,.gf-popover-body,.gf-popover-step-info{opacity:1}.gf-btn{border:1px solid ButtonText}.gf-progress-bar{border:1px solid CanvasText}}
 `
 
 type OnAction = (action: string) => void
@@ -76,6 +82,12 @@ export class DefaultRenderer implements RendererContract {
   private _currentTarget: Element | null = null
   private _currentPlacement: PopoverPlacement = 'bottom'
   private _repositionHandler: (() => void) | null = null
+  /** Keeps Tab inside the dialog while a step is on screen. */
+  private _focusTrapHandler: ((e: KeyboardEvent) => void) | null = null
+  /** Polite live region for step announcements; outlives the popover. */
+  private _liveRegionEl: HTMLElement | null = null
+  /** Whatever had focus before the tour opened, so it can be handed back. */
+  private _previouslyFocused: HTMLElement | null = null
   /**
    * The instance-scoped translation registry. Falls back to the module-level
    * `defaultI18n` singleton when nothing is wired, which is what every render
@@ -106,12 +118,38 @@ export class DefaultRenderer implements RendererContract {
     this._ensurePopover()
     const el = this._popoverEl!
 
+    // Remember who had focus so it can be handed back when the tour ends.
+    // Only on the first step: later steps are focused by us, and capturing
+    // those would restore focus into a popover that no longer exists.
+    if (!this._previouslyFocused && document.activeElement instanceof HTMLElement) {
+      this._previouslyFocused = document.activeElement
+    }
+
     // Build inner HTML
     el.innerHTML = this._buildHTML(step, content, index, total)
     el.setAttribute('role', 'dialog')
     el.setAttribute('aria-modal', 'true')
-    el.setAttribute('aria-labelledby', `${this._popoverId}-title`)
-    el.setAttribute('aria-describedby', `${this._popoverId}-body`)
+
+    // Only reference ids that exist. `-title` is emitted when content.title is
+    // set and `-body` when content.body/html is; pointing at a missing element
+    // leaves the dialog with no accessible name at all, which is worse than
+    // having no aria-labelledby (AUDIT `dangling-aria-labelledby`).
+    if (content.title) {
+      el.setAttribute('aria-labelledby', `${this._popoverId}-title`)
+      el.removeAttribute('aria-label')
+    } else {
+      // No visible title — fall back to a generic name so the dialog is still
+      // announced as something rather than as an unlabelled group.
+      el.removeAttribute('aria-labelledby')
+      el.setAttribute('aria-label', (this._i18n ?? defaultI18n).t('dialogLabel'))
+    }
+
+    if (content.body || content.html) {
+      el.setAttribute('aria-describedby', `${this._popoverId}-body`)
+    } else {
+      el.removeAttribute('aria-describedby')
+    }
+
     el.removeAttribute('data-enter')
     // Force reflow for animation restart
     void el.offsetWidth
@@ -138,19 +176,128 @@ export class DefaultRenderer implements RendererContract {
     this._position(el, targetEl, this._currentPlacement)
     this._attachReposition()
 
-    // Focus management — move focus into popover
-    const firstFocusable = el.querySelector<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    )
+    // Announce the step to assistive technology. The popover's own content is
+    // not announced on re-render — the element is reused, so a screen reader
+    // sees no new node — and moving focus only reads the focused control, not
+    // the step body (AUDIT `no-live-region`).
+    this._announce(content, index, total)
+
+    // Focus the first control, and trap Tab inside the dialog while it is open.
+    const firstFocusable = this._focusables(el)[0]
     firstFocusable?.focus()
+    this._attachFocusTrap()
+  }
+
+  /**
+   * Every tabbable element inside the popover, in document order.
+   * `:not([disabled])` matters — a disabled Back button on step 1 would
+   * otherwise become the trap's first stop and swallow focus.
+   */
+  private _focusables(root: HTMLElement): HTMLElement[] {
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]),' +
+        ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((node) => node.offsetParent !== null || node === document.activeElement)
+  }
+
+  /**
+   * Keep Tab inside the dialog.
+   *
+   * `role="dialog" aria-modal="true"` is a promise to assistive technology that
+   * the rest of the page is inert. Without a trap, Tab walked straight out into
+   * the dimmed page behind the overlay — where the user cannot see what is
+   * focused (AUDIT `no-focus-trap-or-restore`).
+   */
+  private _attachFocusTrap(): void {
+    if (this._focusTrapHandler) return
+    this._focusTrapHandler = (e: KeyboardEvent): void => {
+      if (e.key !== 'Tab' || !this._popoverEl) return
+      const focusables = this._focusables(this._popoverEl)
+      if (focusables.length === 0) return
+
+      const first = focusables[0]!
+      const last = focusables[focusables.length - 1]!
+      const active = document.activeElement
+
+      // Focus outside the dialog entirely (the page stole it, or the dialog
+      // just opened) — pull it back to the appropriate end.
+      if (!this._popoverEl.contains(active)) {
+        e.preventDefault()
+        ;(e.shiftKey ? last : first).focus()
+        return
+      }
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', this._focusTrapHandler, true)
+  }
+
+  private _detachFocusTrap(): void {
+    if (this._focusTrapHandler) {
+      document.removeEventListener('keydown', this._focusTrapHandler, true)
+      this._focusTrapHandler = null
+    }
+  }
+
+  /**
+   * Push the step into a polite live region.
+   *
+   * The region is created once, lives outside the popover so it survives the
+   * popover being removed, and is cleared before each write — assistive
+   * technology ignores an identical value written twice.
+   */
+  private _announce(content: StepContent, index: number, total: number): void {
+    if (!this._liveRegionEl) {
+      const region = document.createElement('div')
+      region.setAttribute('aria-live', 'polite')
+      region.setAttribute('aria-atomic', 'true')
+      region.setAttribute('role', 'status')
+      // Visually hidden, but not display:none or visibility:hidden — both
+      // remove it from the accessibility tree.
+      region.style.cssText =
+        'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)'
+      document.body.appendChild(region)
+      this._liveRegionEl = region
+    }
+
+    const i18n = this._i18n ?? defaultI18n
+    const position = total > 1 ? i18n.t('stepOf', { current: index + 1, total }) : ''
+    const parts = [content.title, content.body, position].filter(Boolean)
+
+    this._liveRegionEl.textContent = ''
+    // Next frame, so the cleared value is observed as a change.
+    requestAnimationFrame(() => {
+      if (this._liveRegionEl) this._liveRegionEl.textContent = parts.join('. ')
+    })
   }
 
   hideStep(): void {
     this._detachReposition()
+    this._detachFocusTrap()
     this._currentTarget = null
     if (this._popoverEl) {
       this._popoverEl.parentNode?.removeChild(this._popoverEl)
       this._popoverEl = null
+    }
+
+    // Hand focus back to whatever had it before the tour opened. Without this
+    // focus lands on <body> when the dialog is removed, so a keyboard user
+    // restarts from the top of the document and a screen-reader user loses
+    // their place entirely (AUDIT `no-focus-trap-or-restore`).
+    const restoreTo = this._previouslyFocused
+    this._previouslyFocused = null
+    if (restoreTo?.isConnected) restoreTo.focus()
+
+    if (this._liveRegionEl) {
+      this._liveRegionEl.remove()
+      this._liveRegionEl = null
     }
   }
 
@@ -181,14 +328,23 @@ export class DefaultRenderer implements RendererContract {
     const isFirst = index === 0
     const isLast = index === total - 1
 
+    // "Done" dispatches `next`, not `end`. `end` maps to `stop()`, which reports
+    // the tour as *abandoned* — so clicking Done never emitted `tour:complete`,
+    // the snapshot was never cleared, and the tour re-opened on the next visit
+    // (AUDIT `done-button-abandons-tour`). `next()` on the last step ends it
+    // through the completed path. @guideflow/react's popover already did this;
+    // the two had silently diverged.
     const actions = step.actions ?? [
       ...(isFirst ? [] : [{ label: i18n.t('prev'), variant: 'secondary' as const, action: 'prev' as const }]),
-      { label: isLast ? i18n.t('done') : i18n.t('next'), variant: 'primary' as const, action: isLast ? 'end' as const : 'next' as const },
+      { label: isLast ? i18n.t('done') : i18n.t('next'), variant: 'primary' as const, action: 'next' as const },
     ]
 
     return `
       ${total > 1 ? `
-        <div class="gf-progress-bar" role="progressbar" aria-valuenow="${progressPct}" aria-valuemin="0" aria-valuemax="100">
+        <div class="gf-progress-bar" role="progressbar"
+             aria-label="${this._esc(i18n.t('progressLabel'))}"
+             aria-valuenow="${index + 1}" aria-valuemin="1" aria-valuemax="${total}"
+             aria-valuetext="${this._esc(i18n.t('stepOf', { current: index + 1, total }))}">
           <div class="gf-progress-bar-fill" style="width:${progressPct}%"></div>
         </div>
       ` : ''}
@@ -282,6 +438,9 @@ export class DefaultRenderer implements RendererContract {
       popoverRect,
       placement,
       viewport,
+      // Read from the popover, which inherits <html dir>. `-start`/`-end`
+      // alignment is logical and has to mirror in RTL.
+      getComputedStyle(el).direction === 'rtl' ? 'rtl' : 'ltr',
     )
 
     el.style.left = `${pos.x}px`

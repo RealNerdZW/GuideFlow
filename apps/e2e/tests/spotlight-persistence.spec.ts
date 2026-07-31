@@ -7,7 +7,11 @@ import { test, expect } from '@playwright/test';
  */
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  // 'index.html', not '/'. Playwright resolves a goto() argument with
+  // `new URL(url, baseURL)`, and a leading slash discards baseURL's path —
+  // '/' landed on the repo root the static server exposes, where nothing ever
+  // sets __gfReady. Every spec in this suite then timed out in beforeEach.
+  await page.goto('index.html');
   await page.waitForFunction(() => window.__gfReady === true);
   await page.evaluate(() => localStorage.clear());
 });
@@ -97,19 +101,59 @@ test.describe('Popover positioning', () => {
   });
 
   test('follows the target when the page scrolls', async ({ page }) => {
+    // Regression for `popover-drifts-on-scroll`. 150px, not 300: #step-one sits
+    // ~166px down, so a 300px scroll puts it *above* the viewport and the
+    // popover legitimately falls back to a clamped centre — which would make
+    // this assertion measure the fallback rather than the tracking.
     await page.click('#start-btn');
     await expect(page.locator('.gf-popover')).toBeVisible();
 
     const before = (await page.locator('.gf-popover').boundingBox())!;
-    await page.mouse.wheel(0, 300);
-    await page.waitForTimeout(400);
-    const after = (await page.locator('.gf-popover').boundingBox())!;
+    const targetBefore = (await page.locator('#step-one').boundingBox())!;
 
-    // The popover must move with the target, not stay pinned to the viewport.
-    expect(Math.abs(after.y - before.y)).toBeGreaterThan(100);
+    await page.mouse.wheel(0, 150);
+    // Firefox animates a wheel scroll, so a fixed timeout samples mid-flight and
+    // the popover trails the target by a few pixels. Wait for scrollY to hold
+    // still, then give the scroll listener one more frame to reposition.
+    await page.waitForFunction(() => {
+      const w = window as unknown as { __lastY?: number }
+      const settled = w.__lastY === window.scrollY
+      w.__lastY = window.scrollY
+      return settled && window.scrollY > 0
+    }, undefined, { polling: 100 });
+    await page.waitForTimeout(200);
+
+    const after = (await page.locator('.gf-popover').boundingBox())!;
+    const targetAfter = (await page.locator('#step-one').boundingBox())!;
+
+    // The popover tracked its target rather than staying pinned to the
+    // viewport: both moved by the same amount, within a pixel of rounding.
+    const targetDelta = targetAfter.y - targetBefore.y;
+    expect(Math.abs(targetDelta)).toBeGreaterThan(100);
+    // ±2px: the positioner rounds to whole pixels and the target's own box is
+    // fractional, so the two deltas agree to about a pixel, not exactly.
+    expect(Math.abs((after.y - before.y) - targetDelta)).toBeLessThanOrEqual(2);
+    // And it is still below its target, as `placement: 'bottom'` asks.
+    expect(after.y).toBeGreaterThan(targetAfter.y);
+  });
+
+  test('falls back to a clamped centre when the target scrolls out of view', async ({ page }) => {
+    // Not a bug — the alternative is a popover that flies off-screen with its
+    // target and strands the user with no way to advance or dismiss the tour.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(400);
 
     const target = (await page.locator('#step-one').boundingBox())!;
-    expect(after.y).toBeGreaterThan(target.y);
+    expect(target.y).toBeLessThan(0);
+
+    const popover = (await page.locator('.gf-popover').boundingBox())!;
+    const viewport = page.viewportSize()!;
+    await expect(page.locator('.gf-popover')).toHaveAttribute('data-placement', 'center');
+    expect(popover.y).toBeGreaterThanOrEqual(-1);
+    expect(popover.y + popover.height).toBeLessThanOrEqual(viewport.height + 1);
   });
 });
 
@@ -150,7 +194,11 @@ test.describe('Persistence', () => {
     await page.click('[data-gf-action="next"]');
     await page.click('[data-gf-action="next"]');
     await expect(page.locator('.gf-popover')).toContainText('Persisted Three');
-    await page.click('[data-gf-action="end"]');
+    // The Done button, not `[data-gf-action="end"]`. The header's × still
+    // carries `end`, and `end` maps to stop() — which abandons the tour rather
+    // than completing it, so the snapshot would never be cleared and this test
+    // would be asserting the opposite of its name.
+    await page.click('.gf-popover .gf-btn-primary');
     await expect(page.locator('.gf-popover')).toBeHidden();
 
     await page.reload();

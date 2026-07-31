@@ -1,20 +1,26 @@
-/* GuideFlow — RTL Support */
-[dir="rtl"] .gf-popover-footer,
-[dir="rtl"] .gf-popover-actions {
-  flex-direction: row-reverse;
-}
-
-[dir="rtl"] .gf-progress-bar-fill {
-  margin-left: auto;
-  margin-right: 0;
-}
-
-[dir="rtl"] .gf-hotspot-tooltip {
-  right: 50%;
-  left: auto;
-  transform: translateX(50%);
-}
-
-[dir="rtl"] .gf-hint-badge {
-  right: auto;
-}
+/* GuideFlow — RTL Support
+ *
+ * Deliberately almost empty, and that is the fix.
+ *
+ * Flexbox and block layout already follow the inherited `direction`, so most
+ * hand-written "RTL rules" are double flips that undo the browser's own correct
+ * mirroring. This file used to carry three of them (AUDIT `rtl-double-flip`):
+ *
+ *   - `.gf-popover-footer` / `.gf-popover-actions { flex-direction: row-reverse }`
+ *     — under `dir="rtl"` a plain `row` is *already* right-to-left, so reversing
+ *     it put Back/Next back in left-to-right order, the one thing RTL users
+ *     needed changed.
+ *   - `.gf-progress-bar-fill { margin-left: auto }` — the fill is a block child
+ *     of a block parent; RTL already starts it at the right edge.
+ *   - `.gf-hotspot-tooltip { right: 50%; transform: translateX(50%) }` — exactly
+ *     equivalent to the base `left: 50%; translateX(-50%)`. Both centre it.
+ *
+ * `.gf-hint-badge`'s rule was worse than redundant: the badge's position is
+ * assigned from script in absolute page coordinates, so a CSS `right: auto` had
+ * nothing to reset. It is mirrored in `engine/hint.ts` instead.
+ *
+ * Anything added here must be a declaration the browser genuinely cannot mirror
+ * on its own — a physical `transform`, or a JS-assigned offset. Reach for
+ * logical properties (`margin-inline-start`, `inset-inline-end`) in the base
+ * stylesheet first; they need no `[dir]` selector at all.
+ */

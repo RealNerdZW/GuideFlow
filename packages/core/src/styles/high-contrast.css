@@ -1,8 +1,23 @@
 /* GuideFlow — High Contrast Mode */
+
+/*
+ * Windows High Contrast / forced-colors.
+ *
+ * Note what is *absent*: `forced-color-adjust: none`. It used to sit on
+ * `.gf-popover` and `.gf-hotspot-beacon`, and it means "ignore the user's forced
+ * palette and keep my own colours" — the opposite of what a forced-colors block
+ * is for. It opted the two most important surfaces out of the accessible
+ * palette the user explicitly asked the OS for (AUDIT `forced-colors-opt-out`).
+ *
+ * The right move here is to declare *system* colour keywords and let the OS map
+ * them, which is what these rules do. Reach for `forced-color-adjust: none`
+ * only for something that carries meaning through colour alone and would be
+ * destroyed by the mapping — a colour-picker swatch, say. Nothing here
+ * qualifies.
+ */
 @media (forced-colors: active) {
   .gf-popover {
     border: 2px solid ButtonText;
-    forced-color-adjust: none;
     background: Canvas;
     color: CanvasText;
   }
@@ -11,16 +26,41 @@
     background: ButtonFace;
     color: ButtonText;
   }
+  /* Opacity is not a colour, so forced-colors does not flatten it — these
+     would stay dimmed against the forced palette. */
+  .gf-btn-secondary,
+  .gf-btn-ghost {
+    border: 1px solid ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+    opacity: 1;
+  }
   .gf-popover-close {
     border: 1px solid ButtonText;
+    opacity: 1;
+  }
+  .gf-popover-body,
+  .gf-popover-step-info {
+    opacity: 1;
+  }
+  /* Backgrounds are flattened, so the fill would vanish into its track. */
+  .gf-progress-bar {
+    border: 1px solid CanvasText;
+  }
+  .gf-progress-bar-fill {
+    background: Highlight;
   }
   .gf-hotspot-beacon {
     background: Highlight;
-    forced-color-adjust: none;
+  }
+  /* The dimmed overlay disappears in forced-colors; this outline becomes the
+     only thing saying which element the tour is pointing at. */
+  [data-gf-spotlight-cutout] {
+    outline: 3px solid Highlight;
   }
 }
 
-/* Explicit high-contrast class */
+/* Explicit high-contrast theme, independent of any OS setting. */
 [data-gf-high-contrast],
 .gf-high-contrast {
   --gf-popover-bg: #000000;
@@ -29,6 +69,9 @@
   --gf-accent-color: #ffff00;
   --gf-accent-fg: #000000;
   --gf-shadow: none;
+  /* De-emphasis by opacity defeats the point of a high-contrast theme. */
+  --gf-muted-opacity: 1;
+  --gf-body-opacity: 1;
 }
 [data-gf-high-contrast] .gf-popover,
 .gf-high-contrast .gf-popover {

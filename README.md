@@ -45,7 +45,7 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 
 | Package | Description | Size |
 |---|---|---|
-| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 12.62 kB gzip |
+| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 14.29 kB gzip |
 | [`@guideflow/react`](packages/react) | `TourProvider`, `useTour`, `useTourStep`, `useHotspot`, `TourStep`, `GuidePopover`, `ConversationalPanel` | — |
 | [`@guideflow/vue`](packages/vue) | `GuideFlowPlugin`, `useTour` composable (no components) | — |
 | [`@guideflow/svelte`](packages/svelte) | `createTourStore`, `Readable` stores (no components) | — |
@@ -55,8 +55,8 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 | [`@guideflow/devtools`](packages/devtools) | MV3 browser extension — flow inspector and step recorder. Not published to npm: build it from source and load it unpacked | — |
 
 The core size is what `size-limit` reports for `dist/index.js` bundled, minified and gzipped
-(`pnpm --filter @guideflow/core size`) — **12.62 kB against a 13 kB budget**. The published file itself is
-unminified, so what you ship depends on your bundler.
+(`pnpm --filter @guideflow/core size`) — **14.29 kB against a 14.5 kB budget**. The published file itself
+is unminified, so what you ship depends on your bundler.
 
 > The devtools panel discovers a page through the `window.__guideflow` global. The library never sets it —
 > assign your instance to it yourself if you want the extension to see your app.
