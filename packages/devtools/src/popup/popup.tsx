@@ -498,7 +498,7 @@ function App() {
         <span>GuideFlow DevTools v{__GF_VERSION__}</span>
         <a
           style={S.link}
-          href="https://guideflow.dev"
+          href="https://realnerdzw.github.io/GuideFlow/"
           target="_blank"
           rel="noreferrer"
         >Docs</a>
