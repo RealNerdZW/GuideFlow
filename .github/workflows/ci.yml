@@ -10,22 +10,30 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Turbo prints a summary but its cache is per-job; keep output readable.
+  TURBO_TELEMETRY_DISABLED: 1
+
 jobs:
-  ci:
-    name: Build, Lint & Test
+  # ── Unit gate ──────────────────────────────────────────────────────────────
+  # Matrix across the full supported range. `engines` claims >=18 and nothing
+  # tested that until now, so 18 and 20 were unverified in every release.
+  unit:
+    name: Build, type-check, lint & test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22]
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: pnpm
 
       - name: Install dependencies
@@ -35,10 +43,167 @@ jobs:
         run: pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
       - name: Type check
-        run: pnpm turbo run type-check --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
+        run: pnpm turbo run type-check --filter=!storybook --filter=!docs --filter=!@guideflow/demo
 
       - name: Lint
         run: pnpm turbo run lint --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
       - name: Test
         run: pnpm turbo run test --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
+
+  # ── Coverage gate ──────────────────────────────────────────────────────────
+  # Per-package thresholds are ratchets set just below what each suite achieves
+  # today (see each vitest.config.ts), so a regression fails rather than
+  # quietly eroding. Raise them as coverage improves; never lower them to make
+  # a build pass.
+  coverage:
+    name: Coverage thresholds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
+
+      - name: Run tests with coverage
+        run: |
+          for pkg in core react vue svelte ai analytics cli; do
+            if [ -f "packages/$pkg/vitest.config.ts" ]; then
+              echo "::group::coverage $pkg"
+              pnpm exec vitest run --root "packages/$pkg" --coverage --coverage.reporter=text-summary --coverage.reporter=lcov
+              echo "::endgroup::"
+            fi
+          done
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: packages/*/coverage/lcov.info
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ── Bundle-size gate ───────────────────────────────────────────────────────
+  # @guideflow/core's size is a published promise. It was measured locally and
+  # never enforced anywhere, so a regression could ship silently.
+  size:
+    name: Bundle size
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @guideflow/core build
+      - name: Check size budget
+        run: pnpm --filter @guideflow/core size
+
+  # ── Packaging gate ─────────────────────────────────────────────────────────
+  # Verifies that what npm would actually publish matches the exports map.
+  # Catches the class of bug where dist/styles is missing from the tarball.
+  pack:
+    name: Package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
+      - name: Verify publishable package contents
+        run: node scripts/verify-pack.mjs
+
+  # ── End-to-end gate ────────────────────────────────────────────────────────
+  # The Playwright suite had never executed: it booted Storybook while the specs
+  # targeted a fixture page, the fixture defined an invalid flow, and the a11y
+  # spec imported an export that does not exist. All three are fixed; this job
+  # keeps it that way.
+  e2e:
+    name: E2E (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ matrix.browser }}
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Build core
+        run: pnpm --filter @guideflow/core build
+
+      - name: Run E2E
+        run: pnpm --filter e2e test:e2e -- --project=${{ matrix.browser }}
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: apps/e2e/playwright-report/
+          retention-days: 7
+
+  # ── Changeset gate ─────────────────────────────────────────────────────────
+  # A change to a published package without a changeset ships silently — no
+  # version bump, no CHANGELOG entry. Advisory on PRs from forks.
+  changeset:
+    name: Changeset present
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check for a changeset
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'packages/*/src/**' 'packages/*/package.json' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No published-package source changed — changeset not required."
+            exit 0
+          fi
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD -- '.changeset/*.md' | grep -qv 'README'; then
+            echo "Changeset found."
+            exit 0
+          fi
+          echo "::error::This PR changes a published package but adds no changeset. Run 'pnpm changeset'."
+          exit 1

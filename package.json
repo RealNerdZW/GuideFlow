@@ -23,13 +23,14 @@
     "sync-repo": "node scripts/sync-repo-meta.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.9.0",
     "@changesets/cli": "^2.27.1",
-    "@playwright/test": "^1.42.1",
+    "@playwright/test": "^1.44.0",
     "@size-limit/preset-small-lib": "^11.0.2",
     "@types/node": "^20.11.20",
     "@typescript-eslint/eslint-plugin": "^7.1.1",
     "@typescript-eslint/parser": "^7.1.1",
-    "axe-playwright": "^2.0.1",
+    "@vitest/coverage-v8": "^1.6.1",
     "eslint": "^8.57.0",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.29.1",

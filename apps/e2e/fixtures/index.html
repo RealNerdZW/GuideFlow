@@ -4,35 +4,95 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GuideFlow E2E Fixture</title>
+
+  <!--
+    Loads the REAL built artefacts from packages/core/dist, served from the repo
+    root by serve.mjs. No bundler is involved, so these tests exercise the
+    package a consumer actually installs — including the IIFE global build and
+    the ./styles subpath export, neither of which any other test covers.
+  -->
+  <link rel="stylesheet" href="/packages/core/dist/styles/index.css" />
+
   <style>
-    body { font-family: system-ui, sans-serif; padding: 40px; }
-    .box { padding: 24px; border: 2px solid #e5e7eb; border-radius: 8px; margin: 16px 0; width: 200px; }
-    button { padding: 8px 20px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 40px; }
+    h1 { margin-top: 0; font-size: 20px; }
+    .box {
+      padding: 24px; border: 2px solid #e5e7eb; border-radius: 8px;
+      margin: 16px 0; width: 200px;
+    }
+    button {
+      padding: 8px 16px; background: #6366f1; color: #fff; border: none;
+      border-radius: 6px; cursor: pointer; font-size: 13px; margin-right: 4px;
+    }
+    /* Pushes #far-target well below the fold so scroll repositioning is testable. */
+    .spacer { height: 1600px; }
   </style>
 </head>
 <body>
   <h1 id="heading">GuideFlow Test Page</h1>
-  <button id="start-btn" onclick="window.startTour()">Start Tour</button>
+
+  <button id="start-btn" type="button">Start Tour</button>
+  <button id="start-final-btn" type="button">Start Two-Step Final Tour</button>
+  <button id="start-scroll-btn" type="button">Start Scroll Tour</button>
+  <button id="start-persisted-btn" type="button">Start Persisted Tour</button>
+  <button id="start-multistate-btn" type="button">Start Multi-State Tour</button>
+
+  <p>
+    <label for="text-input">Type here</label>
+    <input id="text-input" type="text" value="" />
+  </p>
 
   <div id="step-one" class="box">Feature A</div>
   <div id="step-two" class="box">Feature B</div>
   <div id="step-three" class="box">Feature C</div>
 
+  <div class="spacer"></div>
+  <div id="far-target" class="box">Far Feature (below the fold)</div>
+  <div class="spacer"></div>
+
+  <!--
+    Loads core's ESM build directly — it has zero dependencies, so there are no
+    bare specifiers for the browser to resolve and no bundler is needed. Flows
+    come from flows.js, which the core unit suite imports too, so the fixture
+    and the engine contract cannot drift apart.
+  -->
   <script type="module">
-    import { createGuideFlow } from '/node_modules/@guideflow/core/dist/index.js';
-    import '/node_modules/@guideflow/core/dist/styles/index.css';
+    import { createGuideFlow } from '/packages/core/dist/index.js'
+    import { flows } from './flows.js'
 
-    const gf = createGuideFlow();
-    window.__guideflow = gf;
+    const gf = createGuideFlow({ context: { userId: 'e2e-user' } })
 
-    window.startTour = () => gf.start({
-      id: 'fixture-tour',
-      steps: [
-        { id: 's1', title: 'Step One', body: 'This is step one.', target: '#step-one', placement: 'bottom' },
-        { id: 's2', title: 'Step Two', body: 'This is step two.', target: '#step-two', placement: 'right' },
-        { id: 's3', title: 'Step Three', body: 'This is step three.', target: '#step-three', placement: 'top' },
-      ],
-    });
+    // The devtools extension detects tours through this global, and the library
+    // never sets it — every integration must do this itself.
+    window.__guideflow = gf
+
+    // Test hooks: record the exact sequence of steps rendered, so specs can
+    // assert on what happened rather than only on what is currently visible.
+    window.__gfEnters = []
+    window.__gfEvents = []
+    gf.on('step:enter', function (e) { window.__gfEnters.push(e.stepId) })
+    ;['tour:start', 'tour:complete', 'tour:abandon', 'tour:dismiss', 'step:skip'].forEach(function (name) {
+      gf.on(name, function () { window.__gfEvents.push(name) })
+    })
+
+    window.__gfFlows = flows
+
+    function wire (id, flow) {
+      document.getElementById(id).addEventListener('click', function () {
+        window.__gfEnters = []
+        window.__gfEvents = []
+        gf.start(flow)
+      })
+    }
+
+    wire('start-btn', flows.basic)
+    wire('start-final-btn', flows.final)
+    wire('start-scroll-btn', flows.scroll)
+    wire('start-persisted-btn', flows.persisted)
+    wire('start-multistate-btn', flows.multistate)
+
+    // Signals to the specs that wiring is complete.
+    window.__gfReady = true
   </script>
 </body>
 </html>

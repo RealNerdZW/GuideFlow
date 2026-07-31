@@ -16,6 +16,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # Required for npm provenance attestation.
+      id-token: write
 
     steps:
       - name: Checkout
@@ -34,9 +36,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # ── Gate ────────────────────────────────────────────────────────────────
+      # This workflow used to publish to npm after nothing but a build: no
+      # type-check, no lint, no tests, no size budget. A broken release could
+      # reach consumers even when CI was red.
       - name: Build
         run: pnpm turbo run build --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
+      - name: Type check
+        run: pnpm turbo run type-check --filter=!storybook --filter=!docs --filter=!@guideflow/demo
+
+      - name: Lint
+        run: pnpm turbo run lint --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
+
+      - name: Test
+        run: pnpm turbo run test --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
+
+      - name: Bundle size budget
+        run: pnpm --filter @guideflow/core size
+
+      - name: Verify publishable package contents
+        run: node scripts/verify-pack.mjs
+
+      # ── Publish ─────────────────────────────────────────────────────────────
       - name: Create Release PR or Publish
         id: changesets
         uses: changesets/action@v1
@@ -49,3 +71,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Publishes a signed provenance attestation linking each tarball to
+          # this workflow run and commit.
+          NPM_CONFIG_PROVENANCE: true

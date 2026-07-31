@@ -1,79 +1,163 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Tour flow E2E tests.
- * These run against the Storybook dev server at http://localhost:5173
- * (or the fixture HTML page for vanilla JS tests).
+ * Tour navigation against the real built bundle in a real browser.
+ *
+ * `window.__gfEnters` is a fixture hook recording every `step:enter` in order,
+ * so these specs assert on the sequence actually rendered rather than only on
+ * what happens to be visible at the end.
  */
 
+test.beforeEach(async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__gfReady === true);
+  // Persisted progress from a previous spec would suppress or resume a tour.
+  await page.evaluate(() => localStorage.clear());
+});
+
 test.describe('Tour flow', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/');
-    // Wait for GuideFlow to be ready
-    await page.waitForFunction(() => typeof window.__guideflow !== 'undefined', { timeout: 10_000 }).catch(() => {});
-  });
+  test('start button opens the first step', async ({ page }) => {
+    await page.click('#start-btn');
 
-  test('start button triggers tour', async ({ page }) => {
-    const startBtn = page.locator('#start-btn');
-    await startBtn.click();
-
-    // Popover should appear
     const popover = page.locator('.gf-popover');
-    await expect(popover).toBeVisible({ timeout: 5000 });
+    await expect(popover).toBeVisible();
     await expect(popover).toContainText('Step One');
   });
 
-  test('can navigate forward through all steps', async ({ page }) => {
+  test('navigates forward through every step, then completes', async ({ page }) => {
     await page.click('#start-btn');
 
-    for (let i = 1; i <= 3; i++) {
-      const popover = page.locator('.gf-popover');
-      await expect(popover).toBeVisible();
-
-      if (i < 3) {
-        await page.click('[data-gf-action="next"]');
-      }
-    }
-
-    // After last step next click ends tour
+    await expect(page.locator('.gf-popover')).toContainText('Step One');
     await page.click('[data-gf-action="next"]');
-    const popover = page.locator('.gf-popover');
-    await expect(popover).toBeHidden({ timeout: 3000 });
+    await expect(page.locator('.gf-popover')).toContainText('Step Two');
+    await page.click('[data-gf-action="next"]');
+    await expect(page.locator('.gf-popover')).toContainText('Step Three');
+
+    // Last step offers Done rather than Next.
+    await page.click('[data-gf-action="end"]');
+    await expect(page.locator('.gf-popover')).toBeHidden();
+
+    expect(await page.evaluate(() => window.__gfEnters)).toEqual(['s1', 's2', 's3']);
+    expect(await page.evaluate(() => window.__gfEvents)).toContain('tour:complete');
   });
 
-  test('can navigate backward', async ({ page }) => {
+  test('navigates backward', async ({ page }) => {
     await page.click('#start-btn');
-
-    // Go to step 2
     await page.click('[data-gf-action="next"]');
     await expect(page.locator('.gf-popover')).toContainText('Step Two');
 
-    // Go back to step 1
     await page.click('[data-gf-action="prev"]');
     await expect(page.locator('.gf-popover')).toContainText('Step One');
   });
 
-  test('dismiss button ends tour', async ({ page }) => {
+  test('Back on the first step is a no-op, not a re-render', async ({ page }) => {
+    // Regression: prev() at index 0 used to re-emit step:enter for the step
+    // already on screen, double-counting it in analytics.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toContainText('Step One');
+
+    // The first step renders no Back button at all; drive the engine directly.
+    await page.evaluate(() => window.__guideflow.prev());
+    await expect(page.locator('.gf-popover')).toContainText('Step One');
+
+    expect(await page.evaluate(() => window.__gfEnters)).toEqual(['s1']);
+  });
+
+  test('close button ends the tour', async ({ page }) => {
     await page.click('#start-btn');
     await expect(page.locator('.gf-popover')).toBeVisible();
 
     await page.click('.gf-popover-close');
-    await expect(page.locator('.gf-popover')).toBeHidden({ timeout: 3000 });
+    await expect(page.locator('.gf-popover')).toBeHidden();
   });
 
-  test('Escape key dismisses tour', async ({ page }) => {
+  test('Escape ends the tour', async ({ page }) => {
     await page.click('#start-btn');
     await expect(page.locator('.gf-popover')).toBeVisible();
 
     await page.keyboard.press('Escape');
-    await expect(page.locator('.gf-popover')).toBeHidden({ timeout: 3000 });
+    await expect(page.locator('.gf-popover')).toBeHidden();
   });
 
-  test('Arrow Right navigates forward', async ({ page }) => {
+  test('ArrowRight and ArrowLeft navigate', async ({ page }) => {
     await page.click('#start-btn');
     await expect(page.locator('.gf-popover')).toContainText('Step One');
 
     await page.keyboard.press('ArrowRight');
     await expect(page.locator('.gf-popover')).toContainText('Step Two');
+
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.locator('.gf-popover')).toContainText('Step One');
+  });
+});
+
+test.describe('Final-state steps', () => {
+  test('renders every step of a final state', async ({ page }) => {
+    // Regression for `final-state-steps-never-rendered`: the engine used to
+    // check isFinal immediately after transitioning, so entering a state marked
+    // final ended the tour before its steps were shown. This flow mirrors the
+    // README quick-start, which displayed 1 of its 2 steps.
+    await page.click('#start-final-btn');
+
+    await expect(page.locator('.gf-popover')).toContainText('Welcome!');
+    await page.click('[data-gf-action="next"]');
+    await expect(page.locator('.gf-popover')).toContainText('Your profile');
+
+    expect(await page.evaluate(() => window.__gfEnters)).toEqual(['f1', 'f2']);
+  });
+
+  test('reports 2 total steps, not 1', async ({ page }) => {
+    await page.click('#start-final-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    expect(await page.evaluate(() => window.__guideflow.totalSteps)).toBe(2);
+    await expect(page.locator('.gf-popover-step-info')).toContainText('1');
+  });
+});
+
+test.describe('Cross-state navigation', () => {
+  test('Back crosses a state boundary', async ({ page }) => {
+    // Regression for `fsm-navigation-cannot-cross-states`: prev() was
+    // intra-state only and failed silently at a state boundary.
+    await page.click('#start-multistate-btn');
+    await expect(page.locator('.gf-popover')).toContainText('State One');
+
+    await page.click('[data-gf-action="next"]');
+    await expect(page.locator('.gf-popover')).toContainText('State Two');
+
+    await page.click('[data-gf-action="prev"]');
+    await expect(page.locator('.gf-popover')).toContainText('State One');
+
+    expect(await page.evaluate(() => window.__gfEnters)).toEqual(['m1', 'm2', 'm1']);
+  });
+
+  test('goTo() reaches a step in another state', async ({ page }) => {
+    await page.click('#start-multistate-btn');
+    await expect(page.locator('.gf-popover')).toContainText('State One');
+
+    await page.evaluate(() => window.__guideflow.goTo('m2'));
+    await expect(page.locator('.gf-popover')).toContainText('State Two');
+    expect(await page.evaluate(() => window.__guideflow.currentStepId)).toBe('m2');
+  });
+});
+
+test.describe('Keyboard does not hijack text entry', () => {
+  test('arrow keys inside an input do not advance the tour', async ({ page }) => {
+    // Regression for `arrow-keys-break-inputs`: the document-level handler
+    // preventDefault'ed arrow keys with no check for editable targets, so a
+    // user could not move the caret while a tour was active.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toContainText('Step One');
+
+    const input = page.locator('#text-input');
+    await input.fill('hello');
+    await input.press('ArrowLeft');
+
+    await expect(page.locator('.gf-popover')).toContainText('Step One');
+    expect(await page.evaluate(() => window.__gfEnters)).toEqual(['s1']);
+
+    // And the caret really moved: typing lands before the final character.
+    await input.type('X');
+    await expect(input).toHaveValue('hellXo');
   });
 });
