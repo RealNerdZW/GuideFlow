@@ -50,7 +50,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
     "clean": "node ../../scripts/fsx.mjs rm dist .turbo"

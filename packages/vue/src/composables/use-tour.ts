@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { FlowDefinition, GuidanceContext } from '@guideflow/core'
-import { ref, readonly, onUnmounted, type Ref } from 'vue'
+import { ref, readonly, onScopeDispose, type Ref } from 'vue'
 
 import { useGuideFlow } from '../plugin.js'
 
@@ -56,7 +56,12 @@ export function useTour(flowId?: string): UseTourReturn {
   cleanups.push(gf.on('step:enter', syncState))
   cleanups.push(gf.on('step:exit', syncState))
 
-  onUnmounted(() => {
+  // onScopeDispose, not onUnmounted: onUnmounted requires a component instance,
+  // so calling useTour() from a bare effectScope() — a Pinia store, or any
+  // shared composable — registered no teardown at all and leaked all five core
+  // listeners for the lifetime of the page. A component's setup() runs inside
+  // its own effect scope, so this covers the component case too.
+  onScopeDispose(() => {
     cleanups.forEach((fn) => fn())
   })
 

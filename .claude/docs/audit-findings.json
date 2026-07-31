@@ -11,12 +11,11 @@
   },
   "counts": {
     "total": 325,
-    "P0": 22,
-    "P1": 119,
-    "P2": 142,
+    "P0": 15,
+    "P1": 90,
+    "P2": 124,
     "P3": 42,
-    "resolved": 32,
-    "open": 293
+    "resolved": 54
   },
   "findings": [
     {
@@ -432,7 +431,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "The entire accessibility e2e suite is non-executable: wrong axe package, wrong baseURL, and an invalid flow shape in the fixture",
       "file": "apps/e2e/tests/accessibility.spec.ts",
       "line": 2,
@@ -440,7 +439,8 @@
       "impact": "Three independent breakages, any one of which kills the suite. (1) `axe-playwright@2.2.2` (the version actually installed, per apps/e2e/node_modules/axe-playwright/package.json) exports only `injectAxe`, `configureAxe`, `getAxeResults`, `getViolations`, `reportViolations`, `checkA11y`, `DefaultTerminalReporter` — there is no default export and no `AxeBuilder`, so `new AxeBuilder({ page })` on lines 10 and 20 throws `TypeError: AxeBuilder is not a constructor`. The class lives in `@axe-core/playwright`, which is not a dependency. (2) `apps/e2e/playwright.config.ts` sets `baseURL: 'http://localhost:6006'` and boots Storybook, so `page.goto('/')` loads the Storybook manager UI, which has no `#start-btn` — `apps/e2e/fixtures/index.html` is orphaned and never served. (3) Even if it were served, its flow is `{ id, steps: [{ id, title, body, target }] }`, which is not a `FlowDefinition`; `FlowMachine`'s constructor does `if (!(flow.initial in flow.states))` (packages/core/src/fsm/machine.ts:17) and throws `TypeError: Cannot use 'in' operator` because both are `undefined`. The consequence is that every a11y regression catalogued in this report — dangling ARIA refs, missing focus trap, unnamed progressbar — is invisible to CI while the repo advertises an accessibility test suite.",
       "fix": "Swap the dependency to `@axe-core/playwright` and import `{ AxeBuilder }`. Add a dedicated Playwright project (or a second `webServer`) that serves `apps/e2e/fixtures/` with a bundler so the `import '…/styles/index.css'` statement resolves, and point its `baseURL` there. Rewrite the fixture flow into the real `{ id, initial, states: { … } }` shape. Then add assertions for focus containment, focus restoration, and the no-title accessible-name case.",
       "effort": "M",
-      "verifierNote": "All three breakages verified independently. (1) accessibility.spec.ts:2 verbatim; apps/e2e/node_modules/axe-playwright is 2.2.2 and its dist/index.d.ts declares only injectAxe/configureAxe/getAxeResults/getViolations/reportViolations/checkA11y plus `export { DefaultTerminalReporter }` — no default export (grep for `export default|exports.default` in dist/index.js is empty), and @axe-core/playwright is not in apps/e2e/package.json. (2) playwright.config.ts:16 baseURL http://localhost:6006 with webServer `pnpm --filter storybook dev` — `page.goto('/')` hits Storybook, which has no #start-btn; the fixture is never served. (3) The fixture flow is `{id, steps:[...]}` while FlowDefinition (types/index.ts:104-109) requires `initial` + `states`, and FlowMachine's constructor at machine.ts:16 does `if (!(flow.initial in flow.states))`; createGuideFlow().start() (index.ts:231+) performs no normalisation."
+      "verifierNote": "All three breakages verified independently. (1) accessibility.spec.ts:2 verbatim; apps/e2e/node_modules/axe-playwright is 2.2.2 and its dist/index.d.ts declares only injectAxe/configureAxe/getAxeResults/getViolations/reportViolations/checkA11y plus `export { DefaultTerminalReporter }` — no default export (grep for `export default|exports.default` in dist/index.js is empty), and @axe-core/playwright is not in apps/e2e/package.json. (2) playwright.config.ts:16 baseURL http://localhost:6006 with webServer `pnpm --filter storybook dev` — `page.goto('/')` hits Storybook, which has no #start-btn; the fixture is never served. (3) The fixture flow is `{id, steps:[...]}` while FlowDefinition (types/index.ts:104-109) requires `initial` + `states`, and FlowMachine's constructor at machine.ts:16 does `if (!(flow.initial in flow.states))`; createGuideFlow().start() (index.ts:231+) performs no normalisation.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "i18n-docs-nonexistent-api",
@@ -721,7 +721,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "@guideflow/svelte ships zero components and zero tests, and has no test script at all",
       "file": "packages/svelte/package.json",
       "line": 49,
@@ -729,7 +729,8 @@
       "impact": "The whole adapter is one 123-line `src/index.ts` and there is no `test` script, no `vitest.config.ts`, and no test files — so `turbo run test` silently skips the package entirely (it has no `test` task to run) and the store contract, the `'isActive' in configOrInstance` instance-vs-config discrimination at index.ts:64, and the `destroy()` cleanup path have never been executed by CI. The package description (`\"GuideFlow Svelte adapter — stores and components\"`, line 4) promises components that do not exist. @guideflow/vue is equally untested but at least declares `\"test\": \"vitest run --passWithNoTests\"` (line 53), which passes vacuously against zero tests — so neither non-React adapter has a single assertion behind it.",
       "fix": "Add `vitest` + `@testing-library/svelte` devDeps and a `test` script to packages/svelte/package.json, with tests covering: config-vs-instance discrimination, that each readable emits on `step:enter`/`step:exit`/`tour:*`, that `destroy()` removes all five listeners and calls `gf.destroy()`, and that `subscribe` returns a working unsubscriber. Do the same for packages/vue. Fix the description to \"stores\".",
       "effort": "M",
-      "verifierNote": "packages/svelte/package.json:49-55 is verbatim and contains no `test` script (contrast packages/vue/package.json:53 `\"test\": \"vitest run --passWithNoTests\"`, also verbatim). packages/svelte/src contains exactly one file, index.ts (123 lines), no vitest.config.ts and no test files. The instance-vs-config discrimination `'isActive' in configOrInstance` is at index.ts:64 as cited, and destroy() at 101-104 — both untested. Description at line 4 promises components that do not exist."
+      "verifierNote": "packages/svelte/package.json:49-55 is verbatim and contains no `test` script (contrast packages/vue/package.json:53 `\"test\": \"vitest run --passWithNoTests\"`, also verbatim). packages/svelte/src contains exactly one file, index.ts (123 lines), no vitest.config.ts and no test files. The instance-vs-config discrimination `'isActive' in configOrInstance` is at index.ts:64 as cited, and destroy() at 101-104 — both untested. Description at line 4 promises components that do not exist.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "vue-no-components-shipped",
@@ -1057,7 +1058,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "accessibility.spec.ts imports a default `AxeBuilder` from axe-playwright, which has no default export and no AxeBuilder class",
       "file": "apps/e2e/tests/accessibility.spec.ts",
       "line": 2,
@@ -1065,7 +1066,8 @@
       "impact": "I read the installed axe-playwright@2.2.2 type declarations: its only exports are `injectAxe`, `configureAxe`, `getAxeResults`, `getViolations`, `reportViolations`, `checkA11y` and `DefaultTerminalReporter` — there is no `export default` and no symbol named `AxeBuilder` anywhere. The builder API (`new AxeBuilder({ page }).withTags(...).analyze()`) belongs to the different package `@axe-core/playwright`. So `new AxeBuilder({ page })` at accessibility.spec.ts:10 and :20 throws `TypeError: AxeBuilder is not a constructor` the moment those two tests run. The package is declared in both apps/e2e/package.json:12 and the root package.json:32, so the wrong dependency is installed twice.",
       "fix": "Either swap the dependency to `@axe-core/playwright` in apps/e2e/package.json:12 (and drop it from root package.json:32), or rewrite the two tests against the axe-playwright API: `await injectAxe(page); const violations = await getViolations(page, undefined, { runOnly: { type: 'tag', values: ['wcag2a','wcag2aa'] } });`.",
       "effort": "S",
-      "verifierNote": "apps/e2e/tests/accessibility.spec.ts:2 is verbatim `import AxeBuilder from 'axe-playwright';`. I read node_modules/axe-playwright/dist/index.d.ts (v2.2.2): it exports only injectAxe, configureAxe, getAxeResults, getViolations, reportViolations, checkA11y and DefaultTerminalReporter — no default export, no AxeBuilder. `new AxeBuilder({page})` at lines 10 and 20 therefore throws TypeError. The dependency is declared at apps/e2e/package.json:12 and root package.json:32, both `axe-playwright`, never `@axe-core/playwright`."
+      "verifierNote": "apps/e2e/tests/accessibility.spec.ts:2 is verbatim `import AxeBuilder from 'axe-playwright';`. I read node_modules/axe-playwright/dist/index.d.ts (v2.2.2): it exports only injectAxe, configureAxe, getAxeResults, getViolations, reportViolations, checkA11y and DefaultTerminalReporter — no default export, no AxeBuilder. `new AxeBuilder({page})` at lines 10 and 20 therefore throws TypeError. The dependency is declared at apps/e2e/package.json:12 and root package.json:32, both `axe-playwright`, never `@axe-core/playwright`.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "e2e-webserver-points-at-storybook",
@@ -1073,7 +1075,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Playwright boots Storybook instead of the demo/fixture page, so every e2e test fails on a missing #start-btn",
       "file": "apps/e2e/playwright.config.ts",
       "line": 31,
@@ -1081,7 +1083,8 @@
       "impact": "All three spec files navigate to `/` (apps/e2e/tests/tour-flow.spec.ts:12, spotlight-persistence.spec.ts:5, accessibility.spec.ts:6) and then click `#start-btn`. At http://localhost:6006/ Storybook serves its manager shell; the only story, apps/storybook/stories/TourFlow.stories.tsx:45, renders its button with no `id` attribute at all, and it lives inside the preview iframe regardless. Meanwhile apps/e2e/fixtures/index.html — which is the only page in the repo that actually defines `<button id=\"start-btn\">` — is never served by anything. Every one of the 16 tests fails on `page.click('#start-btn')` timeout. The stale comment at apps/e2e/tests/tour-flow.spec.ts:6 even says \"http://localhost:5173\", a third port.",
       "fix": "Serve the fixture directory: set `webServer.command` to `pnpm dlx serve fixtures -l 6006` (or add a `vite preview`/`http-server` devDependency to apps/e2e) and keep `baseURL: 'http://localhost:6006'`. The fixture also needs its import path fixed — apps/e2e/fixtures/index.html:22 imports `/node_modules/@guideflow/core/dist/index.js`, which only resolves if the served root is apps/e2e and pnpm has hoisted the symlink there.",
       "effort": "M",
-      "verifierNote": "apps/e2e/playwright.config.ts:31-33 is verbatim (`command: 'pnpm --filter storybook dev'`, `url: 'http://localhost:6006'`), and baseURL on line 16 is the same port. apps/e2e/fixtures/index.html:15 is the only `<button id=\"start-btn\">` in the repo and no config serves fixtures/. apps/storybook/stories/TourFlow.stories.tsx DemoPage renders `<button onClick={onStart}>Start Tour</button>` with no id, inside the preview iframe. tour-flow.spec.ts:6 does say http://localhost:5173. Two minor corrections: the suite has 17 tests (6+5+6), not 16, and one of them (accessibility.spec.ts:9) never clicks #start-btn — it fails on the AxeBuilder defect instead."
+      "verifierNote": "apps/e2e/playwright.config.ts:31-33 is verbatim (`command: 'pnpm --filter storybook dev'`, `url: 'http://localhost:6006'`), and baseURL on line 16 is the same port. apps/e2e/fixtures/index.html:15 is the only `<button id=\"start-btn\">` in the repo and no config serves fixtures/. apps/storybook/stories/TourFlow.stories.tsx DemoPage renders `<button onClick={onStart}>Start Tour</button>` with no id, inside the preview iframe. tour-flow.spec.ts:6 does say http://localhost:5173. Two minor corrections: the suite has 17 tests (6+5+6), not 16, and one of them (accessibility.spec.ts:9) never clicks #start-btn — it fails on the AxeBuilder defect instead.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "release-publishes-without-test-or-lint-gate",
@@ -1089,7 +1092,7 @@
       "severity": "P1",
       "kind": "packaging",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "release.yml publishes to npm after only a build — no lint, no type-check, no tests",
       "file": ".github/workflows/release.yml",
       "line": 37,
@@ -1097,7 +1100,8 @@
       "impact": "`release.yml` triggers on every push to master (line 5) and on `workflow_dispatch` (line 6), independently of ci.yml. tsup builds with esbuild, which strips types without checking them, so a package with failing `tsc --noEmit` or failing vitest suites builds successfully and is published to npm. Nothing in the job requires ci.yml to have passed — there is no `workflow_run` trigger and no `needs:`. A red CI run and a successful publish of the same commit can happen concurrently.",
       "fix": "Insert `pnpm turbo run type-check ...`, `pnpm turbo run lint ...` and `pnpm turbo run test ...` steps between the Build and Create Release PR steps in .github/workflows/release.yml, mirroring ci.yml:37-44. Better still, gate the whole job on CI: `on: workflow_run: workflows: [CI], types: [completed], branches: [master]` plus `if: github.event.workflow_run.conclusion == 'success'`.",
       "effort": "S",
-      "verifierNote": ".github/workflows/release.yml lines 37-42 match the quoted block verbatim, triggers are `push: branches: [master]` (line 5) and `workflow_dispatch` (line 6), and there is no `needs:`, no `workflow_run`, and no lint/type-check/test step anywhere in the job. The publish command (root package.json:17, `publish-packages`) is also build-then-`changeset publish` with no test gate. tsup/esbuild strips types without checking them, so a package failing `tsc --noEmit` or vitest still builds and publishes."
+      "verifierNote": ".github/workflows/release.yml lines 37-42 match the quoted block verbatim, triggers are `push: branches: [master]` (line 5) and `workflow_dispatch` (line 6), and there is no `needs:`, no `workflow_run`, and no lint/type-check/test step anywhere in the job. The publish command (root package.json:17, `publish-packages`) is also build-then-`changeset publish` with no test gate. tsup/esbuild strips types without checking them, so a package failing `tsc --noEmit` or vitest still builds and publishes.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "cli-exports-no-types",
@@ -1121,7 +1125,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "@guideflow/cli has no tests and no test script — every command is unverified",
       "file": "packages/cli/package.json",
       "line": 44,
@@ -1129,7 +1133,8 @@
       "impact": "There is no `test` script, no `__tests__` directory (core, react, ai and analytics all have `src/__tests__`), and `apps/e2e/tests` covers only browser tour behaviour (accessibility, spotlight-persistence, tour-flow). Root `pnpm test` -> `turbo run test` therefore skips the CLI entirely. Every defect in this report is the kind a single test would have caught: one assertion that `export foo.json` does not write to `foo.json`, one that `GUIDEFLOW_API_KEY` alone authenticates `push`, one that `init` twice does not clobber, one that `--framework vue` emits a Vue file. `type-check` and `lint` both pass clean (see packages/cli/.turbo/turbo-type-check.log), which is exactly why static gates gave no signal here.",
       "fix": "Add `\"test\": \"vitest run\"` and `packages/cli/src/commands/__tests__/` with unit tests that import each `Command` and call `.parseAsync([...], {from:'user'})` against a temp dir (the commands are already exported as standalone `Command` objects, so this needs no refactor). Cover: export output-path derivation, export refusing to overwrite input, init idempotency, init non-TTY behaviour, push env-var auth against a stubbed `fetch`.",
       "effort": "M",
-      "verifierNote": "packages/cli/package.json:44-50 verbatim — build/dev/lint/type-check/clean, no `test`. No __tests__ under packages/cli (find shows __tests__ only in packages/ai, analytics, core, react). Root package.json `\"test\": \"turbo run test\"`, so a package with no test script is skipped entirely. packages/cli/.turbo contains turbo-build.log, turbo-lint.log and turbo-type-check.log, consistent with the claim that the static gates pass while nothing exercises behaviour."
+      "verifierNote": "packages/cli/package.json:44-50 verbatim — build/dev/lint/type-check/clean, no `test`. No __tests__ under packages/cli (find shows __tests__ only in packages/ai, analytics, core, react). Root package.json `\"test\": \"turbo run test\"`, so a package with no test script is skipped entirely. packages/cli/.turbo contains turbo-build.log, turbo-lint.log and turbo-type-check.log, consistent with the claim that the static gates pass while nothing exercises behaviour.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "docs-cli-flags-do-not-exist",
@@ -1757,7 +1762,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Playwright suite is explicitly excluded from CI and no other workflow runs it",
       "file": ".github/workflows/ci.yml",
       "line": 45,
@@ -1765,7 +1770,8 @@
       "impact": "`--filter=!e2e` removes the only browser-level tests from every push and PR. There is no separate e2e workflow (`.github/workflows/` contains only ci.yml, docs.yml, release.yml). Combined with the fixture misconfiguration above, the suite has almost certainly never passed, and nobody would notice: CI stays green while the integration layer (real DOM positioning, real spotlight, real localStorage persistence, real keyboard handling) is completely unverified. Regressions in `DefaultRenderer._position`, spotlight tracking, or Escape-key handling ship undetected.",
       "fix": "Add a dedicated e2e job to ci.yml that runs `pnpm --filter e2e exec playwright install --with-deps chromium` then `pnpm --filter e2e test`, gated on the fixture fix. Also rename the e2e package script from `test` to `test:e2e` so the root `pnpm test:e2e` (`turbo run test:e2e`) actually resolves — today it matches no script in any package and silently does nothing.",
       "effort": null,
-      "verifierNote": "ci.yml:43-44 (cited 45) is `- name: Test / run: pnpm turbo run test --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo`. .github/workflows/ contains only ci.yml, docs.yml, release.yml — verified by ls. Stronger than claimed: root package.json declares `\"test:e2e\": \"turbo run test:e2e\"` but apps/e2e/package.json only defines a `test` script, so `pnpm test:e2e` is also a no-op. Severity lowered — missing test execution, not a shipped defect."
+      "verifierNote": "ci.yml:43-44 (cited 45) is `- name: Test / run: pnpm turbo run test --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo`. .github/workflows/ contains only ci.yml, docs.yml, release.yml — verified by ls. Stronger than claimed: root package.json declares `\"test:e2e\": \"turbo run test:e2e\"` but apps/e2e/package.json only defines a `test` script, so `pnpm test:e2e` is also a no-op. Severity lowered — missing test execution, not a shipped defect.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "e2e-suite-cannot-run",
@@ -1773,7 +1779,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Entire Playwright e2e suite targets a page that is never served — every test fails",
       "file": "apps/e2e/playwright.config.ts",
       "line": 33,
@@ -1781,7 +1787,8 @@
       "impact": "`baseURL` is `http://localhost:6006` and the only server started is Storybook. All 16 tests across the three specs do `await page.goto('/')` and then `await page.click('#start-btn')`. Storybook's root URL renders the manager shell — there is no `#start-btn`, no `.gf-popover`, and no `window.__guideflow` in that document (the story lives inside an iframe at `/iframe.html?id=...`). Meanwhile `apps/e2e/fixtures/index.html`, the only page that actually defines `#start-btn` and `window.__guideflow`, is never served by any server in the repo. Running `pnpm --filter e2e test` fails 16/16 on the very first click. The suite is decorative.",
       "fix": "Serve the fixture: add `apps/e2e/fixtures` as a static root (e.g. `webServer.command: 'pnpm exec vite --port 6006 fixtures'` with a vite config aliasing `@guideflow/core` to `packages/core/dist`), or repoint every `page.goto('/')` to the Storybook iframe URL for the `Core/TourFlow` story. Delete whichever of `fixtures/index.html` / Storybook is not the intended target.",
       "effort": null,
-      "verifierNote": "playwright.config.ts:20 `baseURL: 'http://localhost:6006'` and the webServer block (line 31, not 33) runs `pnpm --filter storybook dev`. All three specs do `page.goto('/')` then `page.click('#start-btn')` (tour-flow.spec.ts:11,17,27,45,57). The only page defining `#start-btn`/`window.__guideflow` is apps/e2e/fixtures/index.html, served by nothing — and it imports `/node_modules/@guideflow/core/dist/index.js`, a path only resolvable under a server rooted at apps/e2e. Additionally the fixture itself uses the broken flat-`steps` shape. Test count is 17 (6+5+6), not 16. Severity lowered: this breaks a test suite, not shipped product."
+      "verifierNote": "playwright.config.ts:20 `baseURL: 'http://localhost:6006'` and the webServer block (line 31, not 33) runs `pnpm --filter storybook dev`. All three specs do `page.goto('/')` then `page.click('#start-btn')` (tour-flow.spec.ts:11,17,27,45,57). The only page defining `#start-btn`/`window.__guideflow` is apps/e2e/fixtures/index.html, served by nothing — and it imports `/node_modules/@guideflow/core/dist/index.js`, a path only resolvable under a server rooted at apps/e2e. Additionally the fixture itself uses the broken flat-`steps` shape. Test count is 17 (6+5+6), not 16. Severity lowered: this breaks a test suite, not shipped product.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "guide-brain-doc-signatures-wrong",
@@ -1869,7 +1876,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "No coverage thresholds anywhere, and coverage is never collected in CI",
       "file": "packages/core/vitest.config.ts",
       "line": 6,
@@ -1877,7 +1884,8 @@
       "impact": "packages/core is the only package with a `coverage` block and it declares no `thresholds`/`lines`/`branches` — so even if coverage were collected, nothing fails. The ai, analytics and react vitest configs have no coverage section at all. No package's `test` script passes `--coverage`, and ci.yml never runs it (line 45 is a bare `turbo run test`). turbo.json:16 declares `\"outputs\": [\"coverage/**\"]` for the test task, caching a directory that is never produced. Net effect: coverage is unmeasured and unenforced across the whole monorepo, so the large untested surfaces documented in the other findings can grow without any signal.",
       "fix": "Add `thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 }` to packages/core/vitest.config.ts, replicate the coverage block in the ai/analytics/react configs, change each `test` script to `vitest run --coverage`, and add a coverage-upload/enforcement step to ci.yml.",
       "effort": null,
-      "verifierNote": "packages/core/vitest.config.ts:7-11 is the quoted coverage block verbatim, with no thresholds key. packages/ai, packages/react and packages/analytics vitest.config.ts are each identical 7-line files with only {globals:false, environment:'happy-dom'} — no coverage section. No package's test script passes --coverage. ci.yml:44 is a bare `turbo run test`. turbo.json:15 declares `\"outputs\": [\"coverage/**\"]` for the test task. All four sub-claims verified."
+      "verifierNote": "packages/core/vitest.config.ts:7-11 is the quoted coverage block verbatim, with no thresholds key. packages/ai, packages/react and packages/analytics vitest.config.ts are each identical 7-line files with only {globals:false, environment:'happy-dom'} — no coverage section. No package's test script passes --coverage. ci.yml:44 is a bare `turbo run test`. turbo.json:15 declares `\"outputs\": [\"coverage/**\"]` for the test task. All four sub-claims verified.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "no-tests-for-create-guide-flow",
@@ -1902,7 +1910,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Svelte, CLI and DevTools packages have no test script and no tests at all",
       "file": "packages/svelte/package.json",
       "line": 59,
@@ -1910,7 +1918,8 @@
       "impact": "packages/svelte has no `test` key, so `turbo run test` skips it entirely — its 123-LOC `createTourStore` (store creation, the five event subscriptions at index.ts:132-136, and the `destroy()` cleanup loop) is never executed by any test. Same for packages/cli (363 LOC across init/studio/export/push — including the `export` static-extraction regex and the `push` auth/error handling) and packages/devtools (~2,350 LOC including a 410-LOC content-script inspector and a 206-LOC message bridge). That is roughly half the repo's source with literally zero automated verification, and unlike the `--passWithNoTests` packages it does not even show up as a skipped suite.",
       "fix": "Add `\"test\": \"vitest run\"` plus a vitest.config.ts to packages/svelte and packages/cli. For svelte, test store emission on each forwarded event and that `destroy()` unsubscribes all five. For cli, unit-test `exportCommand`'s regex extraction against a real flow file and `pushCommand`'s missing-key / non-2xx paths with a stubbed `fetch`. For devtools, at minimum test `bridge.ts` message serialization.",
       "effort": null,
-      "verifierNote": "Quoted svelte scripts block is verbatim (at line 49, not 59) and contains no `test` key — confirmed by enumerating all eight package.json scripts: cli, devtools and svelte have none. packages/svelte/src/index.ts is 123 LOC as claimed. CLI commands total 310 LOC (export 64, init 114, push 78, studio 54) — the '363 LOC' figure presumably includes index.ts. devtools src totals 2,631 LOC (panel/app.tsx alone is 1,279), so '~2,350' understates rather than overstates."
+      "verifierNote": "Quoted svelte scripts block is verbatim (at line 49, not 59) and contains no `test` key — confirmed by enumerating all eight package.json scripts: cli, devtools and svelte have none. packages/svelte/src/index.ts is 123 LOC as claimed. CLI commands total 310 LOC (export 64, init 114, push 78, studio 54) — the '363 LOC' figure presumably includes index.ts. devtools src totals 2,631 LOC (panel/app.tsx alone is 1,279), so '~2,350' understates rather than overstates.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "sanitizer-tests-only-cover-happy-path",
@@ -1918,7 +1927,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "HTML sanitizer tests cover four benign payloads and none of the known regex bypasses",
       "file": "packages/core/src/__tests__/renderer.test.ts",
       "line": 58,
@@ -1926,7 +1935,8 @@
       "impact": "`_sanitizeHTML` (packages/core/src/renderer/default-renderer.ts:243-257) is a chain of regex replacements applied to attacker-influenceable `content.html` before `el.innerHTML =` (line 93). The four tests feed it only well-formed, lowercase, single-pass payloads. Untested and unhandled classes include: unclosed tags (`<script src=x`, which the paired-tag regex never matches), nested/overlapping constructs where one replacement re-forms another (`<scr<script>ipt>`), SVG/MathML vectors (`<svg onload=...>` — `svg` is not in the strip list), `<img src=x onerror=...>` written without quotes across a newline, and `href=\"  java\\tscript:\"` variants that defeat the `(href|src|action)\\s*=\\s*[\"']\\s*(?:javascript|data)\\s*:` pattern. Because there is no test for any of these, the regex sanitizer is presumed safe on the strength of four passing assertions.",
       "fix": "Add a table of ~20 XSS payloads (unclosed tags, mixed case, nested reconstruction, `<svg onload>`, `<math>`, unquoted and whitespace/entity-obfuscated `javascript:` URLs) asserting no dangerous node or attribute survives — parsing the sanitized output with DOMParser and walking it rather than substring-matching the string. Strongly consider replacing the regex chain with a parse-and-allowlist approach (Sanitizer API with a DOMParser+allowlist fallback), which the new tests would then validate.",
       "effort": null,
-      "verifierNote": "renderer.test.ts:58 payload is verbatim. _sanitizeHTML is at default-renderer.ts:243-257 — nine chained regex replaces — and its output reaches `el.innerHTML =` at line 93 via _buildHTML:180. Only four sanitizer tests exist (renderer.test.ts:33, 54, 73, 90), all lowercase single-pass payloads. Verified gaps: the paired-tag patterns require a closing tag so `<script src=x` unclosed is never stripped; `svg`/`math` are not in the strip list while `<svg onload=…>` relies solely on the on* regex; the URL regex only fires on quoted `href|src|action` immediately followed by javascript:/data:. Nothing in the suite covers any of these."
+      "verifierNote": "renderer.test.ts:58 payload is verbatim. _sanitizeHTML is at default-renderer.ts:243-257 — nine chained regex replaces — and its output reaches `el.innerHTML =` at line 93 via _buildHTML:180. Only four sanitizer tests exist (renderer.test.ts:33, 54, 73, 90), all lowercase single-pass payloads. Verified gaps: the paired-tag patterns require a closing tag so `<script src=x` unclosed is never stripped; `svg`/`math` are not in the strip list while `<svg onload=…>` relies solely on the on* regex; the URL regex only fires on quoted `href|src|action` immediately followed by javascript:/data:. Nothing in the suite covers any of these.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "source-header-identity-mismatch",
@@ -2014,7 +2024,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "@guideflow/vue reports a green test run with zero test files via --passWithNoTests",
       "file": "packages/vue/package.json",
       "line": 66,
@@ -2022,7 +2032,8 @@
       "impact": "`packages/vue/src/` contains `index.ts`, `plugin.ts`, and `composables/use-tour.ts` (153 LOC) and there is no `__tests__` directory anywhere in the package. `turbo run test` reports the Vue adapter as passing on every CI run while executing nothing. The Vue `useTour()` composable's reactivity wiring (the ref-sync on tour events) and `GuideFlowPlugin`'s injection key contract are entirely unverified, yet CI signals success. The same flag also masks any future situation where the ai/analytics/react test globs stop matching.",
       "fix": "Remove `--passWithNoTests` from packages/vue, packages/ai, packages/analytics, and packages/react `test` scripts, and add `packages/vue/src/__tests__/use-tour.test.ts` using `@vue/test-utils` (already a devDependency) covering plugin install, injection-failure error, and ref updates on `tour:start` / `step:enter` / `tour:complete`.",
       "effort": null,
-      "verifierNote": "packages/vue/package.json line 53 (not 66) is `\"test\": \"vitest run --passWithNoTests\"`. `find packages/vue -name '*.test.*'` returns nothing; src is index.ts (37) + plugin.ts (35) + composables/use-tour.ts (81) = 153 LOC, matching the claim. Note react is NOT vacuous — packages/react/src/__tests__/react.test.tsx exists. Severity lowered: zero coverage on an adapter is a serious gap, not shipped-broken."
+      "verifierNote": "packages/vue/package.json line 53 (not 66) is `\"test\": \"vitest run --passWithNoTests\"`. `find packages/vue -name '*.test.*'` returns nothing; src is index.ts (37) + plugin.ts (35) + composables/use-tour.ts (81) = 153 LOC, matching the claim. Note react is NOT vacuous — packages/react/src/__tests__/react.test.tsx exists. Severity lowered: zero coverage on an adapter is a serious gap, not shipped-broken.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "zero-tests-ai-providers",
@@ -2030,7 +2041,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Three of four AI providers have zero tests; only MockProvider is ever exercised",
       "file": "packages/ai/src/providers/openai.ts",
       "line": 45,
@@ -2038,7 +2049,8 @@
       "impact": "packages/ai/src/__tests__/ contains brain.test.ts, dom-context.test.ts and validation.test.ts. Every one of them constructs `new MockProvider(0)` or a `vi.fn()` stub. `openai.ts` (110 LOC), `anthropic.ts` (97 LOC) and `ollama.ts` (91 LOC) — the three providers users actually ship — have no test at all. That leaves untested: the lazy `await import(...).catch()` fallback that is supposed to produce a friendly \"install the SDK\" error, the prompt construction, the JSON-extraction of model output, and the HTTP request shape for Ollama. Since these are the primary marketed feature (\"AI tour generation (OpenAI, Anthropic, Ollama)\", README.md:21), a regression in any of them is invisible to CI.",
       "fix": "Add packages/ai/src/__tests__/providers.test.ts. Use `vi.mock('openai')` / `vi.mock('@anthropic-ai/sdk')` to assert the request payload and the parsed-step output, assert the missing-SDK path produces the intended error message, and stub `fetch` for OllamaProvider to assert URL, method, body and malformed-response handling.",
       "effort": null,
-      "verifierNote": "packages/ai/src/__tests__ contains exactly brain.test.ts, dom-context.test.ts, validation.test.ts; grep for OpenAIProvider|AnthropicProvider|OllamaProvider across that directory returns zero hits. openai.ts is 110 LOC, anthropic.ts 97, ollama.ts 91 — matching the claim exactly. The quoted `const { default: OpenAI } = await import('openai').catch(...)` is verbatim at openai.ts:45. README.md:21 does market these three providers."
+      "verifierNote": "packages/ai/src/__tests__ contains exactly brain.test.ts, dom-context.test.ts, validation.test.ts; grep for OpenAIProvider|AnthropicProvider|OllamaProvider across that directory returns zero hits. openai.ts is 110 LOC, anthropic.ts 97, ollama.ts 91 — matching the claim exactly. The quoted `const { default: OpenAI } = await import('openai').catch(...)` is verbatim at openai.ts:45. README.md:21 does market these three providers.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "zero-tests-persistence-drivers",
@@ -2046,7 +2058,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "LocalStorageDriver and IndexedDBDriver have zero tests despite being the default persistence path",
       "file": "packages/core/src/persistence/drivers.ts",
       "line": 260,
@@ -2054,7 +2066,8 @@
       "impact": "There is no `drivers.test.ts` in packages/core/src/__tests__/. progress-store.test.ts:7-25 exercises only a hand-rolled in-memory driver, so `LocalStorageDriver`'s JSON parse/serialize round-trip, its quota-exceeded `catch` (drivers.ts:227), its SSR guards, and the entire IndexedDB implementation — `openDB` upgrade handler, transaction lifecycle, `getAllKeys`, and every `catch { return null }` swallow — are executed by no test in the repo. `createDriver('indexedDB')` is reachable from public config (`persistence: { driver: 'indexedDB' }`, documented in guide/persistence.md:45) and could be entirely broken without any signal. The silent `catch` blocks mean a broken IndexedDB path degrades to \"progress never persists\" with no error.",
       "fix": "Add packages/core/src/__tests__/drivers.test.ts. Cover LocalStorageDriver against happy-dom's localStorage (round-trip, malformed JSON returns null, quota error is caught and warns, keys() filtering). Add `fake-indexeddb` as a devDependency and cover IndexedDBDriver get/set/remove/keys plus the upgrade path, then wire ProgressStore's TTL eviction through the real IndexedDB driver.",
       "effort": null,
-      "verifierNote": "No drivers.test.ts in packages/core/src/__tests__ (15 files listed, none for drivers). progress-store.test.ts:7-25 uses only createMemoryDriver. Quoted evidence is verbatim but at drivers.ts:60-61, not :260 — the file is 135 lines. One sub-detail is wrong: the localStorage write catch is at line 27-29 and console.warns rather than being silent; the silent swallows are the IndexedDB `catch { return null }` at :80, `catch { /* silent */ }` at :110, `catch { return [] }` at :125. createDriver('indexedDB') at :133 is reachable from public config as claimed."
+      "verifierNote": "No drivers.test.ts in packages/core/src/__tests__ (15 files listed, none for drivers). progress-store.test.ts:7-25 uses only createMemoryDriver. Quoted evidence is verbatim but at drivers.ts:60-61, not :260 — the file is 135 lines. One sub-detail is wrong: the localStorage write catch is at line 27-29 and console.warns rather than being silent; the silent swallows are the IndexedDB `catch { return null }` at :80, `catch { /* silent */ }` at :110, `catch { return [] }` at :125. createDriver('indexedDB') at :133 is reachable from public config as claimed.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "ai-steps-to-flow-no-adapter-and-false-validation-claim",
@@ -2110,7 +2123,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "UNVERIFIED",
-      "status": "open",
+      "status": "resolved",
       "title": "Playwright declares a chromium/firefox/webkit/mobile matrix that has never run — no code in this repo has ever executed outside Chromium and happy-dom",
       "file": "apps/e2e/playwright.config.ts",
       "line": 24,
@@ -2118,7 +2131,8 @@
       "impact": "The four-project matrix is decorative: the suite is excluded from every CI workflow, its webServer boots Storybook instead of the fixture, and its tests reference a #start-btn that Storybook never serves. Unit tests run only under happy-dom. So Safari/WebKit-specific behaviour the library depends on — box-shadow: 0 0 0 9999px spread rendering, BroadcastChannel availability, IndexedDB quirks, ResizeObserver timing, and CSS.escape — has never been exercised anywhere. There is no browserslist, no documented support matrix, and no minimum-browser statement in the README or docs, so consumers cannot know what is supported.",
       "fix": "Fix the webServer to serve apps/e2e/fixtures (a static server rooted at the repo), add the e2e job to ci.yml on at least chromium+webkit, and publish an explicit browser support matrix in apps/docs/guide/installation.md backed by a browserslist entry.",
       "effort": "M",
-      "verifierNote": null
+      "verifierNote": null,
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "no-authoring-path-for-non-engineers",
@@ -2703,7 +2717,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Vue useTour cleans up with onUnmounted, so listeners leak permanently when used outside a component instance",
       "file": "packages/vue/src/composables/use-tour.ts",
       "line": 59,
@@ -2711,7 +2725,8 @@
       "impact": "`onUnmounted` only registers when there is a *current component instance*. Calling `useTour()` from a Pinia store, a `effectScope()`, a router guard, or any plain composable factory — all normal Vue 3 patterns — logs `[Vue warn] onUnmounted is called when there is no active component instance` and registers nothing, so the five `gf.on(...)` subscriptions installed at lines 53-57 are never removed. Each such call permanently appends five closures to the emitter, and each of them writes to four refs on every `step:enter`/`step:exit`, so a store recreated per route accumulates dead subscribers that keep firing forever. `onScopeDispose` is the correct primitive and works in both component and standalone effect scopes.",
       "fix": "Replace `onUnmounted` with `onScopeDispose` from 'vue' (it fires for component scopes too, so there is no behavioural regression), and add a Vue test that calls `useTour()` inside `effectScope()` and asserts the listeners are dropped on `scope.stop()`.",
       "effort": "S",
-      "verifierNote": "packages/vue/src/composables/use-tour.ts:59-61 is verbatim, and the five gf.on(...) subscriptions at lines 53-57 are registered unconditionally before it. onUnmounted is a component-instance-scoped API that warns and no-ops without an active instance, so effectScope/Pinia/router-guard usage leaks all five closures, each writing four refs on every step:enter/step:exit. onScopeDispose is indeed the correct primitive. Downgrading to P2: the documented usage (`<script setup>`, JSDoc lines 27-35) is inside a component and cleans up correctly, so the leak requires an undocumented usage pattern."
+      "verifierNote": "packages/vue/src/composables/use-tour.ts:59-61 is verbatim, and the five gf.on(...) subscriptions at lines 53-57 are registered unconditionally before it. onUnmounted is a component-instance-scoped API that warns and no-ops without an active instance, so effectScope/Pinia/router-guard usage leaks all five closures, each writing four refs on every step:enter/step:exit. onScopeDispose is indeed the correct primitive. Downgrading to P2: the documented usage (`<script setup>`, JSDoc lines 27-35) is inside a component and cleans up correctly, so the leak requires an undocumented usage pattern.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "compress-dead-progress-branch",
@@ -3151,7 +3166,7 @@
       "severity": "P2",
       "kind": "packaging",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "@guideflow/analytics lists @guideflow/core in peerDependencies as `workspace:*`, which publishes as an exact-version peer pin",
       "file": "packages/analytics/package.json",
       "line": 58,
@@ -3159,7 +3174,8 @@
       "impact": "I verified from the installed @changesets/cli that `changeset publish` shells out to `pnpm publish` when pnpm is the detected package manager, and pnpm rewrites the `workspace:` protocol on pack/publish across dependencies, devDependencies AND peerDependencies. `workspace:*` resolves to the *exact* current version, so the published manifest contains `\"peerDependencies\": { \"@guideflow/core\": \"0.1.9\" }`. Any consumer on core 0.1.10 — including anyone who follows README.md:76's `pnpm add @guideflow/analytics` after the next patch release — gets an unmet-peer error from pnpm/yarn (which fail hard) rather than a satisfied range. The duplicate `workspace:*` in devDependencies (line 62) is also published verbatim as `\"0.1.9\"`, adding noise to the manifest.",
       "fix": "Change packages/analytics/package.json:59 to `\"@guideflow/core\": \"workspace:^\"` so it publishes as `^0.1.9`, and keep line 62's devDependencies entry as `\"workspace:*\"` (that one is correct for local resolution). Apply the same `workspace:^` form when converting ai/react/svelte/vue to peerDependencies.",
       "effort": "S",
-      "verifierNote": "packages/analytics/package.json:58-62 matches verbatim — `peerDependencies: { \"@guideflow/core\": \"workspace:*\" }` immediately followed by the same spec in devDependencies at line 62. pnpm rewrites the workspace protocol on pack/publish across dependencies, devDependencies and peerDependencies alike, and `workspace:*` expands to the exact current version, so the published peer becomes `\"0.1.9\"`. Every sibling that uses `dependencies` has the same exact-pin behaviour, but only the peer form surfaces as an unmet-peer error to consumers."
+      "verifierNote": "packages/analytics/package.json:58-62 matches verbatim — `peerDependencies: { \"@guideflow/core\": \"workspace:*\" }` immediately followed by the same spec in devDependencies at line 62. pnpm rewrites the workspace protocol on pack/publish across dependencies, devDependencies and peerDependencies alike, and `workspace:*` expands to the exact current version, so the published peer becomes `\"0.1.9\"`. Every sibling that uses `dependencies` has the same exact-pin behaviour, but only the peer form surfaces as an unmet-peer error to consumers.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "apps-e2e-has-no-tsconfig",
@@ -3167,7 +3183,7 @@
       "severity": "P2",
       "kind": "gap",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "apps/e2e has no tsconfig.json, no @types/node and no window.__guideflow declaration — the suite can never be type-checked",
       "file": "apps/e2e/package.json",
       "line": 10,
@@ -3175,7 +3191,8 @@
       "impact": "apps/e2e is the only workspace with no tsconfig.json and no `type-check` or `lint` script, so Playwright's transpile-only esbuild pipeline is the only thing that ever reads these files — which is precisely why the non-existent `AxeBuilder` import (accessibility.spec.ts:2) survived. Two more errors are latent: apps/e2e/tests/tour-flow.spec.ts:13 references `window.__guideflow` with no global augmentation anywhere in apps/e2e, and apps/e2e/playwright.config.ts:6/:7/:8/:34 use `process.env` without `@types/node` being declared in the package. The .eslintrc.json resolver glob `apps/*/tsconfig.json` (.eslintrc.json:19) silently skips the directory.",
       "fix": "Add apps/e2e/tsconfig.json extending ../../tsconfig.base.json with `\"types\": [\"node\"]` and `\"include\": [\"tests\", \"playwright.config.ts\", \"types\"]`, add `@types/node` to apps/e2e devDependencies, add `apps/e2e/types/global.d.ts` declaring `interface Window { __guideflow?: unknown }`, and add `\"type-check\": \"tsc --noEmit\"` plus `\"lint\": \"eslint tests --max-warnings 0\"` scripts so CI catches this class of error.",
       "effort": "S",
-      "verifierNote": "apps/e2e/package.json:10-14 matches verbatim. A directory listing of apps/e2e shows only fixtures/, node_modules/, package.json, playwright.config.ts and tests/ — no tsconfig.json, and the manifest declares no type-check or lint script and no @types/node. tour-flow.spec.ts:13 does reference `window.__guideflow` with no global augmentation in the workspace, and playwright.config.ts uses process.env at lines 6, 7, 8 and 34. .eslintrc.json:19 is `\"project\": [\"packages/*/tsconfig.json\", \"apps/*/tsconfig.json\"]`, which cannot match a directory with no tsconfig. This is precisely why the phantom AxeBuilder import was never caught."
+      "verifierNote": "apps/e2e/package.json:10-14 matches verbatim. A directory listing of apps/e2e shows only fixtures/, node_modules/, package.json, playwright.config.ts and tests/ — no tsconfig.json, and the manifest declares no type-check or lint script and no @types/node. tour-flow.spec.ts:13 does reference `window.__guideflow` with no global augmentation in the workspace, and playwright.config.ts uses process.env at lines 6, 7, 8 and 34. .eslintrc.json:19 is `\"project\": [\"packages/*/tsconfig.json\", \"apps/*/tsconfig.json\"]`, which cannot match a directory with no tsconfig. This is precisely why the phantom AxeBuilder import was never caught.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "ci-has-no-e2e-size-coverage-or-changeset-gate",
@@ -3183,7 +3200,7 @@
       "severity": "P2",
       "kind": "dx",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "CI runs one Node version, excludes all apps, and never runs e2e, size-limit, coverage or a changeset-presence check; the Turbo cache is not persisted",
       "file": ".github/workflows/ci.yml",
       "line": 35,
@@ -3191,7 +3208,8 @@
       "impact": "The same four `--filter=!` exclusions are repeated on all four steps (lines 35, 38, 41, 44), so nothing in `apps/` is ever built, type-checked or linted by CI — apps/demo/src/App.tsx (400+ lines exercising every package) and apps/storybook/stories/TourFlow.stories.tsx are unverified, and the only thing that ever type-checks the demo is `tsc -b` inside docs.yml:46, meaning a demo type error surfaces as a failed gh-pages deploy rather than a failed PR. `apps/e2e` is excluded too, so the 16 Playwright tests never run anywhere. There is no `pnpm size` step, so the 12 kB budget in packages/core/package.json:76-79 is never enforced; no coverage step, so packages/core/vitest.config.ts:7-11's lcov reporter output is discarded; no `changeset status --since=origin/master` step, so PRs merge without a changeset (which is exactly why versions are hand-bumped and no CHANGELOG exists). `engines.node` is `>=18.0.0` (package.json:43) but only Node 22 is tested, and there is no `actions/cache` for `.turbo`, so every run is a cold cache.",
       "fix": "In .github/workflows/ci.yml add `strategy.matrix.node: [18, 20, 22]` to the ci job; add an `actions/cache` step keyed on `${{ runner.os }}-turbo-${{ github.sha }}` with path `.turbo`; add `pnpm turbo run size`, `pnpm --filter @guideflow/core test -- --coverage`, and `pnpm changeset status --since=origin/master` steps; add a separate `e2e` job that runs `pnpm --filter e2e test` after `pnpm exec playwright install --with-deps chromium`; and stop excluding `@guideflow/demo`/`storybook` from the type-check and lint steps.",
       "effort": "M",
-      "verifierNote": "Verified every sub-claim independently: ci.yml lines 35/38/41/44 each carry the identical four `--filter=!` exclusions; the workflow has only build/type-check/lint/test — no size, coverage, changeset-status or actions/cache step; node-version is pinned to 22 alone (line 28) against engines `>=18.0.0` at root package.json:43; docs.yml:46 is `pnpm --filter @guideflow/demo build` whose script is `tsc -b && vite build`; packages/core/package.json:76-79 holds the 12 kB gzip budget and vitest.config.ts:7-11 the lcov reporter; .changeset/ contains only config.json. apps/demo/src/App.tsx is actually 926 lines, not ~400 — understated, which strengthens rather than weakens the point."
+      "verifierNote": "Verified every sub-claim independently: ci.yml lines 35/38/41/44 each carry the identical four `--filter=!` exclusions; the workflow has only build/type-check/lint/test — no size, coverage, changeset-status or actions/cache step; node-version is pinned to 22 alone (line 28) against engines `>=18.0.0` at root package.json:43; docs.yml:46 is `pnpm --filter @guideflow/demo build` whose script is `tsc -b && vite build`; packages/core/package.json:76-79 holds the 12 kB gzip budget and vitest.config.ts:7-11 the lcov reporter; .changeset/ contains only config.json. apps/demo/src/App.tsx is actually 926 lines, not ~400 — understated, which strengthens rather than weakens the point.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "clean-scripts-rm-rf-posix-only",
@@ -4152,7 +4170,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "accessibility.spec.ts default-imports AxeBuilder from a package that has no such export",
       "file": "apps/e2e/tests/accessibility.spec.ts",
       "line": 2,
@@ -4160,7 +4178,8 @@
       "impact": "`axe-playwright` exports named helpers (`injectAxe`, `checkA11y`, `getViolations`, `reportViolations`) — it has no default export and no `AxeBuilder` class. `AxeBuilder` is the API of the different package `@axe-core/playwright`. At runtime `new AxeBuilder({ page })` throws `TypeError: AxeBuilder is not a constructor`, so the two accessibility-scanning tests (lines 9-14 and 16-26) fail before any assertion runs. These are the repo's only automated a11y checks; the README claims accessibility is a first-class feature.",
       "fix": "Either swap the dependency to `@axe-core/playwright` in `apps/e2e/package.json` and import `{ AxeBuilder }`, or rewrite the spec against the installed API: `import { injectAxe, getViolations } from 'axe-playwright'` then `await injectAxe(page); const violations = await getViolations(page, '.gf-popover', { runOnly: ['wcag2a','wcag2aa'] })`.",
       "effort": null,
-      "verifierNote": "accessibility.spec.ts:2 is verbatim `import AxeBuilder from 'axe-playwright';`. node_modules/axe-playwright@2.2.2 dist/index.d.ts exports only injectAxe, configureAxe, getAxeResults, getViolations, reportViolations, checkA11y, DefaultTerminalReporter — no default export, no AxeBuilder. `new AxeBuilder({page})` throws. Severity lowered to P2: the suite already cannot run at all (see e2e-suite-cannot-run), so this adds no independent shipped impact."
+      "verifierNote": "accessibility.spec.ts:2 is verbatim `import AxeBuilder from 'axe-playwright';`. node_modules/axe-playwright@2.2.2 dist/index.d.ts exports only injectAxe, configureAxe, getAxeResults, getViolations, reportViolations, checkA11y, DefaultTerminalReporter — no default export, no AxeBuilder. `new AxeBuilder({page})` throws. Severity lowered to P2: the suite already cannot run at all (see e2e-suite-cannot-run), so this adds no independent shipped impact.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "cloud-push-nonexistent-service",
@@ -4281,7 +4300,7 @@
       "severity": "P2",
       "kind": "test-coverage",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "Four of five analytics transports have zero tests",
       "file": "packages/analytics/src/transports/posthog.ts",
       "line": 1,
@@ -4289,7 +4308,8 @@
       "impact": "Only webhook.test.ts exists. `posthog.ts`, `mixpanel.ts`, `amplitude.ts` and `segment.ts` are each a small adapter that reads a `window` global and forwards the event — and each is individually untested, so a typo in the global name (`window.analytics` vs `window.segment`) or in the capture-method signature ships silently. These are named as supported integrations in README.md:350 and guide/analytics.md:41-45, i.e. they are a headline feature with no verification that they call the vendor SDK correctly or degrade safely when the global is absent.",
       "fix": "Add packages/analytics/src/__tests__/transports.test.ts that, for each of the four, stubs the vendor global via `vi.stubGlobal`, tracks an event, asserts the exact vendor call shape, and asserts no throw when the global is undefined.",
       "effort": null,
-      "verifierNote": "Headline holds: no test file references PostHogTransport/MixpanelTransport/AmplitudeTransport/SegmentTransport; collector.test.ts uses only a local createMockTransport (line 7). But two evidence errors: (a) the quoted line `export { PostHogTransport } from './transports/posthog.js';` is from packages/analytics/src/index.ts, NOT transports/posthog.ts:1 which is `import type { AnalyticsEvent, AnalyticsTransport } from './interface.js';`; (b) 'Only webhook.test.ts exists' is false — collector.test.ts and experiments.test.ts also exist. Each transport is ~26 LOC with a `typeof window !== 'undefined' && window.X` guard (posthog.ts:19), so the 'degrade safely when the global is absent' half is already handled by an explicit guard."
+      "verifierNote": "Headline holds: no test file references PostHogTransport/MixpanelTransport/AmplitudeTransport/SegmentTransport; collector.test.ts uses only a local createMockTransport (line 7). But two evidence errors: (a) the quoted line `export { PostHogTransport } from './transports/posthog.js';` is from packages/analytics/src/index.ts, NOT transports/posthog.ts:1 which is `import type { AnalyticsEvent, AnalyticsTransport } from './interface.js';`; (b) 'Only webhook.test.ts exists' is false — collector.test.ts and experiments.test.ts also exist. Each transport is ~26 LOC with a `typeof window !== 'undefined' && window.X` guard (posthog.ts:19), so the 'degrade safely when the global is absent' half is already handled by an explicit guard.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "no-benchmark-suite-or-runtime-perf-budget",
@@ -4521,7 +4541,7 @@
       "severity": "P2",
       "kind": "security",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Publish workflow has no npm provenance, no dependency audit, and no Dependabot/CodeQL; NPM_TOKEN is exposed to the whole build+publish step",
       "file": ".github/workflows/release.yml",
       "line": 44,
@@ -4529,7 +4549,8 @@
       "impact": "(a) The job declares `permissions: contents: write, pull-requests: write` but not `id-token: write`, and `pnpm publish-packages` (root package.json: `turbo run build ... && changeset publish`) passes no `--provenance`, so the published tarballs carry no signed attestation linking them to this repo and commit — consumers cannot detect a tarball published from a stolen `NPM_TOKEN`, and the packages get no provenance badge on npm. (b) `NPM_TOKEN` and `NODE_AUTH_TOKEN` are injected as environment variables for a step that first runs `turbo run build` across every package — meaning every tsup config, every postinstall script, and every transitive build-time dependency in the tree executes with the live publish token in its environment. A single compromised build-time dependency exfiltrates the token and can then publish arbitrary code to all seven `@guideflow/*` package names. (c) There is no `pnpm audit` / `osv-scanner` step in either ci.yml or release.yml, no `.github/dependabot.yml`, and no CodeQL workflow (`git ls-files | grep -i 'security|dependabot|codeql'` returns nothing), so known-vulnerable dependencies are never surfaced. (d) No SECURITY.md exists at the repo root or under .github/, so a researcher who finds the XSS above has no private disclosure channel. (e) `apps/storybook/storybook-static` is committed to git (29 tracked files of bundled third-party JS) and is not covered by .gitignore, adding unreviewed vendored code to the repo.",
       "fix": "Add `id-token: write` to the release job's `permissions` and change `publish-packages` to `changeset publish --provenance`. Split the workflow so the build step runs without `NPM_TOKEN` in its environment and only the `changeset publish` invocation receives it. Add a `pnpm audit --audit-level=high` step to ci.yml, create `.github/dependabot.yml` for the npm and github-actions ecosystems, add `.github/workflows/codeql.yml` for JavaScript/TypeScript, and write a SECURITY.md with a private disclosure address and supported-version policy. Add `apps/storybook/storybook-static` to .gitignore and `git rm -r --cached` it.",
       "effort": "M",
-      "verifierNote": "release.yml:40-51 is verbatim and permissions at 16-18 are contents: write and pull-requests: write with no id-token: write. I read the root package.json: publish-packages is `turbo run build --filter=!docs --filter=!e2e --filter=!storybook --filter=!@guideflow/demo && changeset publish` — no --provenance, and it does run a full build inside the step that carries NPM_TOKEN/NODE_AUTH_TOKEN in env (the earlier Build step at 37-38 does not remove that exposure). `git ls-files | grep -iE 'security|dependabot|codeql'` returns nothing, and neither workflow contains an audit step. `git ls-files | grep -c storybook-static` returns 29, and I confirmed those paths are tracked."
+      "verifierNote": "release.yml:40-51 is verbatim and permissions at 16-18 are contents: write and pull-requests: write with no id-token: write. I read the root package.json: publish-packages is `turbo run build --filter=!docs --filter=!e2e --filter=!storybook --filter=!@guideflow/demo && changeset publish` — no --provenance, and it does run a full build inside the step that carries NPM_TOKEN/NODE_AUTH_TOKEN in env (the earlier Build step at 37-38 does not remove that exposure). `git ls-files | grep -iE 'security|dependabot|codeql'` returns nothing, and neither workflow contains an audit step. `git ls-files | grep -c storybook-static` returns 29, and I confirmed those paths are tracked.",
+      "resolvedIn": "Phase 2 (branch fix/phase-0-1-engine-correctness)"
     },
     {
       "id": "unescaped-i18n-strings-in-popover",

@@ -38,7 +38,9 @@ packages/
 apps/
   demo/         Vite + React playground that exercises core/react/ai/analytics
   docs/         VitePress site — THIS IS THE CANONICAL DOCS SITE
-  e2e/          Playwright suite (currently non-functional — see AUDIT)
+  e2e/          Playwright suite — rebuilt in Phase 2; serve.mjs serves the repo root so the
+                fixture loads the real dist/ artefacts. Flows live in fixtures/flows.js, which
+                packages/core's e2e-fixture.test.ts imports so the two cannot drift.
   storybook/    Storybook 8 component explorer
 docs/           Legacy hand-written HTML site — STALE. Do not add to it.
 scripts/
@@ -50,7 +52,7 @@ scripts/
 
 `core` depends on nothing. Everything else depends on `core` via `workspace:*`. **Never** introduce
 a runtime dependency into `core`, and never make `core` import from a sibling package — the
-zero-dependency, 12 kB-gzip budget is a headline promise and is enforced by `size-limit`.
+zero-dependency, 12.5 kB-gzip budget is a headline promise and is enforced by `size-limit`.
 
 ---
 
@@ -78,19 +80,31 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (after Phase 0+1, 2026-07-30)
+### Known-good baseline (after Phases 0–2, 2026-07-30)
 
-Build, type-check, lint and unit tests are **all green**: **216 unit tests pass**
-(core 133, ai 37, analytics 32, react 14); `@guideflow/core` measures **12.13 kB gzip against a
-12.5 kB limit**. If any of these regress, you broke it — do not paper over it.
+Build, type-check, lint and unit tests are **all green**: **397 unit tests pass**, 17 skipped
+(core 190, ai 73, analytics 60, cli 30, vue 18, react 14, svelte 12). `@guideflow/core` measures
+**12.18 kB gzip against a 12.5 kB limit**. If any of these regress, you broke it — do not paper
+over it.
+
+Every package now has a real `test` script; `--passWithNoTests` has been removed everywhere, so a
+package with no tests fails rather than reporting green. Six packages carry coverage thresholds,
+set as **ratchets** just below measured coverage — raise them as coverage improves, never lower
+them to make a build pass. The one remaining hole is `@guideflow/devtools`, which still has no
+tests (needs an extension harness; tracked in Phase 5.3).
+
+Each of the 17 skipped tests is deliberate and tagged with the audit finding that un-skips it —
+11 are the acceptance criteria for the Phase 3 sanitiser rewrite. They were each verified to fail
+when un-skipped, so none is trivially green.
+
+**The Playwright e2e suite has been rebuilt and wired into CI, but has not yet been executed** —
+browsers could not launch in the environment it was written in. Run
+`pnpm --filter e2e test:e2e` on a machine with browsers before trusting that job. See
+`.claude/docs/REMEDIATION-PLAN.md` 2.1 for exactly what was and was not verified.
 
 > The size budget was raised from 12 kB to 12.5 kB in Phase 1 to accommodate seven correctness
-> fixes (see `.changeset/tidy-jars-repeat.md`). 370 B of headroom remains. Do not raise it again
+> fixes (see `.changeset/tidy-jars-repeat.md`). 320 B of headroom remains. Do not raise it again
 > without saying so out loud.
-
-Note that green CI is *still* not evidence of correctness here: `vue` has zero tests behind
-`--passWithNoTests`, `svelte` and `cli` have no `test` script at all, and the Playwright e2e suite
-has never actually executed. See `.claude/docs/TESTING-STRATEGY.md`.
 
 ---
 
@@ -238,9 +252,17 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **Turbo is v1.** `turbo.json` uses the `pipeline` key. Do not rename it to `tasks` without also
   upgrading the `turbo` devDependency.
 - **`--passWithNoTests` hides emptiness.** Adding it to a package makes a missing test suite look
-  green. Do not add it to new packages.
-- **`@guideflow/analytics` lists `@guideflow/core` in `peerDependencies` as `workspace:*`.** That
-  protocol is not publishable in a peer range; it must become a real semver range at publish time.
+  green. It has been removed from every package — do not put it back, and do not add it to new ones.
+- **Never put a `workspace:` range in `peerDependencies`.** Whether it gets rewritten at publish time
+  depends on which publisher runs; if it survives, every consumer install fails on an unresolvable
+  peer. `scripts/verify-pack.mjs` now fails CI on this — it caught `@guideflow/analytics` doing it.
+- **Vue composables clean up with `onScopeDispose`, not `onUnmounted`.** `onUnmounted` needs a
+  component instance, so a composable called from a bare `effectScope()` (a Pinia store, a shared
+  composable) registers no teardown at all and leaks every listener. `onScopeDispose` covers the
+  component case too, because `setup()` runs inside its own effect scope.
+- **Importing `packages/cli/src/index.ts` pulls in `vite`,** because `studio.ts` imports it at module
+  scope. In tests, `vi.mock('vite', …)` — without it, a spec that re-imports the entry point with a
+  reset module registry takes seconds per test.
 
 ---
 

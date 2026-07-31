@@ -70,7 +70,7 @@ export type {
 export { createMachine } from './fsm/machine.js'
 export { FlowMachine } from './fsm/machine.js'
 export { SpotlightOverlay } from './engine/spotlight.js'
-export { computePosition, scrollTargetIntoView, getViewportRect } from './engine/popover.js'
+export { computePosition, scrollTargetIntoView, getViewportRect, getAbsoluteRect } from './engine/popover.js'
 export { TourEngine } from './engine/tour.js'
 export { HotspotManager } from './engine/hotspot.js'
 export { HintSystem } from './engine/hint.js'

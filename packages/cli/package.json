@@ -45,6 +45,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "lint": "eslint src --max-warnings 0",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "clean": "node ../../scripts/fsx.mjs rm dist .turbo"
   },
@@ -58,6 +59,7 @@
   "devDependencies": {
     "@types/inquirer": "^9.0.7",
     "tsup": "^8.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^1.3.1"
   }
 }
