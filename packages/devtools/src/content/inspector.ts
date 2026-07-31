@@ -80,10 +80,10 @@ const EVENT_NAME_RE = /^[a-z][a-z0-9-]{0,23}:[a-z][a-z0-9-]{0,23}$/;
 
 /**
  * Attribute an integrator can put on any element (or one of its ancestors) to
- * keep the recorder from capturing its text or its value.
+ * keep the recorder from capturing its text.
  */
 const PRIVATE_ATTR = 'data-gf-private';
-/** Placeholder written in place of a value or label we refuse to capture. */
+/** Placeholder written in place of a label we refuse to capture. */
 const REDACTED = '[redacted]';
 
 /**
@@ -301,41 +301,12 @@ function sendToBridge(msg: GFMessage): void {
 }
 
 // ---------------------------------------------------------------------------
-// Privacy — never capture credentials or opted-out subtrees
+// Privacy — never capture text from opted-out subtrees
 // ---------------------------------------------------------------------------
 
 /** True when the element, or any ancestor, is marked `data-gf-private`. */
 function isPrivate(el: Element): boolean {
   return el.closest(`[${PRIVATE_ATTR}]`) !== null;
-}
-
-/**
- * True when the element's value must never be captured. Covers password and
- * hidden inputs plus the autocomplete tokens browsers use for credentials,
- * one-time codes and payment-card fields.
- */
-function isSensitiveField(el: Element): boolean {
-  if (el instanceof HTMLInputElement) {
-    const inputType = el.type.toLowerCase();
-    if (inputType === 'password' || inputType === 'hidden') return true;
-  }
-  const autocomplete = (el.getAttribute('autocomplete') ?? '').toLowerCase();
-  return (
-    autocomplete.includes('password') ||
-    autocomplete.includes('one-time-code') ||
-    autocomplete.startsWith('cc-')
-  );
-}
-
-function readFieldValue(el: Element): string | null {
-  if (
-    el instanceof HTMLInputElement ||
-    el instanceof HTMLTextAreaElement ||
-    el instanceof HTMLSelectElement
-  ) {
-    return el.value;
-  }
-  return null;
 }
 
 /**
@@ -435,24 +406,20 @@ function onRecordInput(e: Event): void {
   const target = e.target instanceof Element ? e.target : null;
   if (!target || target.closest('#__gf_recording_badge__')) return;
 
-  // A password field's value, or anything inside a `[data-gf-private]` subtree,
-  // never leaves the page: the recorder writes a marker instead. Recorded steps
-  // are persisted to chrome.storage, so this is the difference between a tour
-  // draft and a credential store.
-  const priv = isPrivate(target);
-  const rawValue = priv || isSensitiveField(target) ? null : readFieldValue(target);
-
+  // What the user typed is deliberately not captured. The panel renders only
+  // the action, selector, label and tag name, so recording the field contents
+  // would persist whatever was typed — passwords included — into
+  // chrome.storage for nothing. The label is still redacted inside a
+  // `[data-gf-private]` subtree, because the label *is* displayed.
   send({
     type: 'GF_RECORDED_STEP',
     payload: {
       action: 'input',
       selector: buildSelector(target),
-      label: priv
+      label: isPrivate(target)
         ? REDACTED
         : (target.getAttribute('aria-label') ?? target.getAttribute('placeholder') ?? ''),
       tagName: target.tagName.toLowerCase(),
-      value: rawValue === null ? REDACTED : rawValue.slice(0, 100),
-      redacted: rawValue === null,
       ts: Date.now(),
     },
   });

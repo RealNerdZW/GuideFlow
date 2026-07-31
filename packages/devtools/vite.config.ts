@@ -3,7 +3,24 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 import { copyFileSync, mkdirSync, readdirSync, renameSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
+// The extension version lives in exactly one place: this package's
+// package.json. It is written into dist/manifest.json by the plugin below and
+// substituted into the panel and popup UIs through the `__GF_VERSION__` define
+// (declared for TypeScript in src/version.d.ts).
+const PKG_VERSION = (
+  JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8')) as { version: string }
+).version;
+
+// Chrome's `version` accepts one to four dot-separated integers and nothing
+// else, so a prerelease or build suffix — `0.2.0-beta.1`, which Changesets can
+// produce — has to be stripped. `version_name` carries the full string for
+// display in chrome://extensions.
+const MANIFEST_VERSION = PKG_VERSION.split(/[-+]/)[0] ?? PKG_VERSION;
+
 export default defineConfig({
+  define: {
+    __GF_VERSION__: JSON.stringify(PKG_VERSION),
+  },
   plugins: [
     react(),
     // Copy static files to dist after build
@@ -13,10 +30,17 @@ export default defineConfig({
         const dist = resolve(__dirname, 'dist');
         mkdirSync(dist, { recursive: true });
 
-        // manifest.json
-        copyFileSync(
-          resolve(__dirname, 'manifest.json'),
+        // manifest.json — the source file deliberately carries no `version`
+        // key; it is injected here so package.json cannot drift out of sync
+        // with the manifest Chrome actually loads.
+        const manifest = JSON.parse(
+          readFileSync(resolve(__dirname, 'manifest.json'), 'utf-8'),
+        ) as Record<string, unknown>;
+        manifest['version'] = MANIFEST_VERSION;
+        if (MANIFEST_VERSION !== PKG_VERSION) manifest['version_name'] = PKG_VERSION;
+        writeFileSync(
           resolve(dist, 'manifest.json'),
+          `${JSON.stringify(manifest, null, 2)}\n`,
         );
 
         // devtools.html bootstrap page (not processed by Vite)

@@ -302,5 +302,13 @@ pnpm publish-packages     # build then `changeset publish`
 ```
 
 CI (`.github/workflows/release.yml`) runs this automatically on `master` via
-`changesets/action@v1`. `devtools`, `docs`, `e2e`, `storybook` and `@guideflow/demo` are in the
-changesets `ignore` list and are never published.
+`changesets/action@v1`. `docs`, `e2e`, `storybook` and `@guideflow/demo` are in the changesets
+`ignore` list, so they are never versioned or published.
+
+`@guideflow/devtools` is deliberately **not** in that list. `private: true` already stops
+`changeset publish` from pushing it to npm, but it does *not* stop versioning — `privatePackages.version`
+defaults to `true`, so `ignore` is the only thing that would freeze the version. The extension needs
+its version bumped, because `packages/devtools/package.json` is the single source of truth for it:
+the Vite build injects that value into `dist/manifest.json` and into the panel and popup UIs via
+`__GF_VERSION__`. Un-ignored, it gets a version bump and a CHANGELOG entry but is neither published
+(`private: true`) nor git-tagged (`privatePackages.tag` defaults to `false`).

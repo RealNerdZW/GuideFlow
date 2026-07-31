@@ -25,20 +25,17 @@ interface StepDraft {
   placement: string;
 }
 
+/**
+ * A user interaction captured by the content-script recorder. The field's
+ * contents are deliberately absent — see `onRecordInput` in
+ * `src/content/inspector.ts`.
+ */
 interface RecordedStep {
   action: string;
   selector: string;
   label: string;
   tagName: string;
   ts: number;
-  /** `'[redacted]'` when the source field was sensitive — see `redacted`. */
-  value?: string;
-  /**
-   * True when the content script refused to capture the real value (password
-   * or hidden input, credential/OTP/payment autocomplete token, or an element
-   * inside a `[data-gf-private]` subtree).
-   */
-  redacted?: boolean;
 }
 
 interface ActiveTourState {
@@ -1022,7 +1019,7 @@ function SettingsTab({
           Visual tour builder and flow inspector for GuideFlow.js
         </div>
         <div style={{ fontSize: 10, color: '#6c7086', marginTop: 2 }}>
-          Extension v0.1.9 · <a href="https://github.com/RealNerdZW/GuideFlow" target="_blank" rel="noopener" style={{ color: '#89b4fa' }}>GitHub</a>
+          Extension v{__GF_VERSION__} · <a href="https://github.com/RealNerdZW/GuideFlow" target="_blank" rel="noopener" style={{ color: '#89b4fa' }}>GitHub</a>
         </div>
       </div>
     </div>
