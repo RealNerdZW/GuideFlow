@@ -23,6 +23,12 @@ export interface TourStore {
   isActive: Readable<boolean>
   /** Whether the active tour is paused. Mirrors `instance.isPaused`. */
   isPaused: Readable<boolean>
+  /**
+   * Whether the engine is waiting for a route change or a target element.
+   * Mirrors `instance.isWaiting`. `isActive` stays true and `isPaused` stays
+   * false throughout — a wait is not a pause.
+   */
+  isWaiting: Readable<boolean>
   /** Current step id */
   currentStepId: Readable<string | null>
   /** Current step index (0-based) */
@@ -150,6 +156,7 @@ export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowIn
   // Seeded from the instance, not `false`: a store created while a tour is
   // already paused has no `tour:pause` event left to observe.
   const _isPaused: Writable<boolean> = writable(gf.isPaused)
+  const _isWaiting: Writable<boolean> = writable(gf.isWaiting)
   const _currentStepId: Writable<string | null> = writable(gf.currentStepId)
   const _currentStepIndex: Writable<number> = writable(gf.currentStepIndex)
   const _totalSteps: Writable<number> = writable(gf.totalSteps)
@@ -177,6 +184,7 @@ export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowIn
   const syncIdle = (): void => {
     _isActive.set(false)
     _isPaused.set(false)
+    _isWaiting.set(false)
     _currentStepId.set(null)
     _currentStepIndex.set(0)
     _totalSteps.set(0)
@@ -187,12 +195,15 @@ export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowIn
   let cleanups: Array<() => void> = [
     gf.on('tour:start', () => {
       _isPaused.set(gf.isPaused)
+      _isWaiting.set(gf.isWaiting)
       sync()
     }),
     gf.on('tour:complete', syncIdle),
     gf.on('tour:abandon', syncIdle),
     gf.on('step:enter', sync),
     gf.on('step:exit', sync),
+    gf.on('step:waiting', sync),
+    gf.on('step:timeout', sync),
     gf.on('tour:pause', () => _isPaused.set(gf.isPaused)),
     gf.on('tour:resume', () => _isPaused.set(gf.isPaused)),
   ]
@@ -200,6 +211,7 @@ export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowIn
   return {
     isActive: toReadable(_isActive),
     isPaused: toReadable(_isPaused),
+    isWaiting: toReadable(_isWaiting),
     currentStepId: toReadable(_currentStepId),
     currentStepIndex: toReadable(_currentStepIndex),
     totalSteps: toReadable(_totalSteps),

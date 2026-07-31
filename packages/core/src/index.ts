@@ -25,6 +25,7 @@ import { BroadcastSync } from './persistence/broadcast-sync.js'
 import { ProgressStore } from './persistence/progress-store.js'
 import { DefaultRenderer } from './renderer/default-renderer.js'
 import type {
+  NavigationAdapter,
   GuideFlowConfig,
   FlowDefinition,
   GuidanceContext,
@@ -44,9 +45,15 @@ export type {
   GuideFlowConfig,
   FlowDefinition,
   GuidanceContext,
+  StateNode,
   Step,
   StepContent,
   StepAction,
+  RoutePattern,
+  TimeoutReason,
+  NavigationAdapter,
+  ResolveTargetRequest,
+  ResolveTargetResult,
   PopoverPlacement,
   SpotlightOptions,
   HotspotOptions,
@@ -131,6 +138,23 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   /** Total steps a `next()`-only run of the current flow would show. */
   readonly totalSteps: number
   /**
+   * Waiting for a route change, or for a target element to appear.
+   *
+   * `isActive` stays true and `isPaused` stays false throughout — a wait is not
+   * a pause. A prototype getter on `TourEngine`, so it must NOT be added to the
+   * `Object.assign` literal below.
+   */
+  readonly isWaiting: boolean
+  /**
+   * Re-resolve and re-render the current step against the live DOM.
+   *
+   * Re-runs `showIf`, re-resolves async `content`, and re-emits `step:enter`.
+   * This is the seam `@guideflow/core/navigation` re-anchors through after a
+   * route change. Already on the `TourEngine` prototype and never shadowed by
+   * the `Object.assign` literal, so declaring it costs zero runtime bytes.
+   */
+  rerender(): Promise<void>
+  /**
    * Id of the running flow, or null when no tour is active.
    *
    * Reachable on the instance because `TourEngine` declares it on the
@@ -197,6 +221,14 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     ...(_config.spotlight !== undefined && { spotlight: _config.spotlight }),
     ...(_config.context !== undefined && { context: _config.context as TContext }),
     ...(_config.debug !== undefined && { debug: _config.debug }),
+    ...(_config.navigation !== undefined && {
+      navigation: // Through `unknown`: `Step<T>` is contravariant in T (showIf and the
+      // function target form both consume it), so TypeScript will not accept
+      // the direct cast even though it is sound — an adapter written against
+      // the base GuidanceContext accepts any TContext that extends it, and
+      // the adapter only ever reads context.
+      _config.navigation as unknown as NavigationAdapter<TContext>,
+    }),
   })
 
   // Wire the renderer. These calls used to sit inside an
@@ -272,7 +304,16 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   const instance: GuideFlowInstance<TContext> = Object.assign(engine as any, {
 
     configure(patch: DeepPartialConfig): void {
+      const prevNav = _config.navigation
       _config = { ..._config, ...patch }
+
+      // Identity check, not merely `!== undefined`: configure({ navigation })
+      // called twice with the SAME adapter must not destroy the one still in
+      // use, and called with a different one must not leak the old one's
+      // history patch.
+      if (patch.navigation !== undefined && patch.navigation !== prevNav) {
+        prevNav?.destroy?.()
+      }
 
       if (patch.nonce !== undefined) {
         // Propagate the new nonce to sub-systems so future style injections
@@ -288,6 +329,9 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         ...(patch.spotlight !== undefined && { spotlight: patch.spotlight }),
         ...(patch.context !== undefined && { context: patch.context as TContext }),
         ...(patch.debug !== undefined && { debug: patch.debug }),
+        ...(patch.navigation !== undefined && {
+          navigation: patch.navigation as unknown as NavigationAdapter<TContext>,
+        }),
       })
 
       if (patch.persistence !== undefined) {
@@ -356,24 +400,49 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       _engineEnd()
     },
 
+    // Each of these snapshots the moment the MACHINE moves, not when the
+    // render lands. The engine runs synchronously through the FSM before its
+    // first await, so the new position is already committed by the time the
+    // promise is returned — and with a navigation adapter the render can wait
+    // seconds for a route, during which a closed tab would have lost the
+    // advance entirely.
+    //
+    // The `finally` is load-bearing: without it a throwing _saveProgress leaves
+    // `render` as an unhandled rejection.
     async next(): Promise<void> {
-      await _engineNext()
-      await _saveProgress()
+      const render = _engineNext()
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     async prev(): Promise<void> {
-      await _enginePrev()
-      await _saveProgress()
+      const render = _enginePrev()
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     async goTo(stepId: string): Promise<void> {
-      await _engineGoTo(stepId)
-      await _saveProgress()
+      const render = _engineGoTo(stepId)
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     async send(event: string): Promise<void> {
-      await _engineSend(event)
-      await _saveProgress()
+      const render = _engineSend(event)
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     hotspot(target: string | Element, options?: HotspotOptions): string {

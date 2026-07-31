@@ -54,8 +54,33 @@ export interface StepAction {
 
 export interface Step<TContext = GuidanceContext> {
   id: string
-  /** CSS selector, HTMLElement, or null for floating/modal steps */
-  target?: string | HTMLElement | null
+  /**
+   * CSS selector, Element, resolver function, or null for floating/modal steps.
+   *
+   * Widened from `HTMLElement` to `Element` — the runtime guard in
+   * `engine/tour.ts` has always been `instanceof Element`, so SVG targets
+   * already worked and the declared type was simply wrong.
+   *
+   * The function form is resolved lazily at render time and may be async. It
+   * composes with `waitForElement` from `@guideflow/core/navigation`, which
+   * needs no adapter at all:
+   *
+   * ```ts
+   * { id: 'save', target: () => waitForElement('#save', { timeoutMs: 5000 }) }
+   * ```
+   *
+   * A function does not serialise — `guideflow export` and the devtools panel
+   * both drop it. Use a selector for anything that has to round-trip.
+   */
+  target?: string | Element | null | ((context: TContext) => MaybePromise<Element | null>)
+  /**
+   * Wait up to this many ms for `target` to appear before giving up and
+   * rendering unanchored. Overrides the navigation adapter's default.
+   *
+   * Inert without a navigation adapter — the engine then resolves the target
+   * exactly once, which is the behaviour that predates this option.
+   */
+  waitForTarget?: number
   content: StepContent | (() => MaybePromise<StepContent>)
   placement?: PopoverPlacement
   /** Skip this step when the function returns false */
@@ -71,6 +96,83 @@ export interface Step<TContext = GuidanceContext> {
   actions?: StepAction[]
   /** Metadata for analytics/AI */
   meta?: Record<string, unknown>
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+
+/**
+ * A route matcher.
+ *
+ * Prefer the string form. RegExp and function patterns are dropped by
+ * `JSON.stringify` in `guideflow export` and by the devtools panel's
+ * structured-clone sanitiser, so a flow that round-trips through either
+ * silently loses them.
+ *
+ * String patterns are anchored and support `*` (one path segment) and `**` (any
+ * number). `/user` therefore does NOT match `/users/42`, which a naive
+ * `startsWith` would.
+ */
+export type RoutePattern = string | RegExp | ((url: URL) => boolean)
+
+/** What the engine was waiting for when a deadline expired. */
+export type TimeoutReason = 'route' | 'target'
+
+export interface ResolveTargetRequest<TContext = GuidanceContext> {
+  step: Step<TContext>
+  /** The state node owning `step` — this is what carries `route`. */
+  state: StateNode<TContext>
+  context: TContext
+  direction: 'forward' | 'backward'
+  /**
+   * Aborted when a newer render supersedes this one, when the tour is paused,
+   * and when it ends. Adapters MUST settle promptly on abort and MUST release
+   * every timer, observer and rAF handle in a `finally`.
+   */
+  signal: AbortSignal
+  /**
+   * Call once when the wait becomes user-visible. The engine then drops the
+   * spotlight, marks the popover busy and emits `step:waiting`.
+   *
+   * A callback rather than something the engine predicts, because the engine
+   * cannot know whether the adapter will wait: a selector can resolve to the
+   * *wrong* element on the wrong route, so the target is non-null and the
+   * adapter waits anyway. Do not "optimise" this into a check inside the engine.
+   */
+  onWaiting(reason: TimeoutReason): void
+}
+
+export interface ResolveTargetResult {
+  target: Element | null
+  /** Set only when a wait expired. `target` is then always null. */
+  timedOut?: TimeoutReason
+}
+
+/**
+ * How the engine finds a step's target when routes are involved.
+ *
+ * Supply one from `@guideflow/core/navigation`, or implement your own. Without
+ * an adapter the engine resolves each target exactly once and renders whatever
+ * it finds — the behaviour that predates this interface.
+ */
+export interface NavigationAdapter<TContext = GuidanceContext> {
+  /**
+   * Method shorthand deliberately: TypeScript keeps method parameters
+   * bivariant, so a `NavigationAdapter<GuidanceContext>` taken off
+   * `GuideFlowConfig` assigns to the engine's TContext-parameterised slot
+   * without a cast — and `no-explicit-any` is an error in this repo.
+   */
+  resolveTarget(request: ResolveTargetRequest<TContext>): Promise<ResolveTargetResult>
+  /**
+   * Subscribe to route changes for the lifetime of ONE tour. Return a teardown.
+   * Attached in `start()` and released when the tour ends.
+   */
+  attach?(onChange: () => void): () => void
+  /**
+   * Release instance-lifetime globals — a history patch, a shared subscriber.
+   * Called from `destroy()`, not when a tour ends, so an engine that never
+   * started still tears down.
+   */
+  destroy?(): void
 }
 
 // ── Flow / State Machine ─────────────────────────────────────────────────────
@@ -101,6 +203,21 @@ export interface StateNode<TContext = GuidanceContext> {
   onExit?: (context: TContext) => void
   /** If true, this state marks tour completion */
   final?: boolean
+  /**
+   * The route this state's steps live on. While the current location does not
+   * match, the engine waits — and navigates, if the adapter was given a
+   * `navigate` — rather than rendering an unanchored modal on the wrong page.
+   *
+   * **On the state, not the step, and not a transition.** FlowMachine's
+   * default-path walk follows NEXT only, so a ROUTE transition would put the
+   * target state off that path and reintroduce `total-steps-is-per-state` — the
+   * counter bug ADR-008 paid 1.3 kB to fix. A state-level field leaves the walk
+   * untouched, and `prevStep()` already crosses state boundaries via history,
+   * so Back-across-a-route works with no extra code.
+   *
+   * Inert unless a navigation adapter is configured.
+   */
+  route?: RoutePattern
 }
 
 export interface FlowDefinition<TContext = GuidanceContext> {
@@ -226,6 +343,22 @@ export interface TourEvents {
   'step:enter': { stepId: string; stepIndex: number; target: Element | null }
   'step:exit': { stepId: string; stepIndex: number }
   'step:skip': { stepId: string }
+  /**
+   * `step.target` was set and resolved to nothing. This used to render a silent
+   * full-screen modal, indistinguishable from a deliberate `target: null` step.
+   */
+  'step:target-missing': { stepId: string; selector: string | null }
+  /** A wait for a route or a target element became user-visible. */
+  'step:waiting': { stepId: string; reason: TimeoutReason }
+  /**
+   * A wait expired. The engine then renders the step unanchored and centred —
+   * it does **not** skip and does **not** end. Compose policy in userland:
+   *
+   * ```ts
+   * gf.on('step:timeout', () => void gf.next())
+   * ```
+   */
+  'step:timeout': { stepId: string; reason: TimeoutReason }
   'hotspot:open': { id: string }
   'hotspot:close': { id: string }
   'hint:click': { id: string }
@@ -238,6 +371,14 @@ export interface TourEvents {
 export interface RendererContract {
   renderStep(step: Step, resolvedContent: StepContent, index: number, total: number): void
   hideStep(): void
+  /**
+   * The engine is waiting for a route change or for a target element to appear.
+   *
+   * Show a busy state **without unmounting**. Do not delegate to `hideStep()`:
+   * that restores focus to the pre-tour element and then nulls it, and removes
+   * the live region — undoing the focus and announcement work a tour depends on.
+   */
+  setWaiting?(waiting: boolean, step?: Step): void
   renderHotspot(hotspot: RegisteredHotspot): void
   destroyHotspot(id: string): void
   renderHint(hint: HintStep): void
@@ -275,6 +416,15 @@ export interface GuideFlowConfig {
   injectStyles?: boolean
   /** Debug logging */
   debug?: boolean
+  /**
+   * Route-aware target resolution. Supply one from `@guideflow/core/navigation`,
+   * or implement {@link NavigationAdapter} yourself.
+   *
+   * Without it the engine resolves each target once with `querySelector` and
+   * renders whatever it finds — so a step whose target lives on another route
+   * renders as an unanchored modal, silently.
+   */
+  navigation?: NavigationAdapter
   /**
    * Sanitiser for `content.html`.
    *

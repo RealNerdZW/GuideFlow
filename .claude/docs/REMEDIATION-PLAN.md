@@ -503,17 +503,17 @@ the budget could not absorb it**, so the packaging change had to come first.
 
 ### Remaining
 
-- [ ] **7.1 SPA route-change handling.** * **The last open P0** (`no-spa-route-change-handling`).
-      The design brief's conclusion, worth recording: **`route` belongs on `StateNode`, not on
-      `Step`, and not as a transition.** `FlowMachine._defaultPath` walks `NEXT` only, so a `ROUTE`
-      transition would put the target state off that path and reintroduce `total-steps-is-per-state`
-      — the bug ADR-008 paid 1.3 kB to fix. State-level `route` leaves the walk untouched, and
-      `prevStep()` already crosses state boundaries, so Back-across-a-route works for free.
-      Per-step `waitForTarget` stays load-bearing: a route change is only one of five reasons a
-      selector misses, alongside lazy chunks, Suspense, portals and drawers.
-      Sub-parts: `step:target-missing` (~34 B), the engine seam (~430 B),
-      `DefaultRenderer.setWaiting` (~110 B), and `@guideflow/core/navigation` (~1.6 kB, its own
-      subpath, zero core cost).
+- [x] **7.1 SPA route-change handling — DONE. The audit has no open P0s left.**
+      Closed `no-spa-route-change-handling` and `silent-missing-target`. See **ADR-010**.
+      `route` on `StateNode` (not on `Step`, not a transition — a `ROUTE` transition would put the
+      target state off `_defaultPath`, which walks `NEXT` only, and revert the counters to
+      per-state numbering). A `NavigationAdapter` seam in the engine at **+590 B**, and
+      `@guideflow/core/navigation` at **1.55 kB, opt-in**, carrying `matchRoute`, `waitForElement`,
+      `watchHistory` and `createNavigation`.
+      Also: `waitForTarget`, function `Step.target`, `step:target-missing` / `step:waiting` /
+      `step:timeout`, `isWaiting` across all three adapters, `rerender()` declared, progress saved
+      when the machine moves rather than when the render lands.
+      31 unit tests plus 11 e2e specs driving a real `pushState` router.
 - [ ] **7.3 Flow versioning** — `no-flow-versioning-stale-snapshot-resume`. ~162 B.
       Note the audit was **wrong** on one point: `FlowMachine.restore` *does* already clamp
       `stepIndex`. What it gets wrong is returning `true` for a state with zero steps, and ignoring

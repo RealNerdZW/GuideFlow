@@ -45,6 +45,16 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./navigation": {
+      "import": {
+        "types": "./dist/navigation/index.d.ts",
+        "default": "./dist/navigation/index.js"
+      },
+      "require": {
+        "types": "./dist/navigation/index.d.cts",
+        "default": "./dist/navigation/index.cjs"
+      }
+    },
     "./html": {
       "import": {
         "types": "./dist/html.d.ts",
@@ -96,13 +106,19 @@
     {
       "name": "core entry (tree-shaken)",
       "path": "./dist/index.js",
-      "limit": "14.5 kB",
+      "limit": "15 kB",
       "gzip": true
     },
     {
       "name": "html sanitiser subpath",
       "path": "./dist/html.js",
       "limit": "1 kB",
+      "gzip": true
+    },
+    {
+      "name": "navigation subpath",
+      "path": "./dist/navigation/index.js",
+      "limit": "2 kB",
       "gzip": true
     }
   ],

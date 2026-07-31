@@ -23,6 +23,12 @@ export interface UseTourReturn {
   isActive: Readonly<Ref<boolean>>
   /** Whether the active tour is paused. Mirrors `instance.isPaused`. */
   isPaused: Readonly<Ref<boolean>>
+  /**
+   * Whether the engine is waiting for a route change or a target element.
+   * Mirrors `instance.isWaiting`. `isActive` stays true and `isPaused` stays
+   * false throughout — a wait is not a pause.
+   */
+  isWaiting: Readonly<Ref<boolean>>
   currentStepId: Readonly<Ref<string | null>>
   currentStepIndex: Readonly<Ref<number>>
   totalSteps: Readonly<Ref<number>>
@@ -90,6 +96,7 @@ export function useTour(flowId?: string): UseTourReturn {
   // Seeded from the instance, not `false`: a component that mounts while a tour
   // is already paused has no `tour:pause` event left to observe.
   const isPaused = ref(gf.isPaused)
+  const isWaiting = ref(gf.isWaiting)
   const currentStepId = ref(gf.currentStepId)
   const currentStepIndex = ref(gf.currentStepIndex)
   const totalSteps = ref(gf.totalSteps)
@@ -119,6 +126,7 @@ export function useTour(flowId?: string): UseTourReturn {
   const syncIdle = (): void => {
     isActive.value = false
     isPaused.value = false
+    isWaiting.value = false
     currentStepId.value = null
     currentStepIndex.value = 0
     totalSteps.value = 0
@@ -129,12 +137,15 @@ export function useTour(flowId?: string): UseTourReturn {
   const cleanups: Array<() => void> = [
     gf.on('tour:start', () => {
       isPaused.value = gf.isPaused
+      isWaiting.value = gf.isWaiting
       syncState()
     }),
     gf.on('tour:complete', syncIdle),
     gf.on('tour:abandon', syncIdle),
     gf.on('step:enter', syncState),
     gf.on('step:exit', syncState),
+    gf.on('step:waiting', syncState),
+    gf.on('step:timeout', syncState),
     gf.on('tour:pause', () => { isPaused.value = gf.isPaused }),
     gf.on('tour:resume', () => { isPaused.value = gf.isPaused }),
   ]
@@ -151,6 +162,7 @@ export function useTour(flowId?: string): UseTourReturn {
   return {
     isActive: readonly(isActive),
     isPaused: readonly(isPaused),
+    isWaiting: readonly(isWaiting),
     currentStepId: readonly(currentStepId),
     currentStepIndex: readonly(currentStepIndex),
     totalSteps: readonly(totalSteps),

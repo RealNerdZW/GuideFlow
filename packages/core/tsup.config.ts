@@ -25,6 +25,24 @@ export default defineConfig([{
     js: '/* GuideFlow core — MIT License — https://guideflow.dev */',
   },
 }, {
+  // @guideflow/core/navigation — route-aware target resolution. ~1.6 kB that a
+  // single-page tour does not need, so it stays out of the size-gated entry.
+  // NOT iife: a second bundle claiming the `GuideFlow` global is nonsense.
+  entry: { 'navigation/index': 'src/navigation/index.ts' },
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  clean: false,
+  treeshake: true,
+  splitting: false,
+  minify: false,
+  target: 'es2020',
+  outDir: 'dist',
+  platform: 'browser',
+  banner: {
+    js: '/* GuideFlow core/navigation — MIT License — https://guideflow.dev */',
+  },
+}, {
   // @guideflow/core/html — opt-in `content.html` sanitisation. Evicted from the
   // default bundle per ADR-008's condition; see src/html.ts for the rationale.
   entry: { html: 'src/html.ts' },

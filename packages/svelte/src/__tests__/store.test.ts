@@ -284,6 +284,7 @@ describe('store surface', () => {
         'instance',
         'isActive',
         'isPaused',
+        'isWaiting',
         'listFlows',
         'locale',
         'next',

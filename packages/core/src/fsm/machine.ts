@@ -55,6 +55,17 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return this.currentSteps[this._ctx.stepIndex] ?? null
   }
 
+  /**
+   * The definition node for the current state. This is what carries `route`.
+   *
+   * `?? null` because of `noUncheckedIndexedAccess`. Nothing else in the FSM
+   * changes for route support — `_defaultPath` never reads `route`, which is
+   * the whole argument for putting routes on states rather than transitions.
+   */
+  get currentStateNode(): StateNode<TContext> | null {
+    return this._ctx.flow.states[this._ctx.currentState] ?? null
+  }
+
   get isFinal(): boolean {
     return this._ctx.flow.states[this._ctx.currentState]?.final === true
   }

@@ -272,3 +272,64 @@ code that is not written and whose cost is an estimate, is precisely the silent 
 - **When the budget does bind again, raise it — with a measurement, in the same changeset as the
   work that needs it, and with an ADR.** The next lever after that is splitting the navigation and
   targeting features into their own subpaths, which the Phase 7 design already assumes.
+
+## ADR-010 — SPA route handling costs 590 B; the budget moves to 15 kB
+2026-07-31 · Status: Accepted · Amends ADR-002, discharges ADR-009's condition
+
+**Context.** `no-spa-route-change-handling` was the last open P0 and the roadmap's highest
+single-item impact. A grep for `popstate`, `pushState`, `hashchange`, the Navigation API or any
+router integration across the monorepo returned zero hits: the engine resolved each step's target
+once with `querySelector`, waited 150 ms, and rendered. A step whose target lived on `/settings`
+while the tour started on `/dashboard` resolved to null and rendered as a centred modal with no
+spotlight — silently.
+
+**Decision.** Split the work across the size boundary.
+
+| | Where | gzip |
+|---|---|---|
+| The seam — `route` on `StateNode`, `NavigationAdapter`, waiting presentation, `isWaiting`, attach/destroy lifecycle, function `Step.target`, `step:target-missing` / `step:waiting` / `step:timeout` | `@guideflow/core` | **+590 B** |
+| `matchRoute`, `waitForElement`, `watchHistory`, `createNavigation` | `@guideflow/core/navigation` | 1.55 kB, opt-in |
+
+Measured: 14.13 kB → **14.72 kB**, against a 14.5 kB limit. **Raise it to 15 kB.**
+
+ADR-009 said the next raise must arrive "with a measurement, in the same changeset as the work that
+needs it, and with an ADR" — and refused to take it pre-emptively when the eviction had already
+bought enough room. This is that changeset. 280 B of headroom remains.
+
+**Why the seam is not itself opt-in.** It is 590 B of *engine*: the render pipeline has to know how
+to wait, what to tear down, and what to emit. A version of `TourEngine` that cannot wait cannot be
+made to wait from outside it. What is genuinely optional — route matching, element polling, history
+watching — is the 1.55 kB that moved out.
+
+**Why `route` sits on `StateNode`.** Not on `Step`, and emphatically not as a `ROUTE` transition.
+`FlowMachine._defaultPath` walks `NEXT` only; a `ROUTE` transition would put the target state off
+that path and reintroduce `total-steps-is-per-state`, the counter bug ADR-008 paid 1.3 kB to fix.
+State-level `route` leaves the walk untouched, and `prevStep()` already crosses state boundaries via
+history, so Back-across-a-route works with no extra code. Per-step `waitForTarget` stays load-bearing
+regardless: a route change is only one of five reasons a selector misses — lazy chunks, Suspense
+boundaries, portals and drawers are the others, and one code path covers all of them.
+
+**Three behaviours worth defending.**
+
+1. **The page stays clickable while waiting.** `_enterWaiting()` drops the spotlight, which also
+   drops pointer capture. A user waiting to reach `/settings` has to be able to click the nav link;
+   a modal that blocks the navigation it is waiting for can never succeed.
+2. **`isWaiting` is a separate flag, not `_paused`.** Reusing pause breaks three ways: `pause()`
+   early-returns when already true, so a host pausing mid-wait would silently no-op; `resume()`
+   would clear the internal wait and start a second waiter; and the keyboard handler gates on it,
+   killing Escape exactly when the user most wants out.
+3. **The engine has no timeout policy.** It emits `step:timeout`, renders unanchored, and stops.
+   `'skip'` and `'end'` compose in userland in one line and cost core zero bytes and zero
+   re-entrancy risk.
+
+**Consequences.**
+- 280 B of headroom. The next lever is a `@guideflow/core/targeting` subpath, which Phase 7.4
+  already assumes. Do not raise this a sixth time without taking it.
+- Three `size-limit` rows now. Each subpath is gated independently so the opt-in halves cannot
+  quietly grow either.
+- `tsup.config.ts` is an array of three configs. Only the first may set `clean: true`.
+- The built-in history watcher prefers the Navigation API and patches nothing on Chromium. Where it
+  does patch, it wraps cooperatively and restores only if its own wrapper is still outermost —
+  ripping it out unconditionally would delete a patch installed on top of it. The e2e suite asserts
+  both branches, and skips the patch assertions where the Navigation API is in use.
+- Any docs figure quoting a bundle size must say **~14.7 kB**, or ~16.3 kB with navigation.

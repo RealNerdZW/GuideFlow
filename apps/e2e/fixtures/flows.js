@@ -148,5 +148,57 @@ export const blocking = {
   },
 }
 
+/**
+ * Two states on two routes. Regression cover for `no-spa-route-change-handling`,
+ * the last of the audit's P0s: a step whose target lived on another route
+ * resolved to null and rendered as a centred modal with no spotlight, silently.
+ *
+ * `route` sits on the STATE, not the step — a ROUTE transition would put the
+ * target state off FlowMachine's NEXT-only default path and reintroduce the
+ * per-state counter bug.
+ * @type {FlowDefinition}
+ */
+export const routed = {
+  id: 'fixture-routed',
+  initial: 'home',
+  states: {
+    home: {
+      route: '/apps/e2e/fixtures/index.html',
+      steps: [
+        { id: 'r1', target: '#route-home-target', content: { title: 'On Home', body: 'Now go to settings.' } },
+      ],
+      on: { NEXT: 'settings' },
+    },
+    settings: {
+      route: '/apps/e2e/fixtures/index.html?view=settings',
+      steps: [
+        { id: 'r2', target: '#route-settings-target', content: { title: 'On Settings', body: 'You made it.' } },
+      ],
+      final: true,
+    },
+  },
+}
+
+/**
+ * A step whose target never arrives — cover for the timeout path. The engine
+ * emits `step:timeout` and renders the step UNANCHORED; it does not skip and
+ * does not end. Policy composes in userland.
+ * @type {FlowDefinition}
+ */
+export const missingTarget = {
+  id: 'fixture-missing-target',
+  initial: 'main',
+  states: {
+    main: {
+      steps: [
+        { id: 'mt1', target: '#never-appears', waitForTarget: 600, content: { title: 'Waiting', body: 'This target never arrives.' } },
+      ],
+      final: true,
+    },
+  },
+}
+
 /** @type {Record<string, FlowDefinition>} */
-export const flows = { basic, final, scroll, persisted, multistate, clickThrough, blocking }
+export const flows = {
+  basic, final, scroll, persisted, multistate, clickThrough, blocking, routed, missingTarget,
+}

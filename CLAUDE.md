@@ -82,13 +82,15 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 
 ### Known-good baseline (Phases 0–6 complete, Phase 7 in progress, 2026-07-31)
 
-Build, type-check, lint and unit tests are **all green**: **735 unit tests pass**, 2 skipped
-(core 272, ai 153, react 114, analytics 78, vue 47, cli 37, svelte 34). `@guideflow/core` measures
-**14.13 kB gzip against a 14.5 kB limit**, and `@guideflow/core/html` a further **767 B against its
-own 1 kB limit**. If any of these regress, you broke it — do not paper over it.
+**The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-**The Playwright e2e suite now actually runs: 176/176 across chromium, firefox, webkit and Mobile
-Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
+Build, type-check, lint and unit tests are **all green**: **770 unit tests pass**, 2 skipped
+(core 307, ai 153, react 114, analytics 78, vue 47, cli 37, svelte 34). Size, all gated
+independently: `@guideflow/core` **14.72 kB / 15 kB**, `@guideflow/core/navigation` **1.55 kB / 2 kB**,
+`@guideflow/core/html` **767 B / 1 kB**. If any of these regress, you broke it — do not paper over it.
+
+**The Playwright e2e suite now actually runs: 217 passed, 3 conditionally skipped, across chromium,
+firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
 waiting for `__gfReady`. Verify with:
@@ -117,17 +119,15 @@ present as *silence*, not an error. Run `/gf-extension-dev` before trusting the 
 assertion, which catches structure but not usability. Do not restore the "accessible by default"
 marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOver.
 
-> The size budget has been raised three times: 12 → 12.5 kB in Phase 1 (seven correctness fixes),
-> 12.5 → 13 kB in Phase 3 (the parse-and-allowlist sanitiser, ADR-007), and 13 → 14.5 kB in Phase 6
-> (ADR-008). **The fourth raise did not happen.** ADR-008's condition — move `content.html` out of
-> the default bundle first — was discharged in Phase 7 (**ADR-009**): the sanitiser ships as
-> `@guideflow/core/html` and is passed via `createGuideFlow({ sanitizeHTML })`. That freed 420 B, so
-> core sits at **14.13 kB against an unchanged 14.5 kB limit** with ~370 B spare, and the subpath
-> carries its own 1 kB budget.
+> The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
+> accessibility) → **15 kB** (ADR-010, the navigation seam). ADR-008's condition on that last raise
+> — move `content.html` out of the default bundle first — was discharged by **ADR-009**, which
+> deliberately did *not* raise the limit at the same time: the eviction freed enough on its own, and
+> raising pre-emptively for unwritten code is the silent bump the rule exists to prevent.
 >
-> The remaining Phase 7 core work is projected at ~830 B and **will** need 15 kB. When it does:
-> raise it in the same changeset as the work, with a real measurement and an ADR — never
-> pre-emptively. Any docs figure quoting a bundle size must say **~14 kB**.
+> Core is at **14.72 kB with 280 B of headroom**. **The next lever is a
+> `@guideflow/core/targeting` subpath**, which the Phase 7.4 design already assumes — take it before
+> raising a sixth time. Any docs figure quoting a bundle size must say **~14.7 kB**.
 
 ## 4. Code conventions
 
@@ -264,6 +264,25 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
   that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
   app" report is this.
+- **`route` goes on `StateNode`, never on `Step` and never as a transition.**
+  `FlowMachine._defaultPath` walks `NEXT` only, so a `ROUTE` transition puts the target state off
+  that path and silently reverts `flowStepIndex`/`flowTotalSteps` to per-state numbering — the bug
+  ADR-008 paid 1.3 kB to fix, which put a **Done** button on step one of a two-state tour.
+- **A wait is not a pause.** `isWaiting` is its own flag. Reusing `_paused` breaks three ways:
+  `pause()` early-returns when already true (a host pausing mid-wait silently no-ops), `resume()`
+  clears the internal wait and starts a *second* waiter, and the keyboard handler gates on it —
+  killing Escape exactly when the user most wants out.
+- **The spotlight drops while waiting, on purpose.** That also drops pointer capture, so the page
+  stays clickable. A modal that blocks the navigation it is waiting for can never succeed.
+- **`setWaiting()` must never delegate to `hideStep()`.** `hideStep()` restores focus to
+  `_previouslyFocused`, nulls it, and removes the live region — that is the Phase 6 focus work being
+  undone. Mark busy; do not unmount.
+- **Anything imported into `src/navigation/` as a *value* is inlined into that bundle**
+  (`splitting: false`). Use `import type` for everything from core; only a two-line local
+  `isBrowser` is worth duplicating.
+- **`tsup.config.ts` is an array of three configs.** Only the first may set `clean: true` — a second
+  would wipe what the first just wrote. Every subpath is declared in both tsup and `package.json`
+  `exports`, and `scripts/verify-pack.mjs` fails CI if the two drift.
 - **`content.html` needs an opt-in import; `content.body` does not.** The sanitiser lives in
   `@guideflow/core/html` and is passed as `createGuideFlow({ sanitizeHTML })` (ADR-009). Without it
   the markup is escaped and rendered as text with a one-time warning — safe, visible, debuggable.

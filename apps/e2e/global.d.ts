@@ -15,6 +15,12 @@ declare global {
     __gfEvents: string[]
     /** The flow definitions the fixture exposes, for direct-drive specs. */
     __gfFlows: Record<string, FlowDefinition>
+    /** `stepId:reason` for every `step:waiting`, in order. */
+    __gfWaiting: string[]
+    /** `stepId:reason` for every `step:timeout`, in order. */
+    __gfTimeouts: string[]
+    /** The fixture's pushState router — stands in for React Router et al. */
+    __gfGo: (view: 'home' | 'settings') => void
   }
 }
 

@@ -7,11 +7,15 @@ import { FlowMachine } from '../fsm/machine.js'
 import type {
   FlowDefinition,
   GuidanceContext,
+  NavigationAdapter,
+  ResolveTargetResult,
   Step,
   StepContent,
   RendererContract,
+  TimeoutReason,
   TourEvents,
   SpotlightOptions,
+  StateNode,
 } from '../types/index.js'
 import { EventEmitter } from '../utils/emitter.js'
 import { isBrowser } from '../utils/ssr.js'
@@ -46,6 +50,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 interface TourEngineOptions<TContext extends GuidanceContext = GuidanceContext> {
   renderer: RendererContract
+  navigation?: NavigationAdapter<TContext>
   spotlight?: SpotlightOptions
   context?: TContext
   debug?: boolean
@@ -66,6 +71,12 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   /** True when step:exit has already been emitted for the active step (prevents double-emission). */
   private _stepExitEmitted = true
   private _paused = false
+  private _waiting: TimeoutReason | null = null
+  /** The element the current step is anchored to — read by the re-anchor check. */
+  private _anchoredTo: Element | null = null
+  private _navOff: (() => void) | null = null
+  /** Aborts the in-flight render's waiter. Paired with every generation bump. */
+  private _renderAbort: AbortController | null = null
   /**
    * Monotonically increasing counter — used to cancel stale async
    * _renderCurrentStep() calls.
@@ -103,6 +114,20 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
    */
   get isPaused(): boolean {
     return this._paused
+  }
+
+  /**
+   * Waiting for a route change, or for a target element to appear.
+   *
+   * `isActive` stays true and `isPaused` stays false — deliberately a separate
+   * flag rather than reusing `_paused`, which would break three ways:
+   * `pause()` early-returns when it is already true, so a host pausing during a
+   * wait would be a silent no-op; `resume()` would clear the internal wait and
+   * start a *second* waiter; and the keyboard handler gates on it, which would
+   * kill Escape exactly when the user most wants out.
+   */
+  get isWaiting(): boolean {
+    return this._waiting !== null
   }
 
   get currentStepId(): string | null {
@@ -182,6 +207,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     this._log('Tour started:', flow.id)
 
     this._attachKeyboard()
+    this._attachNavigation()
     await this._renderCurrentStep()
   }
 
@@ -281,6 +307,10 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     // Cancel any render still awaiting content resolution or the scroll settle,
     // otherwise it lands after the pause and re-shows what we just hid.
     this._renderGeneration++
+    // Cancel an in-flight wait: a paused tour must not keep polling for a
+    // target, and must not paint when one finally appears.
+    this._renderAbort?.abort()
+    this._exitWaiting()
     this._spotlight.hide()
     this._renderer.hideStep()
     const flowId = this._flow?.id ?? 'unknown'
@@ -301,6 +331,10 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   destroy(): void {
     this._doEnd(false)
+    // Here, not in _doEnd(): that early-returns on `!this._active`, so an
+    // engine destroyed without ever starting a tour would leak the adapter's
+    // history patch.
+    this._options.navigation?.destroy?.()
     this._spotlight.destroy()
     this.removeAllListeners()
   }
@@ -310,8 +344,13 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   private async _renderCurrentStep(direction: 'forward' | 'backward' = 'forward'): Promise<void> {
     if (!this._machine) return
 
-    // Capture generation so we can detect if a newer render has been started
+    // Capture generation so we can detect if a newer render has been started.
+    // The controller travels with it: a navigation adapter can wait seconds,
+    // and a superseded wait has to be cancelled, not merely ignored on return.
     const gen = this._renderGeneration
+    this._renderAbort?.abort()
+    const ac = new AbortController()
+    this._renderAbort = ac
 
     let step = this._machine.currentStep
     if (!step) return
@@ -353,8 +392,58 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // Abort if a newer render or tour end has superseded this one
       if (gen !== this._renderGeneration) return
 
-      // Find target element
-      const target = this._resolveTarget(step)
+      // ── Target resolution ──────────────────────────────────────────────
+      // Without an adapter this is one querySelector, exactly as before. With
+      // one it can wait — for a route to arrive, for a lazy chunk to mount, for
+      // a drawer to open — so every branch below ends in a generation check.
+      const resolved = step
+      let target: Element | null
+      const nav = this._options.navigation
+
+      if (nav && isBrowser()) {
+        let waited = false
+        let res: ResolveTargetResult
+        try {
+          res = await nav.resolveTarget({
+            step: resolved,
+            state: this._machine.currentStateNode ?? ({} as StateNode<TContext>),
+            context: this._machine.context,
+            direction,
+            signal: ac.signal,
+            onWaiting: (reason) => {
+              waited = true
+              this._enterWaiting(reason, resolved as Step)
+            },
+          })
+        } catch (e) {
+          // A third-party adapter must not be able to kill tours.
+          this._log('navigation adapter threw; falling back to a plain lookup', e)
+          res = { target: await this._resolveTarget(resolved) }
+        }
+        if (gen !== this._renderGeneration) return
+        if (waited) this._exitWaiting()
+
+        if (res.timedOut !== undefined) {
+          this.emit('step:timeout', { stepId: resolved.id, reason: res.timedOut })
+          // emit() runs listeners inline; one calling next() has already moved
+          // the machine and bumped the generation by the time we get here.
+          if (gen !== this._renderGeneration) return
+        }
+        target = res.target
+      } else {
+        target = await this._resolveTarget(resolved)
+        if (gen !== this._renderGeneration) return
+      }
+
+      if (target === null && resolved.target != null) {
+        // A missing target used to render as a silent full-screen modal,
+        // indistinguishable from a deliberate `target: null` step.
+        this.emit('step:target-missing', {
+          stepId: resolved.id,
+          selector: typeof resolved.target === 'string' ? resolved.target : null,
+        })
+        if (gen !== this._renderGeneration) return
+      }
 
       // Scroll into view if needed
       if (target && step.scrollIntoView !== false) {
@@ -377,6 +466,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // Store current step/content so external consumers (e.g. React GuidePopover) can read them
       this._currentStep = step
       this._currentContent = content
+      this._anchoredTo = target
       this._stepExitEmitted = false
 
       // Emit event
@@ -413,14 +503,59 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     return step.content
   }
 
-  private _resolveTarget(step: Step<TContext>): Element | null {
+  private async _resolveTarget(step: Step<TContext>): Promise<Element | null> {
+    // isBrowser() must stay first: the `instanceof Element` below is only safe
+    // because of it.
     if (!isBrowser() || step.target == null) return null
+    if (typeof step.target === 'function') return await step.target(this._machine!.context)
     if (step.target instanceof Element) return step.target
-    if (typeof step.target === 'string') {
-      return document.querySelector(step.target)
-    }
+    if (typeof step.target === 'string') return document.querySelector(step.target)
     return null
   }
+
+  /**
+   * Show that the engine is waiting, without unmounting anything.
+   *
+   * The spotlight goes down immediately: after a route change the previous
+   * target is usually detached, and `_update()` would read a zeroed rect off
+   * it. `hide()` also sets `pointer-events: none`, so **the page stays
+   * clickable during the wait** — a user waiting to reach /settings has to be
+   * able to click the nav link. A modal that blocks the navigation it is
+   * waiting for can never succeed.
+   */
+  private _enterWaiting(reason: TimeoutReason, step: Step): void {
+    if (this._waiting !== null) return
+    this._waiting = reason
+    this._spotlight.hide()
+    this._renderer.setWaiting?.(true, step)
+    this.emit('step:waiting', { stepId: step.id, reason })
+  }
+
+  private _exitWaiting(): void {
+    if (this._waiting === null) return
+    this._waiting = null
+    this._renderer.setWaiting?.(false)
+  }
+
+  private _attachNavigation(): void {
+    if (!isBrowser()) return
+    this._detachNavigation()
+    this._navOff = this._options.navigation?.attach?.(() => {
+      if (!this._active || this._paused || this._waiting !== null) return
+      // A route change that left the target mounted needs no work — and a
+      // rerender() would re-emit step:enter and double-count in analytics.
+      if (this._anchoredTo !== null && this._anchoredTo.isConnected) return
+      void this.rerender()
+    }) ?? null
+  }
+
+  private _detachNavigation(): void {
+    if (this._navOff) {
+      this._navOff()
+      this._navOff = null
+    }
+  }
+
 
   private _doEnd(completed: boolean): void {
     if (!this._active) return
@@ -434,6 +569,13 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     this._spotlight.hide()
     this._renderer.hideStep()
     this._detachKeyboard()
+    this._detachNavigation()
+    this._exitWaiting()
+    // Cancel any waiter still running. Without this an adapter waiting 15s for
+    // a route keeps a timer alive after the tour has ended.
+    this._renderAbort?.abort()
+    this._renderAbort = null
+    this._anchoredTo = null
 
     const flowId = this._flow?.id ?? 'unknown'
     if (completed) {

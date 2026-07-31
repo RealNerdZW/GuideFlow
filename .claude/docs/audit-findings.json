@@ -347,7 +347,7 @@
       "severity": "P0",
       "kind": "missing-implementation",
       "verdict": "UNVERIFIED",
-      "status": "open",
+      "status": "resolved",
       "title": "Nothing in the entire monorepo handles SPA route changes — multi-page tours are structurally impossible",
       "file": "packages/core/src/engine/tour.ts",
       "line": 287,
@@ -355,7 +355,8 @@
       "impact": "A grep for popstate, pushState, hashchange, the Navigation API, or any router integration across packages/ and apps/ returns zero hits outside a MutationObserver in intro-compat.ts. TourEngine resolves each step's target exactly once via document.querySelector, then waits a fixed 150 ms and renders. A step whose target lives on /settings while the tour started on /dashboard resolves to null and (per silent-missing-target) becomes a full-screen dark modal. Every competitor — Userpilot, Appcues, Pendo, Chameleon, and even react-joyride via its own step lifecycle — supports tours that span route changes; GuideFlow cannot express one. There is also no waitForElement/retry, so a target rendered asynchronously after the 150 ms settle is treated as missing.",
       "fix": "Add a navigation-aware target resolver in packages/core/src/engine/tour.ts: poll/MutationObserver with a configurable `waitForTarget` timeout instead of a single querySelector, and add a `navigation` config to GuideFlowConfig that subscribes to popstate + a patched history.pushState/replaceState (or the Navigation API where available) so a step can declare `url`/`urlPattern` and the engine pauses until the route matches. Document the router integration story in apps/docs/guide/.",
       "effort": "L",
-      "verifierNote": null
+      "verifierNote": null,
+      "resolvedIn": "Phase 7.1 — route on StateNode (not Step, not a transition), a NavigationAdapter seam in the engine (+590 B), and @guideflow/core/navigation (1.55 kB, opt-in) with matchRoute/waitForElement/watchHistory/createNavigation. 31 unit tests plus 11 e2e tests driving a real pushState router. See ADR-010."
     },
     {
       "id": "sanitize-html-regex-denylist-bypass",
@@ -3840,7 +3841,7 @@
       "severity": "P2",
       "kind": "quality",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "A step whose target selector matches nothing silently becomes a full-screen dark modal with no warning",
       "file": "packages/core/src/engine/tour.ts",
       "line": 283,
@@ -3848,7 +3849,8 @@
       "impact": "A typo'd or not-yet-mounted selector returns `null`, which is indistinguishable from the intentional \"floating/modal step\" case (`target?: string | HTMLElement | null`, types/index.ts:55). The spotlight then takes its no-target branch and paints the whole viewport with `rgba(0,0,0,opacity)` (spotlight.ts:179-192) and the popover centres itself — the app appears to be covered by an unexplained dark modal. Nothing is logged (`_log` only fires when `debug: true`, tour.ts:367-372) and no event is emitted, so the most common authoring mistake in a tour library produces a confusing UI with zero diagnostics. There is also no retry/wait for elements that mount asynchronously, which is the norm in SPA onboarding.",
       "fix": "Distinguish the cases: when `typeof step.target === 'string'` and `querySelector` returns null, `console.warn` (unconditionally, once per step) and emit a dedicated event (e.g. `step:target-missing`); optionally poll/`MutationObserver`-wait for a configurable timeout before falling back, and let the step opt into skip-if-missing behaviour.",
       "effort": "M",
-      "verifierNote": "tour.ts:283-290 verbatim — a non-matching selector returns null, identical to the intentional floating-step case (`target?: string | HTMLElement | null`, types/index.ts:55). SpotlightOverlay._update then takes the no-target branch (spotlight.ts:179-192) and sets `background: rgba(0,0,0,${opacity})` on the full-viewport overlay, while DefaultRenderer._position centres the popover (default-renderer.ts:204-210). Nothing logs (_log is gated on debug, tour.ts:367-372) and no tour:error is emitted; there is no retry/wait loop anywhere in _resolveTarget."
+      "verifierNote": "tour.ts:283-290 verbatim — a non-matching selector returns null, identical to the intentional floating-step case (`target?: string | HTMLElement | null`, types/index.ts:55). SpotlightOverlay._update then takes the no-target branch (spotlight.ts:179-192) and sets `background: rgba(0,0,0,${opacity})` on the full-viewport overlay, while DefaultRenderer._position centres the popover (default-renderer.ts:204-210). Nothing logs (_log is gated on debug, tour.ts:367-372) and no tour:error is emitted; there is no retry/wait loop anywhere in _resolveTarget.",
+      "resolvedIn": "Phase 7.1 — step:target-missing is emitted whenever a step declared a target and got nothing, with or without an adapter."
     },
     {
       "id": "styles-global-dedupe-cross-instance",

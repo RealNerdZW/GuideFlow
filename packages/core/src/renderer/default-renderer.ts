@@ -304,6 +304,35 @@ export class DefaultRenderer implements RendererContract {
     })
   }
 
+  /**
+   * Mark the popover busy while the engine waits for a route or a target.
+   *
+   * Deliberately does NOT touch `_previouslyFocused` or `_liveRegionEl`, and
+   * deliberately does not delegate to `hideStep()` — that restores focus to the
+   * pre-tour element and then nulls it, and removes the live region, undoing
+   * the focus and announcement work a tour depends on.
+   *
+   * Deliberately does not disable the buttons either: pressing Next during a
+   * wait is legitimate and safely cancels the waiter through its abort signal.
+   *
+   * Visual treatment lives in `styles/`, which is copied to `dist/styles` and is
+   * not part of the size-gated JS bundle — so a spinner costs no budget. Gate
+   * any animation behind `prefers-reduced-motion`.
+   *
+   * A tour whose *first* step is cross-route has no popover yet, so this
+   * no-ops and the user sees nothing but the `step:waiting` event. Hosts can
+   * render their own affordance from it.
+   */
+  setWaiting(waiting: boolean): void {
+    const el = this._popoverEl
+    if (!el) return
+    el.toggleAttribute('data-gf-waiting', waiting)
+    el.setAttribute('aria-busy', String(waiting))
+    // Otherwise the reposition listener keeps positioning against a target that
+    // has just been removed, i.e. against a zeroed rect.
+    if (waiting) this._detachReposition()
+  }
+
   hideStep(): void {
     this._detachReposition()
     this._detachFocusTrap()

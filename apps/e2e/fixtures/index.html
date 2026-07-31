@@ -38,6 +38,8 @@
   <button id="start-multistate-btn" type="button">Start Multi-State Tour</button>
   <button id="start-clickthrough-btn" type="button">Start Click-Through Tour</button>
   <button id="start-blocking-btn" type="button">Start Blocking Tour</button>
+  <button id="start-routed-btn" type="button">Start Routed Tour</button>
+  <button id="start-missing-target-btn" type="button">Start Missing-Target Tour</button>
 
   <p>
     <label for="text-input">Type here</label>
@@ -48,6 +50,14 @@
        the target rather than being swallowed by the overlay. -->
   <button id="clickable-target" type="button">Click me</button>
   <span id="click-count">0</span>
+
+  <!-- A two-"route" SPA, switched with pushState. #route-settings-target does
+       not exist until the route changes, which is the whole point. -->
+  <nav>
+    <button id="go-settings" type="button">Go to settings</button>
+    <button id="go-home" type="button">Go home</button>
+  </nav>
+  <div id="route-view"><div id="route-home-target" class="box">Home widget</div></div>
 
   <div id="step-one" class="box">Feature A</div>
   <div id="step-two" class="box">Feature B</div>
@@ -65,9 +75,33 @@
   -->
   <script type="module">
     import { createGuideFlow } from '/packages/core/dist/index.js'
+    import { createNavigation } from '/packages/core/dist/navigation/index.js'
     import { flows } from './flows.js'
 
-    const gf = createGuideFlow({ context: { userId: 'e2e-user' } })
+    // A pushState router, ~10 lines, standing in for React Router et al.
+    function render (view) {
+      document.getElementById('route-view').innerHTML = view === 'settings'
+        ? '<div id="route-settings-target" class="box">Settings widget</div>'
+        : '<div id="route-home-target" class="box">Home widget</div>'
+    }
+    function go (view) {
+      const url = view === 'settings'
+        ? '/apps/e2e/fixtures/index.html?view=settings'
+        : '/apps/e2e/fixtures/index.html'
+      history.pushState({}, '', url)
+      render(view)
+    }
+    window.__gfGo = go
+    window.addEventListener('popstate', function () {
+      render(new URLSearchParams(location.search).get('view') || 'home')
+    })
+
+    const gf = createGuideFlow({
+      context: { userId: 'e2e-user' },
+      // No `subscribe` and no `navigate`: exercise the built-in history watcher
+      // and the passive wait, which is the harder path of the two.
+      navigation: createNavigation({ waitForRoute: 8000, waitForTarget: 3000, indicatorDelay: 50 }),
+    })
 
     // The devtools extension detects tours through this global, and the library
     // never sets it — every integration must do this itself.
@@ -99,6 +133,16 @@
     wire('start-multistate-btn', flows.multistate)
     wire('start-clickthrough-btn', flows.clickThrough)
     wire('start-blocking-btn', flows.blocking)
+    wire('start-routed-btn', flows.routed)
+    wire('start-missing-target-btn', flows.missingTarget)
+
+    document.getElementById('go-settings').addEventListener('click', function () { go('settings') })
+    document.getElementById('go-home').addEventListener('click', function () { go('home') })
+
+    window.__gfWaiting = []
+    window.__gfTimeouts = []
+    gf.on('step:waiting', function (e) { window.__gfWaiting.push(e.stepId + ':' + e.reason) })
+    gf.on('step:timeout', function (e) { window.__gfTimeouts.push(e.stepId + ':' + e.reason) })
 
     // Proof that a click reached the page rather than the overlay.
     var clicks = 0

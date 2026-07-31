@@ -78,6 +78,7 @@ Each step describes a single tooltip. Only `id` and `content` are required.
 | `padding` | `number` | Spotlight padding for this step only (px) |
 | `clickThrough` | `boolean` | Let clicks reach the page while this step is shown |
 | `scrollIntoView` | `boolean` | Scroll the target into view first (default `true`) |
+| `waitForTarget` | `number` | Wait this many ms for `target` to appear before rendering unanchored. Needs [`@guideflow/core/navigation`](/guide/routing) |
 | `media` | `StepMediaOptions` | `{ type: 'image' \| 'video', src, alt? }` |
 | `actions` | `StepAction[]` | Replace the default navigation buttons |
 | `meta` | `Record<string, unknown>` | Free-form metadata for analytics / AI |
