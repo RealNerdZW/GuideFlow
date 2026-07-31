@@ -160,7 +160,7 @@ jobs:
       # stored and every run reported "Cache not found". A separate save step,
       # placed before the steps that can fail, breaks that loop.
       - name: Restore Playwright browsers
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -176,7 +176,7 @@ jobs:
 
       - name: Save Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ matrix.browser }}
