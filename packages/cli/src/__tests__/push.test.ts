@@ -209,15 +209,15 @@ describe('pushCommand — failure paths', () => {
   });
 
   /*
-   * SKIPPED — audit finding `push-requiredoption-kills-env-var`.
+   * Regression for `push-requiredoption-kills-env-var`.
    *
-   * `--api-key` is declared with `.requiredOption()`, so commander aborts with
-   * "required option not specified" before the action body ever runs. That makes
-   * the documented `GUIDEFLOW_API_KEY` fallback (push.ts:35, and the option's own
-   * help text) unreachable dead code. This test asserts the documented
-   * behaviour; it will pass once `--api-key` becomes a plain `.option()`.
+   * `--api-key` used to be a `.requiredOption()`, so commander aborted with
+   * "required option not specified" before the action body ever ran — making the
+   * documented `GUIDEFLOW_API_KEY` fallback unreachable dead code. The env var
+   * is now the preferred route, since a key on the command line lands in shell
+   * history and process listings.
    */
-  it.skip('falls back to GUIDEFLOW_API_KEY when --api-key is omitted', async () => {
+  it('falls back to GUIDEFLOW_API_KEY when --api-key is omitted', async () => {
     vi.stubEnv('GUIDEFLOW_API_KEY', 'env-key');
     fs.existsSync.mockReturnValue(true);
     fs.readFileSync.mockReturnValue(FLOW_BODY);

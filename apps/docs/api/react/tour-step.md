@@ -69,7 +69,8 @@ function only runs while the step is active, `isActive` is always `true` inside 
 ## Notes
 
 - Must be rendered inside a [`<TourProvider>`](/api/react/tour-provider).
-- Visibility resets to hidden on `step:exit`, `tour:abandon` and `tour:complete`.
+- Visibility resets to hidden when the step is left, when the tour ends, and while the tour is
+  **paused** — `gf.pause()` hides the children, `gf.resume()` brings them back.
 - Several `TourStep` components with different ids can be mounted at once; each tracks its own id.
 - To get the same `isActive` flag without wrapping children — plus a ref you can attach to your
   own element for styling — use the `useTourStep(stepId)` hook instead.

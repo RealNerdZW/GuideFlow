@@ -6,9 +6,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
 
 Vue 3 adapter for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). It provides a plugin and
-two composables over `@guideflow/core`.
+composables over `@guideflow/core`. `useTour()` projects the entire instance surface, so nothing
+in core is out of reach from Vue.
 
-It ships **no Vue components** — the spotlight and popover are rendered by core.
+It ships **no Vue components** — the spotlight and popover are rendered by core, or by your own
+markup driven from `currentStep` / `currentContent`.
 
 ## Installation
 
@@ -78,17 +80,36 @@ const flow: FlowDefinition = {
 
 | Export | Description |
 |--------|-------------|
-| `GuideFlowPlugin` | Vue plugin — provides one `GuideFlowInstance` app-wide and sets `$guideflow` |
+| `GuideFlowPlugin` | Vue plugin — provides one `GuideFlowInstance` app-wide and sets a typed `$guideflow` |
 | `useGuideFlow()` | Returns the injected instance; throws outside plugin scope |
-| `useTour(flowId?)` | Reactive `isActive` / `currentStepId` / `currentStepIndex` / `totalSteps`, plus `start`, `next`, `prev`, `goTo`, `send`, `stop` |
+| `useTour(flowId?)` | The full reactive control surface — see below |
+| `useHotspot(target, options?)` | Beacon bound to a template ref or selector; removed on scope dispose |
 | `GUIDEFLOW_KEY` | `InjectionKey<GuideFlowInstance>` for manual provide/inject |
 
-Types: `GuideFlowPluginOptions`, `UseTourReturn`, plus core types re-exported for convenience
-(`FlowDefinition`, `Step`, `StepContent`, `GuidanceContext`, `HotspotOptions`, `HintStep`,
-`GuideFlowConfig`, `PopoverPlacement`, `GuideFlowInstance`).
+### `useTour(flowId?)`
 
-`useTour()` releases its core listeners via `onScopeDispose()`, so it is safe inside a component
-or a bare `effectScope()` (a Pinia store, a shared composable).
+| Group | Members |
+|-------|---------|
+| Reactive state | `isActive`, `isPaused`, `currentStepId`, `currentStepIndex`, `totalSteps`, `currentStep`, `currentContent`, `locale` |
+| Navigation | `start`, `next`, `prev`, `goTo`, `send`, `stop`, `pause`, `resume`, `skip` |
+| Flows & config | `createFlow`, `listFlows`, `configure` |
+| Standalone UI | `hotspot`, `removeHotspot`, `hints`, `showHints`, `hideHints` |
+| Subsystems | `i18n`, `progress`, `setLocale`, `instance` |
+
+Types: `GuideFlowPluginOptions`, `UseTourReturn`, `UseHotspotReturn`, `HotspotTarget`, plus core
+types re-exported for convenience (`FlowDefinition`, `Step`, `StepContent`, `GuidanceContext`,
+`HotspotOptions`, `HintStep`, `GuideFlowConfig`, `PopoverPlacement`, `GuideFlowInstance`).
+
+### Notes
+
+- **State resets when a tour ends.** On `tour:complete` / `tour:abandon` every field returns to
+  its idle value, so a progress indicator does not stay stuck on the last step.
+- **Cleanup uses `onScopeDispose()`**, so both composables are safe inside a component *and*
+  inside a bare `effectScope()` (a Pinia store, a shared composable).
+- **`this.$guideflow` is typed.** The package augments Vue's `ComponentCustomProperties`, so
+  Options API components get `GuideFlowInstance` with no `.d.ts` of your own.
+- **Nuxt / SSR**: core guards every DOM access and injects no styles on the server, so the
+  plugin and composables are safe during SSR. Start tours from `onMounted`.
 
 ## Peer Dependencies
 

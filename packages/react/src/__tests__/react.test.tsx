@@ -1,374 +1,372 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/ban-types, @typescript-eslint/unbound-method, @typescript-eslint/require-await, @typescript-eslint/no-unused-vars */
-import type { FlowDefinition, GuideFlowInstance, TourEvents } from '@guideflow/core'
-import { render, screen, cleanup, act } from '@testing-library/react'
-import React from 'react'
-import { describe, it, expect, vi, afterEach } from 'vitest'
+// ---------------------------------------------------------------------------
+// Hooks and small components, driven by a real createGuideFlow() instance.
+//
+// These used to run against a hand-written mock, which is how they kept passing
+// while the components they cover were broken — AUDIT
+// `react-tests-mock-only-half-the-surface-untested`.
+// ---------------------------------------------------------------------------
 
+import { createGuideFlow, type FlowDefinition, type GuideFlowInstance } from '@guideflow/core'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import React, { useRef } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { HotspotBeacon } from '../components/HotspotBeacon.js'
 import { TourStep } from '../components/TourStep.js'
-import { TourProvider, useGuideFlow } from '../context.js'
-import { useTourStep } from '../hooks/use-tour-step.js'
-import { useTour } from '../hooks/use-tour.js'
+import { TourProvider } from '../context.js'
+import { useHotspot, useTourStep } from '../hooks/use-tour-step.js'
+import { useTour, type UseTourReturn } from '../hooks/use-tour.js'
 
-// -- Mock GuideFlowInstance --------------------------------------------------
-
-type Listener<K extends keyof TourEvents> = (payload: TourEvents[K]) => void
-
-function createMockGF(): GuideFlowInstance & {
-  _fire: <K extends keyof TourEvents>(event: K, payload: TourEvents[K]) => void
-} {
-  const listeners = new Map<string, Set<Function>>()
-  let active = false
-  let stepId: string | null = null
-  let stepIdx = 0
-  let total = 0
-
-  const instance = {
-    // EventEmitter subset
-    on(event: string, handler: Function) {
-      if (!listeners.has(event)) listeners.set(event, new Set())
-      listeners.get(event)!.add(handler)
-      return () => listeners.get(event)?.delete(handler)
+const flow: FlowDefinition = {
+  id: 'hooks-flow',
+  initial: 'a',
+  states: {
+    a: {
+      steps: [
+        { id: 's1', content: { title: 'One' } },
+        { id: 's2', content: { title: 'Two' } },
+      ],
+      on: { JUMP: 'b' },
+      final: false,
     },
-    emit: vi.fn(),
-    removeAllListeners: vi.fn(),
-
-    // GuideFlowInstance
-    configure: vi.fn(),
-    createFlow: vi.fn((d: FlowDefinition) => d),
-    start: vi.fn(async () => {
-      active = true
-      stepId = 'step-1'
-      stepIdx = 0
-      total = 3
-    }),
-    stop: vi.fn(() => { active = false }),
-    next: vi.fn(async () => {}),
-    prev: vi.fn(async () => {}),
-    goTo: vi.fn(async () => {}),
-    send: vi.fn(async () => {}),
-    hotspot: vi.fn(() => 'hotspot-1'),
-    removeHotspot: vi.fn(),
-    hints: vi.fn(),
-    showHints: vi.fn(),
-    hideHints: vi.fn(),
-    i18n: {} as any,
-    progress: {} as any,
-    destroy: vi.fn(),
-
-    get isActive() { return active },
-    get currentStepId() { return stepId },
-    get currentStepIndex() { return stepIdx },
-    get totalSteps() { return total },
-
-    // Test helper
-    _fire<K extends keyof TourEvents>(event: K, payload: TourEvents[K]) {
-      listeners.get(event)?.forEach((fn) => fn(payload))
+    b: {
+      steps: [{ id: 's3', content: { title: 'Three' } }],
+      final: true,
     },
-  }
-
-  return instance as any
+  },
 }
 
-// -- Tests -------------------------------------------------------------------
+let gf: GuideFlowInstance
 
-afterEach(cleanup)
-
-describe('TourProvider & useGuideFlow', () => {
-  it('provides a GuideFlowInstance via context', () => {
-    const gf = createMockGF()
-    let captured: GuideFlowInstance | null = null
-
-    function Consumer() {
-      captured = useGuideFlow()
-      return null
-    }
-
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
-
-    expect(captured).toBe(gf)
-  })
-
-  it('throws when useGuideFlow is used outside TourProvider', () => {
-    function Bad() {
-      useGuideFlow()
-      return null
-    }
-
-    // Suppress console.error from React for expected throws
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    expect(() => render(<Bad />)).toThrow('[GuideFlow] useGuideFlow must be used inside a <TourProvider>')
-    spy.mockRestore()
-  })
+beforeEach(() => {
+  gf = createGuideFlow()
 })
+
+afterEach(() => {
+  cleanup()
+  gf.destroy()
+  document.body.innerHTML = ''
+  vi.restoreAllMocks()
+})
+
+function wrap(ui: React.ReactNode): ReturnType<typeof render> {
+  return render(<TourProvider instance={gf}>{ui}</TourProvider>)
+}
+
+/** Run a synchronous engine call, then let its async render settle. */
+async function settle(fn: () => void): Promise<void> {
+  await act(async () => {
+    fn()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+}
+
+// ── useTour ─────────────────────────────────────────────────────────────────
 
 describe('useTour', () => {
-  it('returns initial tour state', () => {
-    const gf = createMockGF()
-    let state: any
+  let api: UseTourReturn
 
-    function Consumer() {
-      state = useTour()
-      return null
-    }
+  function Consumer(): null {
+    api = useTour()
+    return null
+  }
 
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
+  it('reports an idle tour before anything starts', () => {
+    wrap(<Consumer />)
 
-    expect(state.isActive).toBe(false)
-    expect(state.currentStepId).toBeNull()
+    expect(api.isActive).toBe(false)
+    expect(api.isPaused).toBe(false)
+    expect(api.currentStepId).toBeNull()
+    expect(api.totalSteps).toBe(0)
   })
 
-  it('calls gf.start when start() is invoked', async () => {
-    const gf = createMockGF()
-    let tourApi: any
+  it('tracks the tour as it runs', async () => {
+    wrap(<Consumer />)
 
-    function Consumer() {
-      tourApi = useTour()
-      return null
-    }
+    await act(async () => { await api.start(flow) })
+    expect(api.isActive).toBe(true)
+    expect(api.currentStepId).toBe('s1')
+    expect(api.currentStepIndex).toBe(0)
+    expect(api.totalSteps).toBe(2)
 
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
+    await act(async () => { await api.next() })
+    expect(api.currentStepId).toBe('s2')
+    expect(api.currentStepIndex).toBe(1)
 
-    const flow: FlowDefinition = {
-      id: 'test',
-      initial: 'a',
-      states: { a: { steps: [{ id: 's1', content: { title: 'Hi' } }], on: {} } },
-    }
-
-    await act(async () => {
-      await tourApi.start(flow)
-    })
-
-    expect(gf.start).toHaveBeenCalledWith(flow, undefined)
+    await act(async () => { await api.prev() })
+    expect(api.currentStepId).toBe('s1')
   })
 
-  it('syncs state on tour:start event', () => {
-    const gf = createMockGF()
-    let state: any
+  it('jumps with goTo and crosses states with send', async () => {
+    wrap(<Consumer />)
+    await act(async () => { await api.start(flow) })
 
-    function Consumer() {
-      state = useTour()
-      return null
-    }
+    await act(async () => { await api.goTo('s2') })
+    expect(api.currentStepId).toBe('s2')
 
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
-
-    act(() => {
-      gf._fire('tour:start', { flowId: 'f1' })
-    })
-
-    // State synced from gf properties
-    expect(state).toBeDefined()
+    await act(async () => { await api.send('JUMP') })
+    expect(api.currentStepId).toBe('s3')
   })
 
-  it('delegates next/prev/stop to gf', () => {
-    const gf = createMockGF()
-    let tourApi: any
+  it('stops the tour', async () => {
+    wrap(<Consumer />)
+    await act(async () => { await api.start(flow) })
 
-    function Consumer() {
-      tourApi = useTour()
+    act(() => { api.stop() })
+    expect(api.isActive).toBe(false)
+    expect(api.currentStepId).toBeNull()
+  })
+
+  it('exposes pause/resume and reports isPaused', async () => {
+    wrap(<Consumer />)
+    await act(async () => { await api.start(flow) })
+
+    act(() => { api.pause() })
+    expect(api.isPaused).toBe(true)
+    expect(api.isActive).toBe(true)
+
+    await settle(() => { api.resume() })
+    expect(api.isPaused).toBe(false)
+    expect(api.currentStepId).toBe('s1')
+  })
+
+  it('exposes skip, which dismisses the tour', async () => {
+    wrap(<Consumer />)
+    const dismissed = vi.fn()
+    await act(async () => { await api.start(flow) })
+    gf.on('tour:dismiss', dismissed)
+
+    act(() => { api.skip() })
+
+    expect(dismissed).toHaveBeenCalledTimes(1)
+    expect(api.isActive).toBe(false)
+  })
+
+  it('warns when start() has no flow and no default flowId', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    wrap(<Consumer />)
+
+    await act(async () => { await api.start() })
+
+    expect(warn).toHaveBeenCalledWith('[GuideFlow] useTour: no flow provided to start()')
+    expect(api.isActive).toBe(false)
+  })
+
+  it('starts the flowId passed to the hook when start() gets no argument', async () => {
+    function Defaulted(): null {
+      api = useTour('hooks-flow')
       return null
     }
+    gf.createFlow(flow)
+    wrap(<Defaulted />)
 
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
+    await act(async () => { await api.start() })
 
-    act(() => {
-      tourApi.stop()
-    })
-    expect(gf.stop).toHaveBeenCalled()
+    expect(api.currentStepId).toBe('s1')
+  })
+
+  it('keeps two consumers in agreement (no tearing between subscribers)', async () => {
+    const seen: Array<[string | null, string | null]> = []
+    function Pair(): React.JSX.Element {
+      const a = useTour()
+      const b = useTour()
+      seen.push([a.currentStepId, b.currentStepId])
+      return <span data-testid="ids">{a.currentStepId}/{b.currentStepId}</span>
+    }
+    wrap(<Pair />)
+
+    await act(async () => { await gf.start(flow) })
+    await act(async () => { await gf.next() })
+
+    expect(screen.getByTestId('ids').textContent).toBe('s2/s2')
+    seen.forEach(([a, b]) => expect(a).toBe(b))
+  })
+
+  it('stops listening once the last consumer unmounts', async () => {
+    const view = wrap(<Consumer />)
+    await act(async () => { await gf.start(flow) })
+    view.unmount()
+
+    // No "update on an unmounted component" warning, and no throw.
+    await act(async () => { await gf.next() })
+    expect(gf.currentStepId).toBe('s2')
   })
 })
+
+// ── useTourStep ─────────────────────────────────────────────────────────────
 
 describe('useTourStep', () => {
-  it('returns a ref and isActive=false initially', () => {
-    const gf = createMockGF()
-    let result: any
+  function Watcher({ id }: { id: string }): React.JSX.Element {
+    const { ref, isActive } = useTourStep<HTMLDivElement>(id)
+    return <div ref={ref} data-testid={id}>{isActive ? 'active' : 'idle'}</div>
+  }
 
-    function Consumer() {
-      result = useTourStep('my-step')
-      return null
-    }
+  it('is active only for the step on screen', async () => {
+    wrap(<><Watcher id="s1" /><Watcher id="s2" /></>)
 
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
+    expect(screen.getByTestId('s1').textContent).toBe('idle')
 
-    expect(result.ref).toBeDefined()
-    expect(result.isActive).toBe(false)
+    await act(async () => { await gf.start(flow) })
+    expect(screen.getByTestId('s1').textContent).toBe('active')
+    expect(screen.getByTestId('s2').textContent).toBe('idle')
+
+    await act(async () => { await gf.next() })
+    expect(screen.getByTestId('s1').textContent).toBe('idle')
+    expect(screen.getByTestId('s2').textContent).toBe('active')
   })
 
-  it('sets isActive=true when step:enter matches stepId', () => {
-    const gf = createMockGF()
-    let result: any
+  it('reports inactive while the tour is paused', async () => {
+    wrap(<Watcher id="s1" />)
+    await act(async () => { await gf.start(flow) })
 
-    function Consumer() {
-      result = useTourStep('target-step')
-      return null
-    }
+    act(() => { gf.pause() })
+    expect(screen.getByTestId('s1').textContent).toBe('idle')
 
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
-
-    act(() => {
-      gf._fire('step:enter', { stepId: 'target-step', stepIndex: 0, target: null as any })
-    })
-
-    expect(result.isActive).toBe(true)
+    await settle(() => { gf.resume() })
+    expect(screen.getByTestId('s1').textContent).toBe('active')
   })
 
-  it('sets isActive=false when step:exit matches', () => {
-    const gf = createMockGF()
-    let result: any
+  it('resets when the tour ends', async () => {
+    wrap(<Watcher id="s1" />)
+    await act(async () => { await gf.start(flow) })
 
-    function Consumer() {
-      result = useTourStep('exit-step')
-      return null
-    }
-
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
-
-    act(() => {
-      gf._fire('step:enter', { stepId: 'exit-step', stepIndex: 0, target: null as any })
-    })
-    expect(result.isActive).toBe(true)
-
-    act(() => {
-      gf._fire('step:exit', { stepId: 'exit-step', stepIndex: 0 })
-    })
-    expect(result.isActive).toBe(false)
+    act(() => { gf.stop() })
+    expect(screen.getByTestId('s1').textContent).toBe('idle')
   })
 
-  it('resets isActive on tour:abandon', () => {
-    const gf = createMockGF()
-    let result: any
-
-    function Consumer() {
-      result = useTourStep('abandon-step')
-      return null
+  it('hands back a ref that is attached to the caller\'s element', () => {
+    const holder: { ref: React.RefObject<HTMLDivElement> | null } = { ref: null }
+    function Probe(): React.JSX.Element {
+      const { ref } = useTourStep<HTMLDivElement>('s1')
+      holder.ref = ref
+      return <div ref={ref} data-testid="probe" />
     }
+    wrap(<Probe />)
 
-    render(
-      <TourProvider instance={gf}>
-        <Consumer />
-      </TourProvider>,
-    )
-
-    act(() => {
-      gf._fire('step:enter', { stepId: 'abandon-step', stepIndex: 0, target: null as any })
-    })
-    expect(result.isActive).toBe(true)
-
-    act(() => {
-      gf._fire('tour:abandon', { flowId: 'f', stepId: 'abandon-step', stepIndex: 0 })
-    })
-    expect(result.isActive).toBe(false)
+    expect(holder.ref?.current).toBe(screen.getByTestId('probe'))
   })
 })
 
+// ── useHotspot ──────────────────────────────────────────────────────────────
+
+describe('useHotspot', () => {
+  function Beacon(): React.JSX.Element {
+    const ref = useRef<HTMLButtonElement>(null)
+    const { id } = useHotspot(ref, { title: 'Hi', body: 'There' })
+    return <button ref={ref} data-testid="host">{id ?? 'no-id'}</button>
+  }
+
+  it('returns the registered hotspot id to the caller', () => {
+    wrap(<Beacon />)
+
+    // AUDIT `react-usehotspot-returns-null-id`: this used to render "no-id"
+    // forever, because the id lived in a ref written during an effect.
+    expect(screen.getByTestId('host').textContent).not.toBe('no-id')
+    expect(screen.getByTestId('host').textContent).toMatch(/.+/)
+  })
+
+  it('removes the hotspot when the component unmounts', () => {
+    const remove = vi.spyOn(gf, 'removeHotspot')
+    const view = wrap(<Beacon />)
+    const id = screen.getByTestId('host').textContent
+
+    view.unmount()
+
+    expect(remove).toHaveBeenCalledWith(id)
+  })
+
+  it('does nothing when the ref is empty', () => {
+    function Empty(): React.JSX.Element {
+      const ref = useRef<HTMLButtonElement>(null)
+      const { id } = useHotspot(ref, { title: 'Hi' })
+      return <span data-testid="empty">{id ?? 'no-id'}</span>
+    }
+    const hotspot = vi.spyOn(gf, 'hotspot')
+    wrap(<Empty />)
+
+    expect(hotspot).not.toHaveBeenCalled()
+    expect(screen.getByTestId('empty').textContent).toBe('no-id')
+  })
+})
+
+// ── <HotspotBeacon> ─────────────────────────────────────────────────────────
+
+describe('<HotspotBeacon>', () => {
+  it('registers a hotspot for its selector and removes it on unmount', () => {
+    const anchor = document.createElement('div')
+    anchor.id = 'beacon-target'
+    document.body.appendChild(anchor)
+
+    const hotspot = vi.spyOn(gf, 'hotspot')
+    const remove = vi.spyOn(gf, 'removeHotspot')
+
+    const view = wrap(<HotspotBeacon target="#beacon-target" title="Look" />)
+    expect(hotspot).toHaveBeenCalledWith('#beacon-target', { title: 'Look' })
+
+    view.unmount()
+    expect(remove).toHaveBeenCalledTimes(1)
+    anchor.remove()
+  })
+})
+
+// ── <TourStep> ──────────────────────────────────────────────────────────────
+
 describe('<TourStep>', () => {
-  it('renders nothing when step is not active', () => {
-    const gf = createMockGF()
-
-    const { container } = render(
-      <TourProvider instance={gf}>
-        <TourStep id="inactive-step">
-          <div data-testid="step-content">Content</div>
-        </TourStep>
-      </TourProvider>,
-    )
-
-    expect(container.querySelector('[data-testid="step-content"]')).toBeNull()
+  it('renders nothing while its step is inactive', () => {
+    wrap(<TourStep id="s1"><div data-testid="content">Here</div></TourStep>)
+    expect(screen.queryByTestId('content')).toBeNull()
   })
 
-  it('renders children when step:enter fires for this id', () => {
-    const gf = createMockGF()
+  it('renders children while its step is on screen', async () => {
+    wrap(<TourStep id="s1"><div data-testid="content">Here</div></TourStep>)
 
-    render(
-      <TourProvider instance={gf}>
-        <TourStep id="active-step">
-          <div data-testid="step-content">Visible</div>
-        </TourStep>
-      </TourProvider>,
-    )
+    await act(async () => { await gf.start(flow) })
+    expect(screen.getByTestId('content')).toBeTruthy()
 
-    act(() => {
-      gf._fire('step:enter', { stepId: 'active-step', stepIndex: 0, target: null as any })
-    })
-
-    expect(screen.getByTestId('step-content')).toBeDefined()
-    expect(screen.getByTestId('step-content').textContent).toBe('Visible')
+    await act(async () => { await gf.next() })
+    expect(screen.queryByTestId('content')).toBeNull()
   })
 
-  it('supports render prop children with next/prev', () => {
-    const gf = createMockGF()
-
-    render(
-      <TourProvider instance={gf}>
-        <TourStep id="render-prop-step">
+  it('supports a render prop with next/prev', async () => {
+    wrap(
+      <>
+        <TourStep id="s1">
           {({ next, isActive }) => (
-            <button data-testid="next-btn" onClick={next}>
-              {isActive ? 'Active' : 'Inactive'}
-            </button>
+            <button data-testid="btn" onClick={next}>{isActive ? 'Active' : 'Inactive'}</button>
           )}
         </TourStep>
-      </TourProvider>,
+        <TourStep id="s2">
+          {({ prev }) => <button data-testid="back" onClick={prev}>Back</button>}
+        </TourStep>
+      </>,
     )
+    await act(async () => { await gf.start(flow) })
 
-    act(() => {
-      gf._fire('step:enter', { stepId: 'render-prop-step', stepIndex: 0, target: null as any })
-    })
+    expect(screen.getByTestId('btn').textContent).toBe('Active')
+    await settle(() => { fireEvent.click(screen.getByTestId('btn')) })
+    expect(gf.currentStepId).toBe('s2')
 
-    const btn = screen.getByTestId('next-btn')
-    expect(btn.textContent).toBe('Active')
+    await settle(() => { fireEvent.click(screen.getByTestId('back')) })
+    expect(gf.currentStepId).toBe('s1')
   })
 
-  it('hides when tour:complete fires', () => {
-    const gf = createMockGF()
+  it('hides while the tour is paused', async () => {
+    wrap(<TourStep id="s1"><div data-testid="content">Here</div></TourStep>)
+    await act(async () => { await gf.start(flow) })
 
-    render(
-      <TourProvider instance={gf}>
-        <TourStep id="complete-step">
-          <div data-testid="complete-content">Here</div>
-        </TourStep>
-      </TourProvider>,
-    )
+    act(() => { gf.pause() })
+    expect(screen.queryByTestId('content')).toBeNull()
 
-    act(() => {
-      gf._fire('step:enter', { stepId: 'complete-step', stepIndex: 0, target: null as any })
-    })
-    expect(screen.getByTestId('complete-content')).toBeDefined()
+    await settle(() => { gf.resume() })
+    expect(screen.getByTestId('content')).toBeTruthy()
+  })
 
-    act(() => {
-      gf._fire('tour:complete', { flowId: 'f1' })
-    })
-    expect(screen.queryByTestId('complete-content')).toBeNull()
+  it('hides when the tour completes', async () => {
+    wrap(<TourStep id="s1"><div data-testid="content">Here</div></TourStep>)
+    await act(async () => { await gf.start(flow) })
+
+    act(() => { gf.stop() })
+    expect(screen.queryByTestId('content')).toBeNull()
   })
 })

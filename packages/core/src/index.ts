@@ -122,6 +122,8 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   destroy(): void
   /** Whether a tour is currently active */
   readonly isActive: boolean
+  /** Whether the active tour is paused. `false` once the tour ends. */
+  readonly isPaused: boolean
   /** Current step id */
   readonly currentStepId: string | null
   /** Current step index (0-based) */

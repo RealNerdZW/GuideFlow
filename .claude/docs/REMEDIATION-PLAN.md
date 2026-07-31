@@ -10,16 +10,16 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **117 / 357 findings resolved** — Phases 0–4 complete on branch
-`fix/phase-0-1-engine-correctness`. Remaining open: **3 P0**, 60 P1, 135 P2, 42 P3.
+**Progress:** **148 / 357 findings resolved** — Phases 0–5 complete on branch
+`fix/phase-0-1-engine-correctness`. Remaining open: **1 P0**, 43 P1, 123 P2, 42 P3.
 
 The total grew from 325 to 357 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
 effective bug-finding technique in its own right. They are registered as P2 with
 `foundIn: "Phase 4 docs verification"`.
 
-The three remaining P0s are `react-guidepopover-duplicates-core-renderer` (Phase 5.1),
-`bridge-dataclone-aborts-every-tour` (Phase 5.3) and `no-spa-route-change-handling` (Phase 7.1).
+**The one remaining P0, `no-spa-route-change-handling`, is not a defect** — it is an absent feature,
+and the highest-value item left in the plan. Every P0 that was *broken code* is now fixed.
 
 ---
 
@@ -333,7 +333,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
 
 ## Phase 5 — Adapters, extension and CLI (5–7 days)
 
-- [ ] **5.1 React correctness.**
+- [x] **5.1 React correctness.**
       Closes `react-guidepopover-duplicates-core-renderer`, `react-provider-never-destroys-instance`,
       `react-useid-breaks-react-17`, `react-no-use-client-boundary`, `react-popover-never-focuses`,
       `react-guidepopover-drops-actions-html-media`, `react-guidepopover-position-flash-and-no-scroll-tracking`,
@@ -345,7 +345,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       created. `useId()` breaks React 17, which is inside the declared peer range. There is no
       `'use client'` directive despite documented App Router support.
 
-- [ ] **5.2 Vue and Svelte parity.**
+- [x] **5.2 Vue and Svelte parity.**
       Closes `vue-no-components-shipped`, `svelte-no-components-no-tests`,
       `vue-onunmounted-instead-of-onscopedispose`, `adapters-no-pause-resume-anywhere`,
       `adapters-no-hints-progress-i18n-listflows-surface`, `svelte-cjs-build-cannot-run`.
@@ -353,7 +353,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       and `resume` are unreachable from **any** adapter. Use `/gf-adapter-parity` and fill the matrix.
       Note `tsup` cannot compile `.svelte` — real components need `svelte-package`.
 
-- [ ] **5.3 DevTools extension.**
+- [x] **5.3 DevTools extension.**
       Closes `bridge-dataclone-aborts-every-tour` ⭐, `popup-recording-drops-every-step`,
       `mv3-state-dies-on-suspend`, `devtools-port-never-reconnects`, `load-saved-tour-is-a-stub`,
       `selector-nth-child-not-anchored`, `flows-list-clone-failure`, `generated-flow-one-step-per-state`,
@@ -364,7 +364,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       MV3 suspends the worker; "Load saved tour" is a no-op stub; and there is no distribution artifact,
       so nobody can install the extension.
 
-- [ ] **5.4 Make the CLI honest and safe.**
+- [x] **5.4 Make the CLI honest and safe.**
       Closes `export-overwrites-json-source-file`, `init-clobbers-existing-files`,
       `init-vue-svelte-scaffold-nothing`, `init-always-prompts-breaks-ci`, `push-requiredoption-kills-env-var`,
       `cli-push-api-key-required-cli-flag`, `cli-exports-no-types`, `cli-ships-vite-as-runtime-dependency`.
@@ -372,7 +372,7 @@ You cannot confirm Phase 1's geometry fixes without a real browser. Do this imme
       no prompt, always prompts (so it cannot run in CI), and silently scaffolds nothing for Vue and
       Svelte while reporting success.
 
-- [ ] **5.5 Packaging correctness.**
+- [x] **5.5 Packaging correctness.**
       Closes `core-sideeffects-false-drops-css`, `analytics-workspace-protocol-in-peerdeps`,
       `exports-never-reference-emitted-dcts`, `core-styles-export-missing-default`,
       `core-iife-build-is-unreachable`, `adapters-bundle-core-as-hard-dependency`.

@@ -3,7 +3,9 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: { index: 'src/index.ts' },
   format: ['esm'],
-  dts: false,
+  // package.json advertises a programmatic `exports` entry, so consumers need
+  // declarations. With dts:false they got none (AUDIT `cli-exports-no-types`).
+  dts: true,
   sourcemap: false,
   clean: true,
   // Node built-ins and all deps are external

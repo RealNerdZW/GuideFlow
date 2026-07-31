@@ -1,5 +1,7 @@
+'use client'
+
 // ---------------------------------------------------------------------------
-// <HotspotBeacon> — renders a pulsing beacon attached to a ref or selector 
+// <HotspotBeacon> — renders a pulsing beacon attached to a ref or selector
 // ---------------------------------------------------------------------------
 
 import type { HotspotOptions } from '@guideflow/core'

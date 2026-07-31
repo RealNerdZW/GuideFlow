@@ -62,6 +62,7 @@ function TourControls() {
 | Property | Type | Description |
 |----------|------|-------------|
 | `isActive` | `boolean` | Whether a tour is currently running |
+| `isPaused` | `boolean` | True between `pause()` and `resume()`. `isActive` stays `true`. |
 | `currentStepId` | `string \| null` | Id of the step being shown |
 | `currentStepIndex` | `number` | Zero-based index of the current step within its state |
 | `totalSteps` | `number` | Number of steps in the current flow state |
@@ -71,6 +72,9 @@ function TourControls() {
 | `goTo` | `(stepId: string) => Promise<void>` | Jump to a step by id |
 | `send` | `(event: string) => Promise<void>` | Send an FSM event to the machine |
 | `stop` | `() => void` | End the active tour |
+| `pause` | `() => void` | Hide the tour UI without abandoning the flow |
+| `resume` | `() => void` | Show a paused tour again, on the step it was paused at |
+| `skip` | `() => void` | Dismiss as a user would — emits `tour:dismiss`, then `tour:abandon` |
 
 Every navigation method returns a promise because rendering a step is asynchronous (async
 `content`, target resolution, scrolling). Awaiting is optional but recommended in tests.
@@ -80,15 +84,19 @@ and does nothing.
 
 ## State updates
 
-The returned state is re-read from the instance when any of these events fire: `tour:start`,
-`tour:complete`, `tour:abandon`, `step:enter`, `step:exit`. Other lifecycle changes — notably
-`pause()` and `resume()` — do not trigger a re-render of this hook.
+State is read through React's `useSyncExternalStore`, so it cannot tear under concurrent
+rendering, and it is safe to call during server rendering (the server snapshot reports an idle
+tour). The snapshot is refreshed when any of these events fire: `tour:start`, `tour:complete`,
+`tour:abandon`, `tour:pause`, `tour:resume`, `step:enter`, `step:exit`.
+
+The returned state object keeps the same identity while nothing has changed, and every component
+using the hook shares one set of engine listeners per instance. Listeners are removed when the
+last consumer unmounts.
 
 ## Not covered by this hook
 
-`useTour()` is deliberately narrow. For `pause()`, `resume()`, `skip()`, `configure()`,
-`createFlow()`, `hotspot()`, `hints()`, `i18n` or `progress`, use `useGuideFlow()` to get the
-instance itself.
+`useTour()` is deliberately narrow. For `configure()`, `createFlow()`, `listFlows()`, `hotspot()`,
+`hints()`, `i18n` or `progress`, use `useGuideFlow()` to get the instance itself.
 
 ## Requirements
 

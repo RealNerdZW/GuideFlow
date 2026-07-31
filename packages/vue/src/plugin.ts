@@ -17,9 +17,23 @@ export const GuideFlowPlugin = {
   install(app: App, options: GuideFlowPluginOptions = {}): void {
     const instance = options.instance ?? createGuideFlow(options)
     app.provide(GUIDEFLOW_KEY, instance)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(app.config.globalProperties as Record<string, unknown>)['$guideflow'] = instance
+    app.config.globalProperties.$guideflow = instance
   },
+}
+
+/**
+ * Type `this.$guideflow` for Options API components.
+ *
+ * Without this augmentation the plugin set a global property that TypeScript
+ * knew nothing about, so `this.$guideflow.start(...)` was a compile error and
+ * the documented Options API usage did not type-check — AUDIT
+ * `vue-guideflow-global-untyped`. Declaring it here means every consumer that
+ * imports anything from `@guideflow/vue` picks the type up automatically.
+ */
+declare module 'vue' {
+  interface ComponentCustomProperties {
+    $guideflow: GuideFlowInstance
+  }
 }
 
 /**

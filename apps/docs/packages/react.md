@@ -21,13 +21,15 @@ npm install @guideflow/core @guideflow/react
 |--------|------|-------------|
 | `TourProvider` | Component | Shares a `GuideFlowInstance` through context |
 | `useGuideFlow()` | Hook | Returns the instance; throws outside a provider |
-| `useTour(flowId?)` | Hook | Tour state (`isActive`, `currentStepId`, `currentStepIndex`, `totalSteps`) plus `start` / `next` / `prev` / `goTo` / `send` / `stop` |
+| `useTour(flowId?)` | Hook | Tour state (`isActive`, `isPaused`, `currentStepId`, `currentStepIndex`, `totalSteps`) plus `start` / `next` / `prev` / `goTo` / `send` / `stop` / `pause` / `resume` / `skip` |
 | `useTourStep(stepId)` | Hook | `{ ref, isActive }` — is this step active right now |
 | `useHotspot(ref, options)` | Hook | Attaches a pulsing beacon to a ref for the component's lifetime |
 | `TourStep` | Component | Renders its children only while a named step is active |
 | `HotspotBeacon` | Component | Selector-targeted beacon; renders `null` |
 | `ConversationalPanel` | Component | Floating AI chat panel (needs `@guideflow/ai` on the instance) |
-| `GuidePopover` | Component | Experimental portal popover — see its [limitations](/api/react/guide-popover#current-limitations) |
+| `GuidePopover` | Component | The React-rendered popover — needs [`renderer="react"`](/api/react/guide-popover) |
+| `createHeadlessRenderer()` | Function | A `RendererContract` that reports steps to React instead of drawing them |
+| `useTourRenderer()` | Hook | The provider's headless renderer, for building your own popover |
 
 The package also re-exports the core types `FlowDefinition`, `Step`, `StepContent`,
 `GuidanceContext`, `HotspotOptions`, `HintStep`, `GuideFlowConfig` and `PopoverPlacement`, plus its
@@ -35,13 +37,18 @@ own prop types (`TourProviderProps`, `TourStepProps`, `GuidePopoverProps`, `Hots
 `ConversationalPanelProps`, `UseTourReturn`, `TourState`, `UseTourStepReturn`, `UseHotspotReturn`,
 `Message`).
 
-The popover and spotlight you see during a tour are drawn by `@guideflow/core`'s default renderer.
-None of the components in this package are required to run a tour.
+By default the popover and spotlight you see during a tour are drawn by `@guideflow/core`'s
+renderer, and none of the components in this package are required to run a tour. Set
+[`<TourProvider renderer="react">`](/api/react/tour-provider#choosing-who-draws-the-popover) to
+move the popover into React instead — then `<GuidePopover>` is required. The spotlight belongs to
+the engine either way.
 
 ## Peer dependencies
 
-- `react` ^17.0.0 || ^18.0.0 || ^19.0.0
-- `react-dom` ^17.0.0 || ^18.0.0 || ^19.0.0
+- `react` ^18.0.0 || ^19.0.0
+- `react-dom` ^18.0.0 || ^19.0.0
+
+React 17 is not supported — the adapter uses `useId` and `useSyncExternalStore`.
 
 ## Links
 

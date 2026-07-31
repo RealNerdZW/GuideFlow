@@ -81,9 +81,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * `existsSync` now answers two questions: does the INPUT exist, and does the
+ * OUTPUT already exist. A blanket `true` conflated them, so every export
+ * looked like it was about to clobber an existing file and bailed — which is
+ * the protection export gained (AUDIT `export-overwrites-json-source-file`).
+ */
+function onlyInputExists(input: string): void {
+  fs.existsSync.mockImplementation((p: string) => p === resolve(input));
+}
 describe('exportCommand — JSON input', () => {
   it('round-trips a .json flow to the --output path', async () => {
-    fs.existsSync.mockReturnValue(true);
+    onlyInputExists('flow.json');
     fs.readFileSync.mockReturnValue(FLOW_JSON);
 
     await runExport(['flow.json', '-o', 'out.json']);
@@ -99,7 +108,7 @@ describe('exportCommand — JSON input', () => {
   });
 
   it('pretty-prints with --pretty', async () => {
-    fs.existsSync.mockReturnValue(true);
+    onlyInputExists('flow.json');
     fs.readFileSync.mockReturnValue(FLOW_JSON);
 
     await runExport(['flow.json', '-o', 'out.json', '--pretty']);
@@ -110,22 +119,34 @@ describe('exportCommand — JSON input', () => {
   });
 
   /*
-   * SKIPPED — audit finding `export-overwrites-json-source-file`.
+   * Regression for `export-overwrites-json-source-file`.
    *
-   * `outPath` is `opts.output ?? src.replace(/\.(ts|js)$/, '.flow.json')`. For a
-   * `.json` input the regex never matches, so the fallback is the *input path*:
-   * `guideflow export foo.json` rewrites the user's own source file in place.
-   * This test asserts the correct behaviour — the input is never the implicit
-   * output — and will start passing once the fallback is fixed.
+   * `outPath` used to be `opts.output ?? src.replace(/\.(ts|js)$/, '.flow.json')`.
+   * For a `.json` input that regex never matched, so the fallback resolved to
+   * the *input path* and `guideflow export foo.json` rewrote the user's own
+   * source file in place — minified, unless --pretty was passed.
    */
-  it.skip('never writes back over the input file when -o is omitted', async () => {
-    fs.existsSync.mockReturnValue(true);
+  it('never writes back over the input file when -o is omitted', async () => {
+    onlyInputExists('flow.json');
     fs.readFileSync.mockReturnValue(FLOW_JSON);
 
     await runExport(['flow.json']);
 
     const [outPath] = writtenFile();
     expect(outPath).not.toBe(resolve('flow.json'));
+    expect(outPath).toBe(resolve('flow') + '.flow.json');
+  });
+
+  it('refuses to overwrite an existing output unless --force is passed', async () => {
+    // Both the input and the derived output already exist.
+    fs.existsSync.mockReturnValue(true);
+    fs.readFileSync.mockReturnValue(FLOW_JSON);
+
+    await expect(runExport(['flow.json'])).rejects.toThrow(ProcessExited);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+
+    await runExport(['flow.json', '--force']);
+    expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -140,7 +161,7 @@ describe('exportCommand — TypeScript / JavaScript input', () => {
    * this command is documented to have.
    */
   it('writes a truncated raw-source stub for .ts input (current behaviour)', async () => {
-    fs.existsSync.mockReturnValue(true);
+    onlyInputExists('my-tour.ts');
     fs.readFileSync.mockReturnValue(FLOW_TS);
 
     await runExport(['my-tour.ts']);
@@ -166,7 +187,7 @@ describe('exportCommand — TypeScript / JavaScript input', () => {
    * import. This is that contract.
    */
   it.skip('emits a real FlowDefinition for .ts input', async () => {
-    fs.existsSync.mockReturnValue(true);
+    onlyInputExists('my-tour.ts');
     fs.readFileSync.mockReturnValue(FLOW_TS);
 
     await runExport(['my-tour.ts']);

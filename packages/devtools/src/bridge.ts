@@ -29,6 +29,8 @@
 // Force TypeScript to treat this as a module (isolated scope)
 export {};
 
+import { toCloneable } from './cloneable.js';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -134,7 +136,18 @@ const NONCE = readNonce();
 // ---------------------------------------------------------------------------
 
 function post(type: string, payload: unknown): void {
-  window.postMessage({ source: BRIDGE_SOURCE, nonce: NONCE, type, payload }, TARGET_ORIGIN);
+  // Belt and braces: even with toCloneable, a payload shape nobody anticipated
+  // must not be able to throw inside a page event handler and abort the tour.
+  // The extension failing to observe something is always preferable to the
+  // extension breaking the page it is observing.
+  try {
+    window.postMessage(
+      { source: BRIDGE_SOURCE, nonce: NONCE, type, payload: toCloneable(payload) },
+      TARGET_ORIGIN,
+    );
+  } catch (err) {
+    console.warn('[GuideFlow bridge] dropped an unpostable message:', type, err);
+  }
 }
 
 /**

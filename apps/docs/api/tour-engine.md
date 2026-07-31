@@ -49,7 +49,7 @@ off()
 | `prev()` | Go back one step, crossing into the previous state when at the start of the current one. No-op at the very first step. |
 | `goTo(stepId)` | Jump to a step by id, anywhere in the flow. |
 | `send(event)` | Fire a state-machine event. |
-| `pause()` / `resume()` | Hide the UI without abandoning the flow, then restore it. A paused tour ignores the keyboard. |
+| `pause()` / `resume()` | Hide the UI without abandoning the flow, then restore it. A paused tour ignores the keyboard. Read the current state with `isPaused` — `isActive` stays `true` while paused. |
 
 ## Active Tour State
 

@@ -10,12 +10,14 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/__tests__'],
-      // The store is fully covered today; hold it there.
+      // A ratchet, not an aspiration: the store, the actions and the barrel are
+      // at 100/100/100/100 today, so hold just below that and fail on any
+      // regression.
       thresholds: {
-        statements: 95,
-        lines: 95,
-        branches: 95,
-        functions: 95,
+        statements: 98,
+        lines: 98,
+        branches: 98,
+        functions: 98,
       },
     },
   },

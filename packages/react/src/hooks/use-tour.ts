@@ -1,17 +1,22 @@
+'use client'
+
 // ---------------------------------------------------------------------------
 // useTour — primary hook for controlling a flow from React
 // ---------------------------------------------------------------------------
 
-import type { FlowDefinition, GuidanceContext, TourEvents } from '@guideflow/core'
-import { useState, useEffect, useCallback } from 'react'
+import type { FlowDefinition, GuidanceContext } from '@guideflow/core'
+import { useCallback, useSyncExternalStore } from 'react'
 
 import { useGuideFlow } from '../context.js'
+import { getTourStore } from '../internal/tour-store.js'
 
 export interface TourState {
-  isActive: boolean
-  currentStepId: string | null
-  currentStepIndex: number
-  totalSteps: number
+  readonly isActive: boolean
+  /** True between `pause()` and `resume()`. The flow position is preserved. */
+  readonly isPaused: boolean
+  readonly currentStepId: string | null
+  readonly currentStepIndex: number
+  readonly totalSteps: number
 }
 
 export interface UseTourReturn extends TourState {
@@ -21,52 +26,32 @@ export interface UseTourReturn extends TourState {
   goTo: (stepId: string) => Promise<void>
   send: (event: string) => Promise<void>
   stop: () => void
+  /** Hide the tour UI without abandoning the flow. */
+  pause: () => void
+  /** Show a paused tour again, on the step it was paused at. */
+  resume: () => void
+  /** Dismiss the tour the way a user would — emits `tour:dismiss`, then `tour:abandon`. */
+  skip: () => void
 }
-
-type TourEventMap = TourEvents
 
 /**
  * Hook for controlling a GuideFlow tour.
+ *
+ * State is read through `useSyncExternalStore`, so it cannot tear under
+ * concurrent rendering and it is safe during SSR (the server snapshot reports
+ * an idle tour).
  *
  * @example
  * ```tsx
  * const { start, next, prev, isActive, currentStepIndex } = useTour()
  *
- * return <button onClick={() => start(myFlow)}>Start Tour</button>
+ * return <button onClick={() => void start(myFlow)}>Start Tour</button>
  * ```
  */
 export function useTour(flowId?: string): UseTourReturn {
   const gf = useGuideFlow()
-
-  const [state, setState] = useState<TourState>({
-    isActive: gf.isActive,
-    currentStepId: gf.currentStepId,
-    currentStepIndex: gf.currentStepIndex,
-    totalSteps: gf.totalSteps,
-  })
-
-  useEffect(() => {
-    const syncState = (): void => {
-      setState({
-        isActive: gf.isActive,
-        currentStepId: gf.currentStepId,
-        currentStepIndex: gf.currentStepIndex,
-        totalSteps: gf.totalSteps,
-      })
-    }
-
-    const events: Array<keyof TourEventMap> = [
-      'tour:start',
-      'tour:complete',
-      'tour:abandon',
-      'step:enter',
-      'step:exit',
-    ]
-    const cleanups = events.map((ev) =>
-      gf.on(ev, () => syncState()),
-    )
-    return () => cleanups.forEach((fn) => fn())
-  }, [gf])
+  const store = getTourStore(gf)
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot)
 
   const start = useCallback(
     async (flow?: FlowDefinition | string, context?: GuidanceContext): Promise<void> => {
@@ -81,12 +66,19 @@ export function useTour(flowId?: string): UseTourReturn {
   )
 
   return {
-    ...state,
+    isActive: state.isActive,
+    isPaused: state.isPaused,
+    currentStepId: state.currentStepId,
+    currentStepIndex: state.currentStepIndex,
+    totalSteps: state.totalSteps,
     start,
     next: useCallback(() => gf.next(), [gf]),
     prev: useCallback(() => gf.prev(), [gf]),
     goTo: useCallback((id: string) => gf.goTo(id), [gf]),
     send: useCallback((event: string) => gf.send(event), [gf]),
     stop: useCallback(() => gf.stop(), [gf]),
+    pause: useCallback(() => gf.pause(), [gf]),
+    resume: useCallback(() => gf.resume(), [gf]),
+    skip: useCallback(() => gf.skip(), [gf]),
   }
 }

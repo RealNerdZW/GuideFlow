@@ -21,6 +21,8 @@ export type { GuideFlowPluginOptions } from './plugin.js'
 // Composables
 export { useTour } from './composables/use-tour.js'
 export type { UseTourReturn } from './composables/use-tour.js'
+export { useHotspot } from './composables/use-hotspot.js'
+export type { UseHotspotReturn, HotspotTarget } from './composables/use-hotspot.js'
 
 // Re-export core types for convenience
 export type {

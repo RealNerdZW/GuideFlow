@@ -11,7 +11,11 @@ keywords: GuideFlow React, React product tour, useTour hook, TourProvider, @guid
 pnpm add @guideflow/core @guideflow/react
 ```
 
-`react` and `react-dom` are peer dependencies (`^17 || ^18 || ^19`).
+`react` and `react-dom` are peer dependencies (`^18 || ^19`). React 17 is not supported: the
+adapter uses `useId` and `useSyncExternalStore`, both React 18 APIs.
+
+Every module carries the `'use client'` directive, so the package can be imported from a Next.js
+App Router application without a wrapper of your own.
 
 ## Setup
 
@@ -40,11 +44,36 @@ gf.i18n.register('fr', { next: 'Suivant', prev: 'Retour', done: 'Terminé' });
 gf.i18n.use('fr');
 ```
 
-::: warning TourProvider does not clean up
-`TourProvider` never calls `destroy()` on the instance — not even one it created from `config`. In
-a long-lived app that is harmless, but if the provider mounts and unmounts repeatedly, create the
-instance yourself (as above) and call `gf.destroy()` in your own teardown.
+::: tip Who destroys the instance
+An instance `TourProvider` creates from `config` is destroyed when the provider unmounts. One you
+pass as `instance` — as above — is yours: the provider never destroys it, so call `gf.destroy()`
+in your own teardown.
 :::
+
+## Who draws the popover
+
+By default core draws it, exactly as it does for vanilla JS. If you would rather own the markup,
+switch the provider to `renderer="react"` and mount `<GuidePopover>`:
+
+```tsx
+import { TourProvider, GuidePopover } from '@guideflow/react';
+import '@guideflow/core/styles';
+
+<TourProvider renderer="react">
+  <App />
+  <GuidePopover />
+</TourProvider>;
+```
+
+| Mode | Who draws | `<GuidePopover>` |
+|------|-----------|------------------|
+| `renderer="core"` (default) | core's `DefaultRenderer` | renders `null`, warns once |
+| `renderer="react"` | your React tree | **required** — without it there is a spotlight and no popover |
+
+Only ever one of them draws: mounting `<GuidePopover>` on a default instance used to stack a
+second `aria-modal` dialog on top of core's. See
+[TourProvider](/api/react/tour-provider#choosing-who-draws-the-popover) for the case where you
+build the instance yourself.
 
 ## Defining a flow
 
@@ -86,7 +115,7 @@ import { useTour } from '@guideflow/react';
 import { welcomeFlow } from './flows';
 
 function TourControls() {
-  const { isActive, currentStepIndex, totalSteps, start, next, prev, stop } = useTour();
+  const { isActive, isPaused, currentStepIndex, totalSteps, start, next, prev, stop } = useTour();
 
   if (!isActive) {
     return <button onClick={() => void start(welcomeFlow)}>Start tour</button>;
@@ -103,13 +132,14 @@ function TourControls() {
 }
 ```
 
-`start`, `next`, `prev`, `goTo` and `send` all return promises; `stop` is synchronous. Full
-reference: [useTour()](/api/react/use-tour).
+`start`, `next`, `prev`, `goTo` and `send` all return promises; `stop`, `pause`, `resume` and
+`skip` are synchronous. `isPaused` is `true` between `pause()` and `resume()`, while `isActive`
+stays `true`. Full reference: [useTour()](/api/react/use-tour).
 
 ### `useGuideFlow()`
 
-Returns the instance itself, for anything `useTour()` does not expose (`pause`, `resume`, `skip`,
-`configure`, `createFlow`, `hotspot`, `hints`, `i18n`, `progress`, `destroy`).
+Returns the instance itself, for anything `useTour()` does not expose (`configure`, `createFlow`,
+`listFlows`, `hotspot`, `hints`, `i18n`, `progress`, `destroy`).
 
 ```tsx
 import { useGuideFlow } from '@guideflow/react';
@@ -141,6 +171,9 @@ function FeatureHighlight() {
 The ref is a plain `RefObject` for your own use — attaching it does **not** register the element
 as the step's target. Targets come from the `target` field in the flow definition.
 
+`isActive` is `false` while the tour is paused, so anything you key off it disappears with the
+rest of the tour UI.
+
 ### `useHotspot(ref, options)`
 
 Attaches a persistent pulsing beacon to an element for as long as the component is mounted.
@@ -157,8 +190,8 @@ function HelpBeacon() {
 ```
 
 `HotspotOptions` is `{ title?, body?, placement?, color?, size? }` — there is no `tooltip` field.
-The hook returns `{ id }`, but that value is captured during render and is `null` on the render
-that creates the hotspot; do not rely on it.
+The hook returns `{ id }`: `null` on the first render, then the real hotspot id from the render
+after the beacon is attached. Nothing is created if the ref is still empty when the effect runs.
 
 ## Components
 
@@ -202,15 +235,31 @@ injected into the DOM by the core hotspot manager.
 
 ### `<GuidePopover>`
 
-An experimental React popover that mirrors the active step through a portal. It **stacks on top of
-the popover core already renders**, ignores `step.actions` / `content.html` / `step.media`, and
-does not follow `gf.i18n`. Read [GuidePopover](/api/react/guide-popover) before using it.
+The React-rendered popover, mounted through a portal. It draws **only** under
+`<TourProvider renderer="react">`; under the default `renderer="core"` it renders `null` and warns
+once, so the two never stack.
 
 ```tsx
 import { GuidePopover } from '@guideflow/react';
 
 <GuidePopover width={360} />
+
+// or take over the layout entirely
+<GuidePopover>
+  {({ content, index, total, next }) => (
+    <div>
+      <h2>{content.title}</h2>
+      <p>{content.body}</p>
+      <span>{index + 1} / {total}</span>
+      <button onClick={next}>Next</button>
+    </div>
+  )}
+</GuidePopover>
 ```
+
+It honours `step.actions`, `step.media` and `gf.i18n`, positions before the first paint and
+follows the target on scroll. `content.html` is rendered as plain text — see
+[GuidePopover](/api/react/guide-popover#known-limitation-content-html).
 
 ### `<ConversationalPanel>`
 
@@ -237,3 +286,9 @@ function HelpWidget() {
 
 Props: `open` (default `true`), `onClose`, `title`, `placeholder`, `className`. The panel is fixed
 to the bottom-right corner; there is no `position` prop.
+
+Any selectors the model returns as `highlights` are rendered as buttons under the answer, and the
+first one is scrolled into view automatically. A request still in flight when the panel unmounts
+is discarded rather than committed — note that `GuideBrain.chat()` takes no `AbortSignal`, so the
+network request itself is not cancelled. Failures are logged with `console.error` and shown as a
+"Something went wrong" reply.

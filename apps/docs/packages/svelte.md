@@ -10,7 +10,7 @@ keywords: "@guideflow/svelte, Svelte product tour, Svelte 5 onboarding, GuideFlo
 [![npm version](https://img.shields.io/npm/v/@guideflow/svelte.svg)](https://www.npmjs.com/package/@guideflow/svelte)
 
 A thin adapter over [`@guideflow/core`](./core). It ships **no Svelte components** — the tour UI
-is drawn by core's renderer.
+is drawn by core's renderer, or by your own markup driven from the store.
 
 ## Installation
 
@@ -18,32 +18,34 @@ is drawn by core's renderer.
 npm install @guideflow/core @guideflow/svelte
 ```
 
+The package is **ESM only** — Svelte itself is, so the CJS entry point published up to v0.1.9
+threw `ERR_REQUIRE_ESM` and has been removed.
+
 ## Exports
 
-`createTourStore()` and the `TourStore` type are the complete public surface. Core types are
-re-exported for convenience: `FlowDefinition`, `Step`, `StepContent`, `GuidanceContext`,
-`HotspotOptions`, `HintStep`, `GuideFlowConfig`, `GuideFlowInstance`, `PopoverPlacement`.
+`createTourStore()`, `hotspotAction()`, and the `TourStore` / `HotspotAction` /
+`HotspotActionResult` types are the complete public surface. Core types are re-exported for
+convenience: `FlowDefinition`, `Step`, `StepContent`, `GuidanceContext`, `HotspotOptions`,
+`HintStep`, `GuideFlowConfig`, `GuideFlowInstance`, `PopoverPlacement`.
 
 ```ts
 createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowInstance): TourStore
+hotspotAction(gf: GuideFlowInstance): (node: Element, options?: HotspotOptions) => HotspotActionResult
 ```
 
 ### TourStore
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `isActive` | `Readable<boolean>` | Whether a tour is currently running |
-| `currentStepId` | `Readable<string \| null>` | ID of the current step |
-| `currentStepIndex` | `Readable<number>` | Zero-based index of the current step |
-| `totalSteps` | `Readable<number>` | Steps in the active flow state |
-| `start(flow, context?)` | `Promise<void>` | Start a flow definition or a registered flow id |
-| `next()` | `Promise<void>` | Advance to the next step |
-| `prev()` | `Promise<void>` | Go to the previous step |
-| `goTo(stepId)` | `Promise<void>` | Jump to a step by ID |
-| `send(event)` | `Promise<void>` | Send a state machine event |
-| `stop()` | `void` | Stop the active tour |
-| `destroy()` | `void` | Detach listeners and destroy the underlying instance |
-| `instance` | `GuideFlowInstance` | The wrapped GuideFlow instance |
+| Group | Members |
+|-------|---------|
+| Readable stores | `isActive`, `isPaused`, `currentStepId`, `currentStepIndex`, `totalSteps`, `currentStep`, `currentContent`, `locale` |
+| Navigation | `start`, `next`, `prev`, `goTo`, `send`, `stop`, `pause`, `resume`, `skip` |
+| Flows & config | `createFlow`, `listFlows`, `configure` |
+| Standalone UI | `hotspot`, `removeHotspot`, `hints`, `showHints`, `hideHints` |
+| Subsystems | `i18n`, `progress`, `setLocale` |
+| Lifecycle | `instance`, `ownsInstance`, `destroy` |
+
+`destroy()` detaches the store's listeners, and destroys the instance only when the store
+created it. Every state store returns to its idle value when a tour ends.
 
 Each state field is a separate store, so `$tour.isActive` does not compile — destructure first
 and write `$isActive`. See the [Svelte guide](/guide/svelte).

@@ -5,17 +5,22 @@
 [![npm version](https://img.shields.io/npm/v/@guideflow/svelte.svg)](https://www.npmjs.com/package/@guideflow/svelte)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
 
-Svelte adapter for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). One function,
-`createTourStore()`, projects a `@guideflow/core` instance onto Svelte readable stores.
-Works with Svelte 4 and Svelte 5.
+Svelte adapter for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). `createTourStore()`
+projects a `@guideflow/core` instance onto Svelte readable stores and forwards the whole control
+surface; `hotspotAction` is a `use:` directive for standalone beacons. Works with Svelte 4 and
+Svelte 5.
 
-It ships **no Svelte components** — the spotlight and popover are rendered by core.
+It ships **no Svelte components** — the spotlight and popover are rendered by core, or by your
+own markup driven from `currentStep` / `currentContent`.
 
 ## Installation
 
 ```bash
 npm install @guideflow/core @guideflow/svelte
 ```
+
+**ESM only.** Svelte itself is ESM-only, so a CJS `require()` entry point could never load;
+the one published up to v0.1.9 threw `ERR_REQUIRE_ESM` and has been removed.
 
 ## Quick Start
 
@@ -69,20 +74,31 @@ one, or pass nothing for defaults.
 
 ### TourStore
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `isActive` | `Readable<boolean>` | Whether a tour is currently running |
-| `currentStepId` | `Readable<string \| null>` | ID of the current step |
-| `currentStepIndex` | `Readable<number>` | Zero-based index of the current step |
-| `totalSteps` | `Readable<number>` | Number of steps in the active flow state |
-| `start(flow, context?)` | `Promise<void>` | Start a flow definition or a registered flow id |
-| `next()` | `Promise<void>` | Advance to the next step |
-| `prev()` | `Promise<void>` | Go to the previous step |
-| `goTo(stepId)` | `Promise<void>` | Jump to a step by ID |
-| `send(event)` | `Promise<void>` | Send a state machine event |
-| `stop()` | `void` | Stop the active tour |
-| `destroy()` | `void` | Detach listeners **and destroy the underlying instance** |
-| `instance` | `GuideFlowInstance` | The wrapped instance — use it for `hotspot()`, `hints()`, `i18n`, `progress`, `on()` |
+| Group | Members |
+|-------|---------|
+| Readable stores | `isActive`, `isPaused`, `currentStepId`, `currentStepIndex`, `totalSteps`, `currentStep`, `currentContent`, `locale` |
+| Navigation | `start`, `next`, `prev`, `goTo`, `send`, `stop`, `pause`, `resume`, `skip` |
+| Flows & config | `createFlow`, `listFlows`, `configure` |
+| Standalone UI | `hotspot`, `removeHotspot`, `hints`, `showHints`, `hideHints` |
+| Subsystems | `i18n`, `progress`, `setLocale` |
+| Lifecycle | `instance`, `ownsInstance`, `destroy` |
+
+Every readable store is read-only — `set`/`update` are deliberately not exposed.
+
+### hotspotAction
+
+```svelte
+<script>
+  import { createTourStore, hotspotAction } from '@guideflow/svelte'
+
+  const tour = createTourStore()
+  const hotspot = hotspotAction(tour.instance)
+</script>
+
+<button use:hotspot={{ title: 'New', body: 'Export now supports CSV.' }}>Export</button>
+```
+
+The beacon is removed when the node is destroyed, and replaced when the options change.
 
 Core types are re-exported for convenience: `FlowDefinition`, `Step`, `StepContent`,
 `GuidanceContext`, `HotspotOptions`, `HintStep`, `GuideFlowConfig`, `GuideFlowInstance`,
@@ -90,11 +106,11 @@ Core types are re-exported for convenience: `FlowDefinition`, `Step`, `StepConte
 
 ### Notes
 
-- **`destroy()` also destroys the instance**, including one you passed in. If the instance is
-  shared across your app, do not call `destroy()` from a component.
-- **The step stores do not reset when a tour ends.** `isActive` returns to `false`, but
-  `currentStepId`, `currentStepIndex` and `totalSteps` keep their last rendered values — gate
-  progress indicators on `$isActive`.
+- **`destroy()` only disposes what the store owns.** An instance you passed in is left running,
+  along with every listener you registered on it; `ownsInstance` tells you which case you are
+  in. Up to v0.1.9 `destroy()` tore down a borrowed instance too.
+- **The stores reset when a tour ends.** On `tour:complete` / `tour:abandon` everything returns
+  to its idle value, so a progress indicator does not stay stuck on the last step.
 - **SvelteKit**: core guards every DOM access and injects no styles on the server, so the store
   is safe to create during SSR. Start tours from `onMount`.
 

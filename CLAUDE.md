@@ -173,7 +173,7 @@ So `instance === engine`. Consequences that have already caused bugs:
    name. Any wrapper that wants the original must capture a bound reference *before* the
    `Object.assign` — that is what the `_engineStart` / `_engineNext` / … constants are for.
    Calling `engine.next()` inside the `next()` wrapper would recurse infinitely.
-2. Prototype members **not** shadowed (`pause`, `resume`, `skip`, `isActive`, `currentStepId`,
+2. Prototype members **not** shadowed (`pause`, `resume`, `skip`, `isActive`, `isPaused`, `currentStepId`,
    `currentStepIndex`, `totalSteps`, `currentStep`, `currentContent`, `machine`, `flowId`) are
    reachable on the instance for free. That is why they appear in `GuideFlowInstance` without
    appearing in the literal.

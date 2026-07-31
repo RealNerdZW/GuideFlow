@@ -62,6 +62,14 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     return this._active
   }
 
+  /**
+   * Whether the active tour is paused. Reset to `false` when the tour ends, so
+   * a paused tour that is stopped reports `false`, not a stale `true`.
+   */
+  get isPaused(): boolean {
+    return this._paused
+  }
+
   get currentStepId(): string | null {
     return this._machine?.currentStep?.id ?? null
   }

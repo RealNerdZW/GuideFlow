@@ -9,16 +9,15 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/**/*.test.{ts,tsx}', 'src/__tests__'],
-      // Deliberately low. Only the hooks and the provider are covered; all four
-      // components (GuidePopover, TourStep, HotspotBeacon, ConversationalPanel)
-      // have none. This is a ratchet against further regression, not the target
-      // — REMEDIATION-PLAN Phase 5.1 rewrites those components and raises this
-      // to the 75% target in TESTING-STRATEGY.md.
+      // A ratchet set just below what the suite actually achieves (98.91 / 91.76
+      // / 91.80 / 98.91 at the time of writing). Raised from 35% in Phase 5.1,
+      // where every component gained tests against a real createGuideFlow()
+      // instance rather than a hand-written mock.
       thresholds: {
-        statements: 35,
-        lines: 35,
-        branches: 78,
-        functions: 45,
+        statements: 98,
+        lines: 98,
+        branches: 90,
+        functions: 90,
       },
     },
   },

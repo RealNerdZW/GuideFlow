@@ -9,9 +9,10 @@ A Vue 3 plugin that installs a GuideFlow instance app-wide via `provide`/`inject
 installed, any component in the tree can access the instance via [`useGuideFlow()`](#useguideflow),
 the [`useTour()`](./use-tour) composable, or the `$guideflow` global property.
 
-`@guideflow/vue` exports exactly four things — `GuideFlowPlugin`, `useGuideFlow`, `useTour` and
-`GUIDEFLOW_KEY`. There are **no Vue components** in the package; the tour UI is drawn by
-`@guideflow/core`'s renderer.
+`@guideflow/vue` exports exactly five things — `GuideFlowPlugin`, `useGuideFlow`, `useTour`,
+[`useHotspot`](./use-hotspot) and `GUIDEFLOW_KEY`. There are **no Vue components** in the
+package; the tour UI is drawn by `@guideflow/core`'s renderer, or by your own markup driven
+from `useTour()`'s `currentStep` / `currentContent`.
 
 ## Installation
 
@@ -90,8 +91,10 @@ function startOnboarding() {
 </script>
 ```
 
-Use this when you need the parts of the instance that [`useTour()`](./use-tour) does not
-project: `hotspot()`, `hints()`, `pause()`/`resume()`, `i18n`, `progress`, `on()`.
+Since v0.2.0 [`useTour()`](./use-tour) projects the whole instance surface — navigation,
+`pause()`/`resume()`/`skip()`, `hotspot()`, `hints()`, `i18n`, `progress` — and also returns the
+raw instance as `tour.instance`. Reach for `useGuideFlow()` when you want the instance without a
+subscription, most often to register event listeners with `on()`.
 
 ---
 
@@ -126,10 +129,22 @@ export default {
 }
 ```
 
-`$guideflow` is set as an untyped global property, so it is not covered by
-`ComponentCustomProperties` — TypeScript users should prefer `useGuideFlow()`.
+Since v0.2.0 `@guideflow/vue` augments Vue's `ComponentCustomProperties`, so `this.$guideflow`
+is typed as `GuideFlowInstance` in Options API components with no extra `.d.ts` of your own:
+
+```ts
+declare module 'vue' {
+  interface ComponentCustomProperties {
+    $guideflow: GuideFlowInstance
+  }
+}
+```
+
+The augmentation ships with the package types and applies as soon as anything is imported from
+`@guideflow/vue`. Composition API code should still prefer `useGuideFlow()`.
 
 ## See also
 
 - [useTour()](./use-tour) — reactive composable for tour state and controls
+- [useHotspot()](./use-hotspot) — scope-bound hotspot beacons
 - [Vue guide](/guide/vue)

@@ -7,7 +7,7 @@
 // asserts geometry — only state, delegation and cleanup.
 // ---------------------------------------------------------------------------
 
-import { createGuideFlow, type FlowDefinition, type GuideFlowInstance } from '@guideflow/core'
+import { createGuideFlow, type FlowDefinition, type GuideFlowInstance, type HintStep } from '@guideflow/core'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, defineComponent, effectScope, h, inject } from 'vue'
@@ -72,6 +72,7 @@ beforeEach(() => {
 
 afterEach(() => {
   gf.destroy()
+  document.body.innerHTML = ''
   vi.restoreAllMocks()
 })
 
@@ -106,6 +107,35 @@ describe('GuideFlowPlugin', () => {
     )
 
     expect(wrapper.vm.$.appContext.config.globalProperties['$guideflow']).toBe(gf)
+  })
+
+  // Regression: `$guideflow` used to be assigned through a
+  // `Record<string, unknown>` cast, so `this.$guideflow` was `unknown` and the
+  // documented Options API usage did not compile. This test is as much a
+  // type-check assertion as a runtime one — `tsc --noEmit` covers src/__tests__,
+  // so if the ComponentCustomProperties augmentation is dropped, type-check
+  // fails here before the test ever runs.
+  it('types this.$guideflow for Options API components', () => {
+    const seen: { instance: GuideFlowInstance | null; flowId: string | null } = {
+      instance: null,
+      flowId: null,
+    }
+
+    mount(
+      defineComponent({
+        mounted() {
+          // No cast, no `as GuideFlowInstance`: the module augmentation supplies
+          // the type, and with it `currentStepId` and every other member.
+          seen.instance = this.$guideflow
+          seen.flowId = this.$guideflow.currentStepId
+        },
+        render: () => h('div'),
+      }),
+      { global: { plugins: [[GuideFlowPlugin, { instance: gf }]] } },
+    )
+
+    expect(seen.instance).toBe(gf)
+    expect(seen.flowId).toBeNull()
   })
 
   it('creates its own instance when none is supplied', () => {
@@ -367,5 +397,281 @@ describe('useTour cleanup', () => {
 
     expect(gf.currentStepId).toBe('two')
     expect(api.currentStepId.value).toBe('one')
+  })
+
+  it('releases the pause/resume listeners too', async () => {
+    const { api, unmount } = mountTour(gf)
+
+    await api.start(makeFlow())
+    unmount()
+
+    gf.pause()
+
+    expect(api.isPaused.value).toBe(false)
+  })
+})
+
+// ── Step state resets when a tour ends ──────────────────────────────────────
+
+describe('useTour idle reset', () => {
+  // Regression: `tour:complete` / `tour:abandon` are emitted from inside core's
+  // `_doEnd()` *before* it nulls the machine, so syncing off the instance
+  // latched the last live step. A progress indicator stayed on "2 of 2" for the
+  // rest of the page's life.
+  it('returns to the idle values after stop()', async () => {
+    const { api } = mountTour(gf)
+
+    await api.start(makeFlow())
+    await api.next()
+    api.stop()
+
+    expect(api.currentStepId.value).toBe(gf.currentStepId)
+    expect(api.currentStepIndex.value).toBe(gf.currentStepIndex)
+    expect(api.totalSteps.value).toBe(gf.totalSteps)
+    expect(api.currentStep.value).toBe(gf.currentStep)
+    expect(api.currentContent.value).toBe(gf.currentContent)
+
+    expect(api.currentStepId.value).toBeNull()
+    expect(api.currentStepIndex.value).toBe(0)
+    expect(api.totalSteps.value).toBe(0)
+  })
+
+  it('returns to the idle values after the tour completes', async () => {
+    const { api } = mountTour(gf)
+
+    await api.start(makeFlow())
+    await api.next()
+    await api.next()
+
+    expect(api.isActive.value).toBe(false)
+    expect(api.currentStepId.value).toBeNull()
+    expect(api.currentStepIndex.value).toBe(0)
+    expect(api.totalSteps.value).toBe(0)
+    expect(api.currentStep.value).toBeNull()
+    expect(api.currentContent.value).toBeNull()
+  })
+
+  it('returns to the idle values after skip()', async () => {
+    const { api } = mountTour(gf)
+
+    await api.start(makeFlow())
+    api.skip()
+
+    expect(api.isActive.value).toBe(false)
+    expect(api.currentStepId.value).toBeNull()
+    expect(api.totalSteps.value).toBe(0)
+  })
+})
+
+// ── currentStep / currentContent ────────────────────────────────────────────
+
+describe('useTour currentStep and currentContent', () => {
+  it('tracks the live step object, not a copy', async () => {
+    const { api } = mountTour(gf)
+
+    expect(api.currentStep.value).toBeNull()
+    expect(api.currentContent.value).toBeNull()
+
+    await api.start(makeFlow())
+
+    // Identity, not deep equality: `readonly()` would hand back a proxy here.
+    expect(api.currentStep.value).toBe(gf.currentStep)
+    expect(api.currentStep.value?.id).toBe('one')
+    expect(api.currentContent.value).toEqual({ title: 'Step one', body: 'First' })
+
+    await api.next()
+
+    expect(api.currentStep.value?.id).toBe('two')
+    expect(api.currentContent.value?.title).toBe('Step two')
+  })
+
+  it('resolves async content before exposing it', async () => {
+    const { api } = mountTour(gf)
+
+    await api.start({
+      id: 'async-content-flow',
+      initial: 'main',
+      states: {
+        main: {
+          steps: [{ id: 'lazy', content: () => Promise.resolve({ title: 'Resolved' }) }],
+          final: true,
+        },
+      },
+    })
+
+    expect(api.currentContent.value).toEqual({ title: 'Resolved' })
+  })
+})
+
+// ── pause / resume / skip ───────────────────────────────────────────────────
+
+describe('useTour pause, resume and skip', () => {
+  it('pauses and resumes without abandoning the flow', async () => {
+    const { api } = mountTour(gf)
+
+    await api.start(makeFlow())
+    expect(api.isPaused.value).toBe(false)
+
+    api.pause()
+    expect(api.isPaused.value).toBe(true)
+    // Paused is not stopped — the flow and its position survive.
+    expect(api.isActive.value).toBe(true)
+    expect(api.currentStepId.value).toBe('one')
+
+    api.resume()
+    expect(api.isPaused.value).toBe(false)
+    expect(api.isActive.value).toBe(true)
+  })
+
+  it('tracks pause/resume driven straight off the instance', async () => {
+    const { api } = mountTour(gf)
+
+    await api.start(makeFlow())
+    gf.pause()
+    expect(api.isPaused.value).toBe(true)
+
+    gf.resume()
+    expect(api.isPaused.value).toBe(false)
+  })
+
+  it('subscribes to an already-paused tour and reports isPaused true immediately', async () => {
+    // The component mounts *after* pause(), so there is no `tour:pause` event
+    // left for it to observe. Seeding the ref from `gf.isPaused` is the only
+    // way it can know — it used to hard-code `false` and render a paused tour
+    // as running.
+    await gf.start(makeFlow())
+    gf.pause()
+
+    const { api } = mountTour(gf)
+
+    expect(api.isPaused.value).toBe(true)
+    expect(api.isActive.value).toBe(true)
+    expect(api.currentStepId.value).toBe('one')
+  })
+
+  it('clears isPaused when a paused tour is stopped and a new one starts', async () => {
+    const { api } = mountTour(gf)
+
+    await api.start(makeFlow())
+    api.pause()
+    expect(api.isPaused.value).toBe(true)
+
+    api.stop()
+    expect(api.isPaused.value).toBe(false)
+
+    await api.start(makeFlow('second-flow'))
+    expect(api.isPaused.value).toBe(false)
+  })
+
+  it('skip() dismisses the tour the way a user would', async () => {
+    const { api } = mountTour(gf)
+    const skipped = vi.fn()
+    const dismissed = vi.fn()
+    const abandoned = vi.fn()
+    gf.on('step:skip', skipped)
+    gf.on('tour:dismiss', dismissed)
+    gf.on('tour:abandon', abandoned)
+
+    await api.start(makeFlow())
+    api.skip()
+
+    expect(skipped).toHaveBeenCalledWith({ stepId: 'one' })
+    expect(dismissed).toHaveBeenCalledTimes(1)
+    expect(abandoned).toHaveBeenCalledTimes(1)
+    expect(api.isActive.value).toBe(false)
+  })
+})
+
+// ── Flows, configuration and subsystems ─────────────────────────────────────
+
+describe('useTour flow registry and configuration', () => {
+  it('registers and lists flows', () => {
+    const { api } = mountTour(gf)
+
+    expect(api.listFlows()).toEqual([])
+
+    const flow = api.createFlow(makeFlow('registered'))
+
+    expect(flow.id).toBe('registered')
+    expect(api.listFlows()).toEqual([flow])
+    expect(gf.listFlows()).toEqual([flow])
+  })
+
+  it('starts a flow registered through the composable by id', async () => {
+    const { api } = mountTour(gf)
+    api.createFlow(makeFlow('by-id'))
+
+    await api.start('by-id')
+
+    expect(api.isActive.value).toBe(true)
+    expect(api.currentStepId.value).toBe('one')
+  })
+
+  it('forwards configure() to the instance', () => {
+    const { api } = mountTour(gf)
+    const configureSpy = vi.spyOn(gf, 'configure')
+
+    api.configure({ debug: true })
+
+    expect(configureSpy).toHaveBeenCalledWith({ debug: true })
+  })
+})
+
+describe('useTour standalone UI surface', () => {
+  it('creates and removes hotspots', () => {
+    const target = document.createElement('button')
+    document.body.appendChild(target)
+
+    const { api } = mountTour(gf)
+    const id = api.hotspot(target, { title: 'New' })
+
+    expect(id).not.toBe('')
+    expect(document.querySelector(`[data-gf-hotspot-id="${id}"]`)).not.toBeNull()
+
+    api.removeHotspot(id)
+
+    expect(document.querySelector(`[data-gf-hotspot-id="${id}"]`)).toBeNull()
+  })
+
+  it('registers hints and toggles their visibility', () => {
+    const target = document.createElement('div')
+    target.id = 'hint-target'
+    document.body.appendChild(target)
+
+    const { api } = mountTour(gf)
+    const steps: HintStep[] = [{ id: 'h1', target: '#hint-target', hint: 'Try me' }]
+
+    api.hints(steps)
+    const badge = document.querySelector<HTMLElement>('.gf-hint-badge')
+    expect(badge).not.toBeNull()
+
+    api.showHints()
+    expect(badge?.style.display).toBe('flex')
+
+    api.hideHints()
+    expect(badge?.style.display).toBe('none')
+  })
+})
+
+describe('useTour subsystems', () => {
+  it('exposes the instance i18n registry and progress store', () => {
+    const { api } = mountTour(gf)
+
+    expect(api.i18n).toBe(gf.i18n)
+    expect(api.progress).toBe(gf.progress)
+    expect(api.instance).toBe(gf)
+  })
+
+  it('setLocale() switches the registry and updates the reactive locale', () => {
+    const { api } = mountTour(gf)
+
+    expect(api.locale.value).toBe('en')
+
+    api.i18n.register('fr', { next: 'Suivant' })
+    api.setLocale('fr')
+
+    expect(api.locale.value).toBe('fr')
+    expect(gf.i18n.activeLocale).toBe('fr')
+    expect(api.i18n.t('next')).toBe('Suivant')
   })
 })

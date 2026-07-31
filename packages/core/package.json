@@ -24,7 +24,9 @@
   },
   "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
   "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -34,9 +36,14 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./global": {
       "default": "./dist/index.global.js"

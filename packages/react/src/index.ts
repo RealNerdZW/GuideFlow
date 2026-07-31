@@ -1,3 +1,5 @@
+'use client'
+
 /**
  * @guideflow/react
  *
@@ -15,8 +17,12 @@
 // ---------------------------------------------------------------------------
 
 // Context & Provider
-export { TourProvider, useGuideFlow } from './context.js'
-export type { TourProviderProps } from './context.js'
+export { TourProvider, useGuideFlow, useTourRenderer } from './context.js'
+export type { TourProviderProps, TourContextValue, TourRendererMode } from './context.js'
+
+// Headless renderer — lets React own the popover instead of core
+export { createHeadlessRenderer } from './renderer/headless-renderer.js'
+export type { HeadlessRenderer, HeadlessStepState } from './renderer/headless-renderer.js'
 
 // Hooks
 export { useTour } from './hooks/use-tour.js'
@@ -29,7 +35,7 @@ export { TourStep } from './components/TourStep.js'
 export type { TourStepProps } from './components/TourStep.js'
 
 export { GuidePopover } from './components/GuidePopover.js'
-export type { GuidePopoverProps } from './components/GuidePopover.js'
+export type { GuidePopoverProps, GuidePopoverRenderProps } from './components/GuidePopover.js'
 
 export { HotspotBeacon } from './components/HotspotBeacon.js'
 export type { HotspotBeaconProps } from './components/HotspotBeacon.js'

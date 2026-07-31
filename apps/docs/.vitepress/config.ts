@@ -239,6 +239,7 @@ export default defineConfig({
           items: [
             { text: 'GuideFlowPlugin', link: '/api/vue/guide-flow-plugin' },
             { text: 'useTour()', link: '/api/vue/use-tour' },
+            { text: 'useHotspot()', link: '/api/vue/use-hotspot' },
           ],
         },
         {

@@ -59,9 +59,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/**
+ * `existsSync` is now asked two different questions: does the target directory
+ * exist, and does each file we are about to write already exist. A blanket
+ * `true` conflated them, so every write looked like an overwrite and was
+ * skipped — which is exactly the protection `init` gained
+ * (AUDIT `init-clobbers-existing-files`).
+ */
+function dirExistsFilesDoNot(): void {
+  fs.existsSync.mockImplementation((p: string) => p === OUT);
+}
+
 describe('initCommand', () => {
   it('scaffolds config, tour and provider for React', async () => {
-    fs.existsSync.mockReturnValue(true);
+    dirExistsFilesDoNot();
 
     await runInit(['--framework', 'react']);
 
@@ -73,11 +84,49 @@ describe('initCommand', () => {
     expect(fs.mkdirSync).not.toHaveBeenCalled();
   });
 
-  it('omits the React provider for non-React frameworks', async () => {
-    fs.existsSync.mockReturnValue(true);
+  it('scaffolds a plugin file for Vue', async () => {
+    dirExistsFilesDoNot();
 
     await runInit(['--framework', 'vue']);
 
+    // `--framework vue` used to write no framework file at all and still report
+    // success (AUDIT `init-vue-svelte-scaffold-nothing`).
+    expect(writtenPaths()).toEqual([
+      join(OUT, 'guideflow.ts'),
+      join(OUT, 'my-tour.ts'),
+      join(OUT, 'guideflow-plugin.ts'),
+    ]);
+  });
+
+  it('scaffolds a store file for Svelte', async () => {
+    dirExistsFilesDoNot();
+
+    await runInit(['--framework', 'svelte']);
+
+    expect(writtenPaths()).toEqual([
+      join(OUT, 'guideflow.ts'),
+      join(OUT, 'my-tour.ts'),
+      join(OUT, 'guideflow-store.ts'),
+    ]);
+  });
+
+  it('omits any framework file for --framework none', async () => {
+    dirExistsFilesDoNot();
+
+    await runInit(['--framework', 'none']);
+
+    expect(writtenPaths()).toEqual([join(OUT, 'guideflow.ts'), join(OUT, 'my-tour.ts')]);
+  });
+
+  it('refuses to clobber an existing file unless --force is passed', async () => {
+    // Everything already exists.
+    fs.existsSync.mockReturnValue(true);
+
+    await runInit(['--framework', 'none']);
+    expect(writtenPaths()).toEqual([]);
+
+    fs.writeFileSync.mockClear();
+    await runInit(['--framework', 'none', '--force']);
     expect(writtenPaths()).toEqual([join(OUT, 'guideflow.ts'), join(OUT, 'my-tour.ts')]);
   });
 
@@ -114,7 +163,7 @@ describe('initCommand', () => {
    * `final: true` state can never complete — so pin the FSM shape here.
    */
   it('scaffolds a state-machine flow that can reach a final state', async () => {
-    fs.existsSync.mockReturnValue(true);
+    dirExistsFilesDoNot();
 
     await runInit(['--framework', 'react']);
 

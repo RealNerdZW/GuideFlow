@@ -299,6 +299,37 @@ describe('TourEngine', () => {
     expect(engine.flowId).toBe('test-tour')
   })
 
+  it('isPaused tracks pause() and resume()', async () => {
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    await engine.start(simpleFlow)
+    expect(engine.isPaused).toBe(false)
+
+    engine.pause()
+    expect(engine.isPaused).toBe(true)
+    // Paused is not stopped — the flow and its position survive.
+    expect(engine.isActive).toBe(true)
+    expect(engine.currentStepId).toBe('step-1')
+
+    engine.resume()
+    expect(engine.isPaused).toBe(false)
+    expect(engine.isActive).toBe(true)
+  })
+
+  it('isPaused resets to false when a paused tour ends', async () => {
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    await engine.start(simpleFlow)
+    engine.pause()
+    expect(engine.isPaused).toBe(true)
+
+    engine.end()
+    // A stale `true` here would make every consumer reading the getter show a
+    // paused tour that no longer exists.
+    expect(engine.isPaused).toBe(false)
+    expect(engine.isActive).toBe(false)
+  })
+
   it('destroy() removes all listeners and ends tour', async () => {
     renderer = createMockRenderer()
     engine = new TourEngine({ renderer })
