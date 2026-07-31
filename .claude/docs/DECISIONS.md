@@ -207,3 +207,68 @@ that mattered.
   it is repeated anywhere.
 - If the budget binds a fourth time, do the subpath split first. This is not a licence to keep
   raising it.
+
+## ADR-009 — `content.html` sanitisation moves to an opt-in subpath; the budget does *not* move
+2026-07-31 · Status: Accepted · Discharges ADR-008's condition, amends ADR-007
+
+**Context.** ADR-008 closed with a condition, restated in CLAUDE.md: *"Before raising it a fourth
+time, move `content.html` support out of the default bundle into an opt-in subpath export — that is
+now required work for the next major, not an option."*
+
+Phase 7.2 (target-only interaction) took `@guideflow/core` to **14.55 kB against a 14.5 kB limit** —
+50 B over. That is the fourth raise arriving, exactly as predicted.
+
+**Decision.** Do the eviction instead of the raise.
+
+`utils/sanitize.ts` is no longer imported by `DefaultRenderer`. It ships as `@guideflow/core/html`,
+and consumers who use `content.html` pass it in:
+
+```ts
+import { createGuideFlow } from '@guideflow/core'
+import { sanitizeHTML } from '@guideflow/core/html'
+
+const gf = createGuideFlow({ sanitizeHTML })
+```
+
+**Explicitly passed, not registered by a side-effect import.** `import '@guideflow/core/html'`
+writing itself into a module-level slot would be terser and would break the moment a bundler handed
+the subpath its own copy of that module: the registration lands on one instance, the renderer reads
+another, and there is no error — just an unexplained fallback to escaped text. A config field has
+exactly one implementation in play and it is visible at the call site.
+
+**Without it, `content.html` is escaped and rendered as text, and the renderer warns once.** The
+three options were: pass it through (an XSS hole in a library that injects markup into other
+people's pages), drop it (a blank popover with no explanation), or escape it. Escaping is the only
+one that is both safe and debuggable.
+
+**Measurements.**
+
+| | gzip |
+|---|---|
+| Before Phase 7.2 | 14.29 kB |
+| After 7.2, before the eviction | 14.55 kB — **over** |
+| After the eviction | **14.13 kB** |
+| `@guideflow/core/html` on its own | 767 B |
+
+The eviction freed **420 B**, not the ~440 B ADR-007 estimated nor the 638 B a design pass
+projected — the sanitiser shares its escaping helpers with the renderer, so removing it does not
+remove all of its weight. Both prior figures are hereby corrected; measure, do not estimate.
+
+**The `size-limit` budget stays at 14.5 kB.** This is the part worth arguing.
+
+14.13 kB fits under the existing limit with ~370 B to spare, so no raise is required *today*. A
+design pass projected roughly +830 B of further Phase 7 work (the navigation seam, flow versioning,
+targeting), which would land near 14.96 kB and genuinely need 15 kB. Raising now, pre-emptively, for
+code that is not written and whose cost is an estimate, is precisely the silent bump ADR-008 forbids.
+
+**Consequences.**
+- Adding `content.html` support is now a **breaking change for anyone using it** without the import.
+  It belongs in a major, and the changeset says so.
+- There are now two `size-limit` entries. The subpath has its own 1 kB budget so it cannot quietly
+  grow either.
+- `tsup.config.ts` takes an array of two configs, not one config with two entries: the main bundle
+  emits an IIFE with a `GuideFlow` global and a subpath must not, and `clean: true` belongs to
+  exactly one of them or the second wipes the first's output.
+- **When the budget does bind again, raise it — with a measurement, in the same changeset as the
+  work that needs it, and with an ADR.** The next lever after that is splitting the navigation and
+  targeting features into their own subpaths, which the Phase 7 design already assumes.

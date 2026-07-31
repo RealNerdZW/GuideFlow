@@ -36,7 +36,7 @@ const states = (flowName: string): Record<string, StateNode> => {
 describe('e2e fixture flows', () => {
   it('defines the flows the specs reference', () => {
     expect(Object.keys(flows).sort()).toEqual(
-      ['basic', 'final', 'multistate', 'persisted', 'scroll'],
+      ['basic', 'blocking', 'clickThrough', 'final', 'multistate', 'persisted', 'scroll'],
     )
   })
 

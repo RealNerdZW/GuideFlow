@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 
 import { DefaultRenderer } from '../renderer/default-renderer.js'
 import type { Step, StepContent, GuideFlowConfig } from '../types/index.js'
+import { sanitizeHTML } from '../utils/sanitize.js'
 
 describe('DefaultRenderer', () => {
   let renderer: DefaultRenderer
@@ -14,7 +15,7 @@ describe('DefaultRenderer', () => {
 
   it('renders a step popover in the DOM', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const step: Step = {
       id: 'step-1',
@@ -32,7 +33,7 @@ describe('DefaultRenderer', () => {
 
   it('escapes title and body to prevent XSS (no actual script elements)', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const step: Step = {
       id: 'xss-test',
@@ -53,7 +54,7 @@ describe('DefaultRenderer', () => {
 
   it('sanitizes content.html to strip dangerous elements', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const html = '<p>Safe</p><script>alert("xss")</script><iframe src="evil"></iframe>'
     const step: Step = {
@@ -72,7 +73,7 @@ describe('DefaultRenderer', () => {
 
   it('sanitizes on* event handlers from HTML content', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const html = '<div onclick="alert(1)">Click me</div>'
     const step: Step = {
@@ -89,7 +90,7 @@ describe('DefaultRenderer', () => {
 
   it('sanitizes javascript: URLs in HTML content', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const html = '<a href="javascript:alert(1)">Link</a>'
     const step: Step = {
@@ -106,7 +107,7 @@ describe('DefaultRenderer', () => {
 
   it('hideStep removes the popover from DOM', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const step: Step = { id: 's1', content: { title: 'Test' } }
     renderer.renderStep(step, { title: 'Test' }, 0, 1)
@@ -118,7 +119,7 @@ describe('DefaultRenderer', () => {
 
   it('wires action buttons with data-gf-action', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     let actionReceived = ''
     renderer.setActionHandler((action) => { actionReceived = action })
@@ -133,7 +134,7 @@ describe('DefaultRenderer', () => {
 
   it('shows progress bar for multi-step tours', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const step: Step = { id: 's1', content: { title: 'Step 1' } }
     renderer.renderStep(step, { title: 'Step 1' }, 0, 5)
@@ -151,7 +152,7 @@ describe('DefaultRenderer', () => {
 
   it('sets correct ARIA attributes on popover', () => {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const step: Step = { id: 's1', content: { title: 'Accessible' } }
     renderer.renderStep(step, { title: 'Accessible' }, 0, 1)

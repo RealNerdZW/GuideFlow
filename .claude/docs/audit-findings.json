@@ -6074,6 +6074,52 @@
       "fix": "Declare readonly flowId: string | null on GuideFlowInstance.",
       "effort": "S",
       "resolvedIn": "Phase 7 — found by a test in packages/ai that needed it."
+    },
+    {
+      "id": "detached-target-paints-black-screen",
+      "area": "core",
+      "severity": "P1",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "open",
+      "title": "A target removed mid-step collapses the cutout to 0x0 and blacks out the page",
+      "file": "packages/core/src/engine/spotlight.ts",
+      "line": 228,
+      "evidence": "_update() branches on !this._currentTarget, then reads getBoundingClientRect(). A detached node returns all zeros, and the cutout keeps box-shadow: 0 0 0 9999px.",
+      "impact": "Route change, list re-render or modal close during a step paints a fully black, click-blocking screen.",
+      "fix": "Branch on !this._currentTarget?.isConnected instead — a deliberate target:null step takes the same branch.",
+      "effort": "S"
+    },
+    {
+      "id": "generation-not-bumped-on-navigation",
+      "area": "core",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "open",
+      "title": "_renderGeneration is not bumped by next/prev/goTo/send",
+      "file": "packages/core/src/engine/tour.ts",
+      "line": 70,
+      "evidence": "Bumped only in rerender (148), start (169), pause (269), resume (281), _doEnd (415). Two rapid next() calls capture the same gen and both pass every check.",
+      "impact": "Today the blast radius is the 150ms settle; any longer wait (a route change) makes a stale render land last.",
+      "fix": "A _bump() helper paired with an AbortController, called from every navigation entry point. Prerequisite for SPA route handling.",
+      "effort": "M"
+    },
+    {
+      "id": "clickthrough-exposes-whole-page",
+      "area": "core",
+      "severity": "P1",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "clickThrough makes the whole page interactive rather than the target",
+      "file": "packages/core/src/engine/spotlight.ts",
+      "line": 118,
+      "evidence": "setClickThrough() set pointer-events: none on the single full-viewport overlay, so nothing was captured anywhere.",
+      "impact": "ADR-004 recorded this as a known limitation. \"Let the user click the highlighted button\" — the behaviour the option is named for — was unimplementable, and enabling it dropped the tour's modality entirely.",
+      "fix": "Keep pointer capture on and carve a hole with clip-path over the target rect. Clipping affects hit-testing, so the target is reachable and the rest is not.",
+      "effort": "M",
+      "resolvedIn": "Phase 7.2 — 11 unit tests on the geometry plus 5 e2e tests that click the target for real across four browser projects. ADR-004's limitation is closed."
     }
   ]
 }

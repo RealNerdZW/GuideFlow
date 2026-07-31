@@ -1,7 +1,16 @@
 // ---------------------------------------------------------------------------
 // Spotlight Engine
-// SVG mask overlay with animated cutout over any DOM element
-// Handles scroll/resize updates via ResizeObserver + scroll listener
+//
+// Two fixed elements, per ADR-004: a full-viewport overlay that captures
+// backdrop clicks, and a cutout positioned over the target whose enormous
+// box-shadow spread paints the dimming outside itself. There is no SVG mask —
+// the header used to say there was.
+//
+// `clickThrough` carves a hole in the overlay with clip-path, so the target is
+// genuinely interactive while the rest of the page stays captured. That closes
+// the limitation ADR-004 recorded.
+//
+// Scroll/resize updates come from ResizeObserver + a capture-phase listener.
 // ---------------------------------------------------------------------------
 
 import type { SpotlightOptions } from '../types/index.js'
@@ -17,13 +26,11 @@ const SPOTLIGHT_CSS = `
   pointer-events: all;
   transition: opacity 200ms ease;
 }
-[data-gf-overlay].gf-clickthrough {
-  pointer-events: none;
-}
-[data-gf-overlay] svg {
-  width: 100%;
-  height: 100%;
-}
+/* .gf-clickthrough is a styling hook only. It used to set pointer-events:none,
+   which made the WHOLE page interactive rather than the target — the behaviour
+   this option is named for. The hole is a clip-path now; see setClickThrough().
+   A rule here would be dead anyway: _ensureElements() writes an inline
+   pointer-events that beats it. */
 [data-gf-spotlight-cutout] {
   position: fixed;
   z-index: 999999;
@@ -52,6 +59,8 @@ export class SpotlightOverlay {
   private _id: string
   private _onOverlayClick: (() => void) | null = null
   private _overlayClickHandler: ((e: MouseEvent) => void) | null = null
+  /** Whether the target should be reachable through the overlay. */
+  private _clickThrough = false
 
   constructor(options: SpotlightOptions = {}) {
     this._defaults = {
@@ -115,14 +124,35 @@ export class SpotlightOverlay {
     removeStyles(SPOTLIGHT_CSS_ID)
   }
 
+  /**
+   * Let the user interact with the highlighted element.
+   *
+   * This used to make the *whole page* interactive by dropping pointer capture
+   * on the overlay entirely, which meant "let the user actually click the
+   * button I am pointing at" was unimplementable — the one thing the option is
+   * named for (AUDIT `clickthrough-exposes-whole-page`, and ADR-004's recorded
+   * limitation).
+   *
+   * The overlay now carves a real hole instead: `_update()` sets a `clip-path`
+   * that excludes the target's rect, and clipping affects hit-testing, so a
+   * click inside the hole reaches the page while the rest stays captured. One
+   * element and one style assignment — the four-panel arrangement competitors
+   * use costs several hundred bytes more and buys nothing here.
+   *
+   * `.gf-clickthrough` is still toggled for anyone who styles against it, but
+   * it no longer drives behaviour.
+   */
   setClickThrough(enabled: boolean): void {
     if (!this._overlayEl) return
+    this._clickThrough = enabled
     this._overlayEl.classList.toggle('gf-clickthrough', enabled)
-    // The class alone was never enough: `_ensureElements()` writes an inline
-    // `pointer-events: all` on every show(), and an inline style beats any
-    // non-`!important` stylesheet rule — so clickThrough never actually let a
-    // click reach the page. See AUDIT `clickthrough-overlay-still-blocks`.
-    this._overlayEl.style.pointerEvents = enabled ? 'none' : 'all'
+    // Pointer capture stays ON: the page outside the hole must remain blocked.
+    // An inline value is required because `_ensureElements()` writes one too,
+    // and an inline style beats any non-`!important` stylesheet rule — which is
+    // why the old class-only approach never worked at all
+    // (AUDIT `clickthrough-overlay-still-blocks`).
+    this._overlayEl.style.pointerEvents = 'all'
+    this._update()
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
@@ -206,21 +236,30 @@ export class SpotlightOverlay {
       this._cutoutEl.style.boxShadow = 'none'
       if (this._overlayEl) {
         this._overlayEl.style.background = paint
+        // No target, so nothing to make interactive.
+        this._overlayEl.style.clipPath = 'none'
       }
       return
     }
 
     const rect = this._currentTarget.getBoundingClientRect()
+    const top = rect.top - pad
+    const left = rect.left - pad
+    const width = rect.width + pad * 2
+    const height = rect.height + pad * 2
 
-    this._cutoutEl.style.top = `${rect.top - pad}px`
-    this._cutoutEl.style.left = `${rect.left - pad}px`
-    this._cutoutEl.style.width = `${rect.width + pad * 2}px`
-    this._cutoutEl.style.height = `${rect.height + pad * 2}px`
+    this._cutoutEl.style.top = `${top}px`
+    this._cutoutEl.style.left = `${left}px`
+    this._cutoutEl.style.width = `${width}px`
+    this._cutoutEl.style.height = `${height}px`
     this._cutoutEl.style.borderRadius = `${br}px`
     this._cutoutEl.style.boxShadow = `0 0 0 9999px ${paint}`
 
     if (this._overlayEl) {
       this._overlayEl.style.background = 'transparent'
+      this._overlayEl.style.clipPath = this._clickThrough
+        ? holePath(top, left, width, height)
+        : 'none'
     }
   }
 
@@ -250,4 +289,27 @@ export class SpotlightOverlay {
       this._scrollHandler = null
     }
   }
+}
+
+/**
+ * A full-viewport rectangle with a rectangular hole punched in it.
+ *
+ * The outer ring is traced clockwise and the inner one anti-clockwise, joined
+ * by a seam back at the origin — the standard even-odd trick for expressing a
+ * hole in a `polygon()`, which has no notion of subpaths. Clipping affects
+ * hit-testing as well as paint, so the hole is genuinely interactive: a click
+ * inside it lands on the page, and everything outside still hits the overlay.
+ *
+ * The corners are square while the cutout's are rounded by `borderRadius`, so a
+ * few pixels at each corner are interactive but visually dimmed. Fixing that
+ * needs `clip-path: path()` with arcs, which costs more bytes than the mismatch
+ * is worth at a 4px default radius.
+ */
+function holePath(top: number, left: number, width: number, height: number): string {
+  const right = left + width
+  const bottom = top + height
+  return (
+    `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ` +
+    `${left}px ${top}px, ${left}px ${bottom}px, ${right}px ${bottom}px, ${right}px ${top}px, ${left}px ${top}px)`
+  )
 }

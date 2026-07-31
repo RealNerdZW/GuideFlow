@@ -36,11 +36,18 @@
   <button id="start-scroll-btn" type="button">Start Scroll Tour</button>
   <button id="start-persisted-btn" type="button">Start Persisted Tour</button>
   <button id="start-multistate-btn" type="button">Start Multi-State Tour</button>
+  <button id="start-clickthrough-btn" type="button">Start Click-Through Tour</button>
+  <button id="start-blocking-btn" type="button">Start Blocking Tour</button>
 
   <p>
     <label for="text-input">Type here</label>
     <input id="text-input" type="text" value="" />
   </p>
+
+  <!-- Counts its own clicks, so a spec can prove a click actually landed on
+       the target rather than being swallowed by the overlay. -->
+  <button id="clickable-target" type="button">Click me</button>
+  <span id="click-count">0</span>
 
   <div id="step-one" class="box">Feature A</div>
   <div id="step-two" class="box">Feature B</div>
@@ -90,6 +97,15 @@
     wire('start-scroll-btn', flows.scroll)
     wire('start-persisted-btn', flows.persisted)
     wire('start-multistate-btn', flows.multistate)
+    wire('start-clickthrough-btn', flows.clickThrough)
+    wire('start-blocking-btn', flows.blocking)
+
+    // Proof that a click reached the page rather than the overlay.
+    var clicks = 0
+    document.getElementById('clickable-target').addEventListener('click', function () {
+      clicks++
+      document.getElementById('click-count').textContent = String(clicks)
+    })
 
     // Signals to the specs that wiring is complete.
     window.__gfReady = true

@@ -45,7 +45,7 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 
 | Package | Description | Size |
 |---|---|---|
-| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 14.29 kB gzip |
+| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 14.13 kB gzip |
 | [`@guideflow/react`](packages/react) | `TourProvider`, `useTour`, `useTourStep`, `useHotspot`, `TourStep`, `GuidePopover`, `ConversationalPanel` | — |
 | [`@guideflow/vue`](packages/vue) | `GuideFlowPlugin`, `useTour` composable (no components) | — |
 | [`@guideflow/svelte`](packages/svelte) | `createTourStore`, `Readable` stores (no components) | — |
@@ -55,8 +55,9 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 | [`@guideflow/devtools`](packages/devtools) | MV3 browser extension — flow inspector and step recorder. Not published to npm: build it from source and load it unpacked | — |
 
 The core size is what `size-limit` reports for `dist/index.js` bundled, minified and gzipped
-(`pnpm --filter @guideflow/core size`) — **14.29 kB against a 14.5 kB budget**. The published file itself
-is unminified, so what you ship depends on your bundler.
+(`pnpm --filter @guideflow/core size`) — **14.13 kB against a 14.5 kB budget**. The published file itself
+is unminified, so what you ship depends on your bundler. `@guideflow/core/html` is a further 767 B and
+only if you import it.
 
 > The devtools panel discovers a page through the `window.__guideflow` global. The library never sets it —
 > assign your instance to it yourself if you want the extension to see your app.
@@ -511,8 +512,18 @@ completed or dismissed is suppressed rather than restarted.
 
 **`PopoverPlacement` values:** `top`, `top-start`, `top-end`, `bottom`, `bottom-start`, `bottom-end`, `left`, `left-start`, `left-end`, `right`, `right-start`, `right-end`, `center`
 
-`content.html` is sanitised with an allowlist before it is inserted: `<svg>`, `<iframe>`, `<style>`,
-`style=` attributes and custom elements are removed. Use `title`/`body` unless you need inline markup.
+`content.html` needs an opt-in import — the sanitiser is not in the default bundle, because it is
+~420 B that consumers using `content.body` were paying for and never using:
+
+```ts
+import { sanitizeHTML } from '@guideflow/core/html'
+const gf = createGuideFlow({ sanitizeHTML })
+```
+
+It then filters against an allowlist: `<svg>`, `<iframe>`, `<style>`, `style=` attributes and custom
+elements are removed. **Without it, `content.html` is escaped and rendered as text** and the renderer
+warns once. Use `title`/`body` unless you need inline markup — those are plain text and involve no
+sanitiser.
 
 ---
 

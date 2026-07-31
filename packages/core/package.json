@@ -1,7 +1,7 @@
 {
   "name": "@guideflow/core",
   "version": "0.1.9",
-  "description": "GuideFlow core engine — framework-agnostic, zero dependencies",
+  "description": "GuideFlow core engine \u2014 framework-agnostic, zero dependencies",
   "keywords": [
     "guided-tour",
     "product-tour",
@@ -43,6 +43,16 @@
       "require": {
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
+      }
+    },
+    "./html": {
+      "import": {
+        "types": "./dist/html.d.ts",
+        "default": "./dist/html.js"
+      },
+      "require": {
+        "types": "./dist/html.d.cts",
+        "default": "./dist/html.cjs"
       }
     },
     "./global": {
@@ -87,6 +97,12 @@
       "name": "core entry (tree-shaken)",
       "path": "./dist/index.js",
       "limit": "14.5 kB",
+      "gzip": true
+    },
+    {
+      "name": "html sanitiser subpath",
+      "path": "./dist/html.js",
+      "limit": "1 kB",
       "gzip": true
     }
   ],

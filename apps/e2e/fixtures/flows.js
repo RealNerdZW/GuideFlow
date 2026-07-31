@@ -104,5 +104,49 @@ export const multistate = {
   },
 }
 
+/**
+ * `clickThrough: true` — the user is meant to click the highlighted button.
+ * Regression cover for `clickthrough-exposes-whole-page`: this used to drop
+ * pointer capture for the WHOLE page rather than exposing the target.
+ * @type {FlowDefinition}
+ */
+export const clickThrough = {
+  id: 'fixture-clickthrough',
+  initial: 'main',
+  states: {
+    main: {
+      steps: [
+        {
+          id: 'ct1',
+          target: '#clickable-target',
+          placement: 'bottom',
+          clickThrough: true,
+          content: { title: 'Click Through', body: 'Go on, click it.' },
+        },
+      ],
+      final: true,
+    },
+  },
+}
+
+/** The same step without clickThrough — the target must NOT be reachable. @type {FlowDefinition} */
+export const blocking = {
+  id: 'fixture-blocking',
+  initial: 'main',
+  states: {
+    main: {
+      steps: [
+        {
+          id: 'bl1',
+          target: '#clickable-target',
+          placement: 'bottom',
+          content: { title: 'Blocking', body: 'The overlay is in the way.' },
+        },
+      ],
+      final: true,
+    },
+  },
+}
+
 /** @type {Record<string, FlowDefinition>} */
-export const flows = { basic, final, scroll, persisted, multistate }
+export const flows = { basic, final, scroll, persisted, multistate, clickThrough, blocking }

@@ -275,6 +275,32 @@ export interface GuideFlowConfig {
   injectStyles?: boolean
   /** Debug logging */
   debug?: boolean
+  /**
+   * Sanitiser for `content.html`.
+   *
+   * The parse-and-allowlist implementation is ~640 B gzip and every consumer
+   * was paying for it, including the majority who only ever set `content.body`
+   * (plain text, escaped, no sanitiser involved). It now ships as an opt-in
+   * subpath so the default bundle does not carry it — the condition ADR-008 set
+   * before the size budget could move again.
+   *
+   * ```ts
+   * import { createGuideFlow } from '@guideflow/core'
+   * import { sanitizeHTML } from '@guideflow/core/html'
+   *
+   * const gf = createGuideFlow({ sanitizeHTML })
+   * ```
+   *
+   * Without it, `content.html` is **escaped and rendered as text** rather than
+   * as markup, and the renderer warns once. That is the safe degradation: the
+   * alternative — passing it through unsanitised — would be an XSS hole, and
+   * silently dropping it would be a blank popover.
+   *
+   * Passed explicitly rather than registered by a side-effect import so there
+   * is exactly one implementation in play. A module-level registry breaks the
+   * moment a bundler gives the subpath its own copy of the module.
+   */
+  sanitizeHTML?: (html: string) => string
 }
 
 // ── AI Types (shared shapes used in core too) ─────────────────────────────────

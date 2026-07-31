@@ -101,10 +101,31 @@ interface StepContent {
 `title` and `body` are inserted as escaped text. `html` is only used when
 `body` is absent; if both are set, `body` wins.
 
+### `html` needs an opt-in import
+
+The sanitiser is not in the default bundle. Pass it explicitly:
+
+```ts
+import { createGuideFlow } from '@guideflow/core'
+import { sanitizeHTML } from '@guideflow/core/html'
+
+const gf = createGuideFlow({ sanitizeHTML })
+```
+
+Without it, `content.html` is **escaped and rendered as text** — you see the
+tags — and the renderer warns once telling you this. That is the safe
+degradation: passing markup through unsanitised would be an XSS hole, and
+dropping it would leave a blank popover with no clue why.
+
+It works this way because the sanitiser is ~420 B gzip that every consumer was
+paying for, including the majority who only ever set `content.body`. `body` is
+plain text, escaped by the renderer, and never touches the sanitiser at all.
+
 ### What `html` may contain
 
-`content.html` is parsed and filtered against an **allowlist** before it reaches
-the DOM. Anything not on the list is dropped silently, so do not rely on it:
+With `sanitizeHTML` configured, `content.html` is parsed and filtered against an
+**allowlist** before it reaches the DOM. Anything not on the list is dropped
+silently, so do not rely on it:
 
 - **Elements kept:** `a b blockquote br code div em h1`–`h6` `hr i img li ol p
   pre s small span strong sub sup table tbody td th thead tr u ul`

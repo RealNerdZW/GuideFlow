@@ -15,7 +15,6 @@ import type {
   GuideFlowConfig,
   PopoverPlacement,
 } from '../types/index.js'
-import { sanitizeHTML } from '../utils/sanitize.js'
 import { isBrowser } from '../utils/ssr.js'
 import { injectStyles, gfId } from '../utils/styles.js'
 
@@ -88,6 +87,8 @@ export class DefaultRenderer implements RendererContract {
   private _liveRegionEl: HTMLElement | null = null
   /** Whatever had focus before the tour opened, so it can be handed back. */
   private _previouslyFocused: HTMLElement | null = null
+  /** Once per page, not once per step — the advice is the same every time. */
+  private static _warnedNoSanitizer = false
   /**
    * The instance-scoped translation registry. Falls back to the module-level
    * `defaultI18n` singleton when nothing is wired, which is what every render
@@ -110,6 +111,31 @@ export class DefaultRenderer implements RendererContract {
     if (config.injectStyles !== false) {
       injectStyles(POPOVER_CSS, POPOVER_CSS_ID, config.nonce)
     }
+  }
+
+  /**
+   * Render `content.html`.
+   *
+   * With no `sanitizeHTML` in config the markup is **escaped and shown as
+   * text**. That is deliberate: passing it through would be an XSS hole, and
+   * dropping it would leave a blank popover with no clue why. The sanitiser
+   * lives in the opt-in `@guideflow/core/html` subpath because it is ~640 B
+   * that consumers using `content.body` were paying for and never using.
+   */
+  private _renderHtml(html: string): string {
+    const sanitize = this._config?.sanitizeHTML
+    if (sanitize) return sanitize(html)
+
+    if (!DefaultRenderer._warnedNoSanitizer) {
+      DefaultRenderer._warnedNoSanitizer = true
+      console.warn(
+        '[GuideFlow] A step set `content.html` but no `sanitizeHTML` is configured, ' +
+          'so it has been escaped and rendered as text. Pass one:\n' +
+          "  import { sanitizeHTML } from '@guideflow/core/html'\n" +
+          '  createGuideFlow({ sanitizeHTML })',
+      )
+    }
+    return this._esc(html)
   }
 
   renderStep(step: Step, content: StepContent, index: number, total: number): void {
@@ -355,7 +381,7 @@ export class DefaultRenderer implements RendererContract {
       ${content.body
         ? `<p class="gf-popover-body" id="${this._popoverId}-body">${this._esc(content.body)}</p>`
         : content.html
-          ? `<div class="gf-popover-body" id="${this._popoverId}-body">${sanitizeHTML(content.html)}</div>`
+          ? `<div class="gf-popover-body" id="${this._popoverId}-body">${this._renderHtml(content.html)}</div>`
           : ''}
       <div class="gf-popover-footer">
         ${total > 1 ? `<span class="gf-popover-step-info">${this._esc(i18n.t('stepOf', { current: index + 1, total }))}</span>` : '<span></span>'}
