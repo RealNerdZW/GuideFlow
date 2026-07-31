@@ -136,7 +136,9 @@ describe('OpenAIProvider', () => {
 
       await provider.generateSteps(DOM, 'anything');
 
-      expect(openaiState.constructedWith[0]).toEqual({ apiKey: 'sk-test' });
+      // maxRetries: 0 — `withRetry` owns the retry policy; letting the SDK retry
+      // too would multiply attempts and blow past the caller's timeout budget.
+      expect(openaiState.constructedWith[0]).toEqual({ apiKey: 'sk-test', maxRetries: 0 });
       const args = openaiState.create.mock.calls[0]![0];
       expect(args.model).toBe('gpt-4o');
       expect(args.temperature).toBe(0.7);
@@ -145,17 +147,39 @@ describe('OpenAIProvider', () => {
       expect(args.messages[1].content).toContain('anything');
     });
 
-    // PINNED BEHAVIOUR, NOT DESIRED BEHAVIOUR.
-    // Audit `no-json-mode-hand-parsed`: the provider never requests JSON mode and
-    // hands the raw completion straight to JSON.parse, so a markdown-fenced reply
-    // — the single most common LLM output shape — is silently discarded. The
-    // steps below are perfectly good; they still come back as [].
-    it('silently returns [] for a ```json-fenced response (audit no-json-mode-hand-parsed)', async () => {
+    // Regression for `no-json-mode-hand-parsed`. This test used to assert the
+    // OPPOSITE — that perfectly good fenced steps came back as [] — because the
+    // provider handed the raw completion straight to JSON.parse and swallowed
+    // the throw. A markdown fence is the single most common LLM output shape.
+    it('parses a ```json-fenced response instead of discarding it', async () => {
       openaiState.create.mockResolvedValue(openaiReply(FENCED_STEPS_JSON));
 
       const steps = await provider.generateSteps(DOM, 'tour');
 
-      expect(steps).toEqual([]);
+      expect(steps.map((s) => s.id)).toEqual(['welcome', 'bad-placement']);
+    });
+
+    it('asks for a strict JSON schema rather than trusting the prompt', async () => {
+      openaiState.create.mockResolvedValue(openaiReply('{"steps":[]}'));
+
+      await provider.generateSteps(DOM, 'tour');
+
+      const args = openaiState.create.mock.calls[0]![0];
+      expect(args.response_format.type).toBe('json_schema');
+      expect(args.response_format.json_schema.strict).toBe(true);
+      expect(args.response_format.json_schema.name).toBe('guideflow_steps');
+    });
+
+    it('recovers steps from a response with prose wrapped around the JSON', async () => {
+      openaiState.create.mockResolvedValue(
+        openaiReply(`Sure! Here is the tour you asked for:
+{"steps":[{"id":"a","content":{"title":"A"}}]}
+Let me know if you want changes.`),
+      );
+
+      const steps = await provider.generateSteps(DOM, 'tour');
+
+      expect(steps.map((s) => s.id)).toEqual(['a']);
     });
 
     it('returns [] rather than throwing on malformed JSON', async () => {
@@ -270,18 +294,32 @@ describe('AnthropicProvider', () => {
 
       await provider.generateSteps(DOM, 'anything');
 
-      expect(anthropicState.constructedWith[0]).toEqual({ apiKey: 'sk-ant-test' });
+      expect(anthropicState.constructedWith[0]).toEqual({ apiKey: 'sk-ant-test', maxRetries: 0 });
       const args = anthropicState.create.mock.calls[0]![0];
-      expect(args.model).toBe('claude-3-haiku-20240307');
+      // claude-3-haiku-20240307 retired on 2026-04-19 and now 404s
+      // (AUDIT `anthropic-default-model-retired`).
+      expect(args.model).toBe('claude-haiku-4-5');
       expect(args.max_tokens).toBe(2048);
       expect(args.messages[0].role).toBe('user');
     });
 
-    // PINNED BEHAVIOUR, NOT DESIRED BEHAVIOUR — audit `no-json-mode-hand-parsed`.
-    it('silently returns [] for a ```json-fenced response (audit no-json-mode-hand-parsed)', async () => {
+    // Regression for `no-json-mode-hand-parsed` — this used to assert [].
+    it('parses a ```json-fenced response instead of discarding it', async () => {
       anthropicState.create.mockResolvedValue(anthropicReply(FENCED_STEPS_JSON));
 
-      await expect(provider.generateSteps(DOM, 'tour')).resolves.toEqual([]);
+      const steps = await provider.generateSteps(DOM, 'tour');
+
+      expect(steps.map((s) => s.id)).toEqual(['welcome', 'bad-placement']);
+    });
+
+    it('steers with a forced tool call rather than a prompt instruction', async () => {
+      anthropicState.create.mockResolvedValue(anthropicReply('{"steps":[]}'));
+
+      await provider.generateSteps(DOM, 'tour');
+
+      const args = anthropicState.create.mock.calls[0]![0];
+      expect(args.tools[0].name).toBe('guideflow_steps');
+      expect(args.tool_choice).toEqual({ type: 'tool', name: 'guideflow_steps' });
     });
 
     it('returns [] rather than throwing on malformed JSON', async () => {
@@ -290,12 +328,31 @@ describe('AnthropicProvider', () => {
       await expect(provider.generateSteps(DOM, 'tour')).resolves.toEqual([]);
     });
 
-    it('returns [] when the first content block is not text', async () => {
+    it('reads the tool_use block, which is now the happy path', async () => {
       anthropicState.create.mockResolvedValue({
-        content: [{ type: 'tool_use', id: 'tu_1', name: 'x', input: {} }],
+        content: [
+          {
+            type: 'tool_use',
+            id: 'tu_1',
+            name: 'guideflow_steps',
+            input: { steps: [{ id: 'from-tool', content: { title: 'Tool' } }] },
+          },
+        ],
       });
 
-      await expect(provider.generateSteps(DOM, 'tour')).resolves.toEqual([]);
+      const steps = await provider.generateSteps(DOM, 'tour');
+
+      expect(steps.map((s) => s.id)).toEqual(['from-tool']);
+    });
+
+    it('falls back to a text block when the model declines the tool', async () => {
+      anthropicState.create.mockResolvedValue(
+        anthropicReply('{"steps":[{"id":"from-text","content":{"title":"Text"}}]}'),
+      );
+
+      const steps = await provider.generateSteps(DOM, 'tour');
+
+      expect(steps.map((s) => s.id)).toEqual(['from-text']);
     });
 
     it('rejects when the SDK call fails instead of swallowing the error', async () => {
@@ -408,12 +465,27 @@ describe('OllamaProvider', () => {
 
     // PINNED BEHAVIOUR, NOT DESIRED BEHAVIOUR — audit `no-json-mode-hand-parsed`.
     // Ollama supports `format: "json"`; the provider does not pass it.
-    it('silently returns [] for a ```json-fenced response (audit no-json-mode-hand-parsed)', async () => {
+    it('parses a ```json-fenced response instead of discarding it', async () => {
       fetchMock.mockResolvedValue(ollamaReply(FENCED_STEPS_JSON));
       const provider = new OllamaProvider();
 
-      await expect(provider.generateSteps(DOM, 'tour')).resolves.toEqual([]);
-      expect(requestBody()['format']).toBeUndefined();
+      const steps = await provider.generateSteps(DOM, 'tour');
+
+      expect(steps.map((s) => s.id)).toEqual(['welcome', 'bad-placement']);
+    });
+
+    it('asks Ollama for schema-constrained output, and can be cancelled', async () => {
+      fetchMock.mockResolvedValue(ollamaReply('{"steps":[]}'));
+      const provider = new OllamaProvider();
+
+      await provider.generateSteps(DOM, 'tour');
+
+      // `format` used to be absent entirely — the only defence against prose
+      // was a sentence in the system prompt.
+      expect(requestBody()['format']).toMatchObject({ type: 'object' });
+      // And the fetch had no signal, so an unreachable baseUrl hung forever
+      // (AUDIT `provider-no-timeout-abort`).
+      expect(fetchMock.mock.calls[0]![1].signal).toBeDefined();
     });
 
     it('returns [] rather than throwing on malformed JSON', async () => {

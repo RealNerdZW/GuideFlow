@@ -787,7 +787,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "PLAUSIBLE",
-      "status": "open",
+      "status": "resolved",
       "title": "AnthropicProvider defaults to a Claude model whose retirement date has passed",
       "file": "packages/ai/src/providers/anthropic.ts",
       "line": 29,
@@ -795,7 +795,8 @@
       "impact": "`claude-3-haiku-20240307` is deprecated with a retirement date of 2026-04-19; that date is now past, so the id returns HTTP 404 `not_found_error`. A user who follows the documented setup — `createAI(new AnthropicProvider({ apiKey }), gf)` with no `model` override — gets a 404 on every single call. In `generateSteps` the SDK error propagates out of `complete()` before the `try` around `JSON.parse`, so `brain.generate()` rejects and emits `error`; in `detectIntent` it does the same and produces an unhandled rejection (see `brain-unhandled-rejection`). The Anthropic provider is non-functional out of the box.",
       "fix": "Change the default to a current id (`claude-haiku-4-5` for the cheap/fast tier the comment intends, or `claude-opus-5`), update the `/** Default: claude-3-haiku-20240307 */` JSDoc on line 13, and update the two docs tables that repeat the stale value (apps/docs/guide/ai.md:15, apps/docs/api/ai/providers.md:52). Add a CI check or a note in CONTRIBUTING that model defaults need review each release, since a hardcoded dated snapshot will retire again.",
       "effort": "S",
-      "verifierNote": "anthropic.ts:29 is verbatim `model: opts.model ?? 'claude-3-haiku-20240307',` and the doc comment at line 13 confirms it is the documented default. The Anthropic model catalog does list claude-3-haiku-20240307 as Deprecated with retirement Apr 19, 2026 — past today's 2026-07-30 — so shipping it as a default is definitely wrong. But the catalog still files it under 'Deprecated (retiring soon)' rather than 'Retired', so I could not independently reproduce the specific 'HTTP 404 not_found_error on every single call / non-functional out of the box' claim. Downstream chain is correct though: complete() awaits the SDK before the try/JSON.parse (lines 44-50 vs 62-67), so an SDK error propagates out of generateSteps/detectIntent."
+      "verifierNote": "anthropic.ts:29 is verbatim `model: opts.model ?? 'claude-3-haiku-20240307',` and the doc comment at line 13 confirms it is the documented default. The Anthropic model catalog does list claude-3-haiku-20240307 as Deprecated with retirement Apr 19, 2026 — past today's 2026-07-30 — so shipping it as a default is definitely wrong. But the catalog still files it under 'Deprecated (retiring soon)' rather than 'Retired', so I could not independently reproduce the specific 'HTTP 404 not_found_error on every single call / non-functional out of the box' claim. Downstream chain is correct though: complete() awaits the SDK before the try/JSON.parse (lines 44-50 vs 62-67), so an SDK error propagates out of generateSteps/detectIntent.",
+      "resolvedIn": "Phase 7.7 — default is claude-haiku-4-5; apps/docs/guide/ai.md, apps/docs/api/ai/providers.md and README.md corrected."
     },
     {
       "id": "brain-unhandled-rejection",
@@ -803,7 +804,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Debounced detectIntent produces an unhandled promise rejection on every provider failure",
       "file": "packages/ai/src/brain.ts",
       "line": 180,
@@ -811,7 +812,8 @@
       "impact": "`detectIntent()` re-throws after emitting: `this.emit('error', error); throw error;` (brain.ts:190-194). The `void` operator discards the promise without attaching a rejection handler, so every failed call becomes an unhandled promise rejection. With an expired key, a rate limit, a network blip, or the retired Anthropic default model (see `anthropic-default-model-retired`), a watching user generates one unhandled rejection per pause — a stream of `Uncaught (in promise) Error` entries in the console, and a fired `window.onunhandledrejection` that many apps wire to Sentry/Bugsnag, flooding the host application's error reporting. Registering an `error` listener does not help: the emit and the throw are independent, so the rejection happens regardless.",
       "fix": "Change line 180 to `this.detectIntent().catch(() => { /* already emitted via 'error' */ });`, or split the internal path from the public one: have a private `_detectIntent()` that emits and resolves, called by `scheduleDetect`, and keep the throwing behaviour only on the public `detectIntent()` that a caller awaits. Add a test that asserts no unhandled rejection when a rejecting provider is used with `watch()` — the current brain.test.ts only exercises the awaited path (lines 77-89, 134-145).",
       "effort": "S",
-      "verifierNote": "brain.ts:180 verbatim `void this.detectIntent();` inside the debounce callback, and detectIntent's catch at 190-194 does `this.emit('error', error); throw error;`. `void` discards the promise without a .catch, so every provider failure on the watch path is an unhandled rejection. Verified the emit and the throw are independent statements, so an 'error' listener genuinely does not suppress it — the listener runs and then the rejection still escapes. Contrast with generate()/chat(), which are awaited by the caller."
+      "verifierNote": "brain.ts:180 verbatim `void this.detectIntent();` inside the debounce callback, and detectIntent's catch at 190-194 does `this.emit('error', error); throw error;`. `void` discards the promise without a .catch, so every provider failure on the watch path is an unhandled rejection. Verified the emit and the throw are independent statements, so an 'error' listener genuinely does not suppress it — the listener runs and then the rejection still escapes. Contrast with generate()/chat(), which are awaited by the caller.",
+      "resolvedIn": "Phase 7.7 — scheduleDetect calls _autoDetect().catch(...) rather than void detectIntent(). detectIntent() still throws for an awaiting caller."
     },
     {
       "id": "intent-never-wired-to-flows",
@@ -819,7 +821,7 @@
       "severity": "P1",
       "kind": "missing-implementation",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "Behavioural intent is never connected to auto-triggering a flow anywhere in the repo",
       "file": "README.md",
       "line": 22,
@@ -827,7 +829,8 @@
       "impact": "README.md:22 and apps/docs/guide/ai-intent.md:8 (\"automatically surfacing the right tour at the right moment\") promise behaviour-triggered tours, but nothing in the codebase closes the loop. `GuideBrain` emits `intent:detected` and stops; `createAI` (index.ts:59-77) wires only `destroy`, never a listener that calls `instance.start()`. Grepping the whole repo for `watch()`, `detectIntent`, and `compress` outside packages/ai/src returns zero hits — no framework adapter, no demo, no e2e test, and no docs example that actually runs. The demo app imports `GuideBrain` as a type and calls only `gf.ai.chat` (apps/demo/src/App.tsx:244) and `gf.ai.generate` (:255); its AI section (:505-566) exercises generate, chat, and `ConversationalPanel` but has no intent-detection UI at all. So the differentiating feature reduces to \"an event fires that the user must hand-wire\", and the docs snippets that would hand-wire it are themselves broken (see `docs-guide-ai-broken-api`).",
       "fix": "Either implement it or stop claiming it. To implement: add an opt-in `GuideBrainOptions.intentTriggers?: Array<{ type: IntentSignal['type']; minConfidence: number; flow: FlowDefinition | string }>` and have `createAI` subscribe to `intent:detected` and call `instance.start(flow)` when a trigger matches (with a per-flow once-per-session guard via `instance.progress`). Add a working intent-detection panel to apps/demo/src/App.tsx alongside the existing generate/chat sections, and an e2e test in apps/e2e/tests. To scope down: reword README.md:22 and apps/docs/guide/ai-intent.md to \"emits intent signals you can subscribe to\" and show a correct, compiling handler.",
       "effort": "L",
-      "verifierNote": "README.md:22 is verbatim. Grepped watch()/detectIntent/compress( across packages/ and apps/ excluding packages/ai/src and dist — zero hits, so nothing outside the AI package ever starts or consumes intent detection. createAI (index.ts:59-77) only wraps instance.destroy; it never subscribes to 'intent:detected' or calls instance.start. Demo App.tsx imports GuideBrain as a type only (line 1) and calls just gf.ai.chat (244) and gf.ai.generate (255). apps/docs/guide/ai-intent.md:8 does make the 'automatically surfacing the right tour at the right moment' claim."
+      "verifierNote": "README.md:22 is verbatim. Grepped watch()/detectIntent/compress( across packages/ and apps/ excluding packages/ai/src and dist — zero hits, so nothing outside the AI package ever starts or consumes intent detection. createAI (index.ts:59-77) only wraps instance.destroy; it never subscribes to 'intent:detected' or calls instance.start. Demo App.tsx imports GuideBrain as a type only (line 1) and calls just gf.ai.chat (244) and gf.ai.generate (255). apps/docs/guide/ai-intent.md:8 does make the 'automatically surfacing the right tour at the right moment' claim.",
+      "resolvedIn": "Phase 7.6 — createAI accepts intentTriggers mapping an IntentSignal type + confidence floor to a FlowDefinition. Opt-in, once-per-flow by default, never interrupts a live tour, minConfidence defaults to 0.7 so a failed detection cannot fire it."
     },
     {
       "id": "invalid-llm-selector-aborts-tour",
@@ -851,7 +854,7 @@
       "severity": "P1",
       "kind": "bug",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "All three real providers JSON.parse() unconstrained model prose and silently swallow every failure",
       "file": "packages/ai/src/providers/openai.ts",
       "line": 74,
@@ -859,7 +862,8 @@
       "impact": "The only defence against non-JSON output is the system prompt string `Always respond with valid JSON only — no prose, no markdown fences.` No provider sets OpenAI's `response_format`, Anthropic's `output_config.format`, or Ollama's `format: 'json'`, and no provider strips markdown code fences. LLMs routinely wrap JSON in ```json fences or prepend a sentence; `JSON.parse('```json\\n[...]```')` throws, the bare `catch` returns `[]`, and `gf.ai.generate('Walk me through checkout')` resolves with an empty array. The caller then does `gf.start({ steps: [] })` and sees a tour that renders nothing, with no error event, no log line, and no way to distinguish \"model refused\" from \"model returned fences\" from \"API key wrong\". The same swallow exists at anthropic.ts:62-67, ollama.ts:62-67, and for all three `detectIntent`/`answerQuestion` paths, where the fallbacks are the equally silent `{ type: 'exploring', confidence: 0 }` and `'Sorry, I could not answer that.'`.",
       "fix": "Set structured output on each provider: `response_format: { type: 'json_schema', json_schema: {...} }` (or at minimum `{ type: 'json_object' }`) in openai.ts:55-63; `output_config: { format: { type: 'json_schema', schema } }` in anthropic.ts:45-50; `format: 'json'` in the Ollama request body at ollama.ts:36-47. Add a shared `stripCodeFences(text)` helper applied before `JSON.parse` as a belt-and-braces fallback. Replace every bare `catch {}` with a catch that emits a diagnostic (rethrow a typed `AIParseError`, or log the raw text under `debug`) so an empty result is distinguishable from a parse failure.",
       "effort": "M",
-      "verifierNote": "openai.ts:74-79 matches the quoted block verbatim; identical swallow at anthropic.ts:62-67 and ollama.ts:62-67, plus the `{ type: 'exploring', confidence: 0 }` and 'Sorry, I could not answer that.' fallbacks in all three detectIntent/answerQuestion paths. No `response_format`, no `output_config`, no `format: 'json'` anywhere in packages/ai/src — the only defence really is the SYSTEM_PROMPT string at openai.ts:26-29 / anthropic.ts:18-21. No fence-stripping. Confirmed the caller sees nothing: brain.generate() emits 'steps:generated' with the empty array (brain.ts:106-108) rather than an error."
+      "verifierNote": "openai.ts:74-79 matches the quoted block verbatim; identical swallow at anthropic.ts:62-67 and ollama.ts:62-67, plus the `{ type: 'exploring', confidence: 0 }` and 'Sorry, I could not answer that.' fallbacks in all three detectIntent/answerQuestion paths. No `response_format`, no `output_config`, no `format: 'json'` anywhere in packages/ai/src — the only defence really is the SYSTEM_PROMPT string at openai.ts:26-29 / anthropic.ts:18-21. No fence-stripping. Confirmed the caller sees nothing: brain.generate() emits 'steps:generated' with the empty array (brain.ts:106-108) rather than an error.",
+      "resolvedIn": "Phase 7.7 — providers request structured output (OpenAI json_schema strict, Anthropic forced tool_choice, Ollama JSON Schema format); packages/ai/src/json.ts adds fence stripping, balanced-value extraction and validation, and warns on failure instead of returning [] silently."
     },
     {
       "id": "nth-of-type-selector-unscoped",
@@ -899,7 +903,7 @@
       "severity": "P1",
       "kind": "performance",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "watch() fires an uncapped LLM call on every 2-second user pause with no cooldown, batching or dedup",
       "file": "packages/ai/src/brain.ts",
       "line": 176,
@@ -907,7 +911,8 @@
       "impact": "`push()` calls `scheduleDetect()` on every click, input, keydown, and scroll event (brain.ts:143, listeners at 159-162). Each 2s (default `intentDebounceMs`) lull therefore issues one full `provider.detectIntent()` round trip. There is no minimum-event threshold (a single stray scroll triggers a call), no cooldown between calls, no batching, and no dedup — and because the buffer is never trimmed after a detect, consecutive calls re-send largely identical `events.slice(-20)` payloads and are billed again each time. An ordinary user alternating short interactions and pauses produces on the order of 10-30 calls/minute/tab, i.e. up to ~1,800/hour for one open tab; a page left open with any periodic scroll activity bills indefinitely. Multiply by concurrent users and this is unbounded spend triggered by passive browsing, with no `maxCallsPerMinute`, no budget option, and no caching anywhere in the package. apps/docs/guide/ai-intent.md:84 documents `{ autoWatch: true }` as a one-line way to switch this on, and `createAI(..., { autoWatch: true })` appears in apps/docs/api/ai/create-ai.md:45.",
       "fix": "Add to `GuideBrainOptions`: a `minEventsBeforeDetect` threshold (skip the call when fewer than N new events accumulated), a `detectCooldownMs` floor between calls, and a `maxDetectsPerSession`/`maxDetectsPerMinute` cap. Track a high-water mark of already-analyzed events and skip the call when the buffer has not meaningfully changed. Trim or mark the buffer after each successful `detectIntent`. Document the per-user call rate and expected cost prominently in apps/docs/guide/ai-intent.md next to the `autoWatch` example, and default `autoWatch` guidance to off.",
       "effort": "M",
-      "verifierNote": "brain.ts:176-182 verbatim. push() calls scheduleDetect() unconditionally (line 143) and is wired to click/input/scroll/keydown at 159-162, with intentDebounceMs defaulting to 2000 (line 56). detectIntent (184-195) never trims eventBuffer — clearBuffer() exists at 264-266 but is called nowhere — so each call re-sends an overlapping events.slice(-20) (openai.ts:85). Grep for AbortController/timeout/retry/cache/maxCalls across packages/ai/src returns zero hits, so there is genuinely no cooldown, batching, dedup, or budget option. autoWatch is documented as a one-liner at apps/docs/guide/ai-intent.md:84 and used at api/ai/create-ai.md:45. The 10-30 calls/min figure is an estimate but the 2s debounce caps it at 30/min/tab, so the order of magnitude holds."
+      "verifierNote": "brain.ts:176-182 verbatim. push() calls scheduleDetect() unconditionally (line 143) and is wired to click/input/scroll/keydown at 159-162, with intentDebounceMs defaulting to 2000 (line 56). detectIntent (184-195) never trims eventBuffer — clearBuffer() exists at 264-266 but is called nowhere — so each call re-sends an overlapping events.slice(-20) (openai.ts:85). Grep for AbortController/timeout/retry/cache/maxCalls across packages/ai/src returns zero hits, so there is genuinely no cooldown, batching, dedup, or budget option. autoWatch is documented as a one-liner at apps/docs/guide/ai-intent.md:84 and used at api/ai/create-ai.md:45. The 10-30 calls/min figure is an estimate but the 2s debounce caps it at 30/min/tab, so the order of magnitude holds.",
+      "resolvedIn": "Phase 7.7 — minEventsBeforeDetect (5), detectCooldownMs (30s), maxDetectsPerSession (20), plus an analysed high-water mark that slides with buffer overflow. gf.ai.stats reports spend. Explicit detectIntent() stays uncapped."
     },
     {
       "id": "docs-analyticsevent-shape-wrong",
@@ -2935,7 +2940,7 @@
       "severity": "P2",
       "kind": "gap",
       "verdict": "CONFIRMED",
-      "status": "open",
+      "status": "resolved",
       "title": "No provider supports timeouts, abort signals, or cancellation; Ollama has no resilience at all",
       "file": "packages/ai/src/providers/ollama.ts",
       "line": 33,
@@ -2943,7 +2948,8 @@
       "impact": "Grep for `signal`, `timeout`, `AbortController`, and `retry` across packages/ai/src returns zero implementation hits. Consequences differ by provider. For Ollama the `fetch` has no `signal` and no timeout: a local model that takes minutes, or an unreachable `baseUrl`, leaves `generate()` pending forever with no way to cancel — and since Ollama runs on localhost with no auth, there is also no retry and no `num_predict`/token cap, so a runaway generation is unbounded. For OpenAI/Anthropic the SDKs supply defaults (2 retries, 10-minute timeout), but those are not configurable through `OpenAIProviderOptions`/`AnthropicProviderOptions`, so a caller cannot shorten a 10-minute hang. Across all providers no request is cancellable: `GuideBrain.destroy()` clears the debounce timer but does not abort in-flight calls (brain.ts:269-274), so a component that unmounts mid-`generate` still pays for the completion, and a user who navigates away during a `chat()` cannot stop it. There is also no `usage`/cost surfacing anywhere — `response.usage` is available from both SDKs and discarded (openai.ts:64, anthropic.ts:51-52) — so callers have no way to observe the spend created by `uncapped-llm-calls-per-pause`.",
       "fix": "Add `timeoutMs?: number` and `signal?: AbortSignal` to all four provider option types and thread them through: `AbortSignal.timeout(ms)` on the Ollama `fetch`, and the SDKs' per-request `{ timeout, signal }` / `maxRetries` options for OpenAI and Anthropic. Give `GuideBrain` an internal `AbortController` per in-flight call, abort them in `destroy()`, and accept an optional `signal` on `generate`/`chat`. Add `num_predict` to the Ollama body to bound output. Surface token usage: return it on a `usage` field or emit a `usage` brain event carrying `input_tokens`/`output_tokens` per call so consumers can meter cost.",
       "effort": "M",
-      "verifierNote": "ollama.ts:33-35 verbatim, and the fetch options object (33-48) has no `signal` and no timeout. Grepped signal/timeout/AbortController/retry/usage across packages/ai/src: zero hits, so the 'no implementation' claim is exact. Ollama also sends no num_predict/token cap (body at 36-47), unlike OpenAI's maxTokens (openai.ts:58) and Anthropic's max_tokens (anthropic.ts:47). destroy() (brain.ts:269-274) only clearTimeouts the debounce and runs listener cleanups — nothing aborts an in-flight generate/chat. usage is discarded: openai.ts:64 returns only `response.choices[0]?.message?.content` and anthropic.ts:51-52 only the first text block."
+      "verifierNote": "ollama.ts:33-35 verbatim, and the fetch options object (33-48) has no `signal` and no timeout. Grepped signal/timeout/AbortController/retry/usage across packages/ai/src: zero hits, so the 'no implementation' claim is exact. Ollama also sends no num_predict/token cap (body at 36-47), unlike OpenAI's maxTokens (openai.ts:58) and Anthropic's max_tokens (anthropic.ts:47). destroy() (brain.ts:269-274) only clearTimeouts the debounce and runs listener cleanups — nothing aborts an in-flight generate/chat. usage is discarded: openai.ts:64 returns only `response.choices[0]?.message?.content` and anthropic.ts:51-52 only the first text block.",
+      "resolvedIn": "Phase 7.7 — packages/ai/src/request.ts: composeSignal() and withRetry(). All four providers take timeoutMs/signal/maxRetries; only timeouts, network errors and 429/5xx are retried; a caller abort never is. GuideBrain aborts in-flight calls on destroy()."
     },
     {
       "id": "serializedom-cap-and-visibility",
@@ -6052,6 +6058,22 @@
       "fix": "goto('index.html') in all three specs.",
       "effort": "S",
       "resolvedIn": "Phase 6 — the suite now runs: 156/156 across chromium, firefox, webkit and Mobile Chrome."
+    },
+    {
+      "id": "guideflow-instance-missing-flowid",
+      "area": "core",
+      "severity": "P3",
+      "kind": "bug",
+      "verdict": "confirmed",
+      "status": "resolved",
+      "title": "GuideFlowInstance omits flowId, which the engine does expose",
+      "file": "packages/core/src/index.ts",
+      "line": 130,
+      "evidence": "TourEngine declares get flowId() on the prototype and CLAUDE.md 5.1 lists it as reachable, but the GuideFlowInstance interface never declared it.",
+      "impact": "A TypeScript consumer could not read which flow was running without a cast, despite the value being present at runtime and documented as available.",
+      "fix": "Declare readonly flowId: string | null on GuideFlowInstance.",
+      "effort": "S",
+      "resolvedIn": "Phase 7 — found by a test in packages/ai that needed it."
     }
   ]
 }

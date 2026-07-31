@@ -17,7 +17,7 @@ and `OllamaProvider` holds an API key, and a key in browser code is public by co
 |----------|---------------|-------|
 | `ProxyProvider` | none | **Use this in a browser.** POSTs to an endpoint you run; holds no credential |
 | `OpenAIProvider` | `openai` optional peer dep | `gpt-4o-mini` by default. Server-side only |
-| `AnthropicProvider` | `@anthropic-ai/sdk` optional peer dep | `claude-3-haiku-20240307` by default. Server-side only |
+| `AnthropicProvider` | `@anthropic-ai/sdk` optional peer dep | `claude-haiku-4-5` by default. Server-side only |
 | `OllamaProvider` | none | HTTP to a local Ollama instance. No key |
 | `MockProvider` | none | Deterministic fixtures for tests. No network call |
 

@@ -126,10 +126,19 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   readonly isPaused: boolean
   /** Current step id */
   readonly currentStepId: string | null
-  /** Current step index (0-based) */
+  /** Current step index (0-based), counted across the whole flow. */
   readonly currentStepIndex: number
-  /** Total steps in the current flow state */
+  /** Total steps a `next()`-only run of the current flow would show. */
   readonly totalSteps: number
+  /**
+   * Id of the running flow, or null when no tour is active.
+   *
+   * Reachable on the instance because `TourEngine` declares it on the
+   * prototype and the `Object.assign` literal does not shadow it — but it was
+   * missing from this interface, so TypeScript consumers could not read it even
+   * though CLAUDE.md §5.1 listed it as available.
+   */
+  readonly flowId: string | null
   /** The step currently being displayed (null when no tour is active). */
   readonly currentStep: Step<TContext> | null
   /** Resolved display content for the current step (null when no tour is active). */

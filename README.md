@@ -293,7 +293,7 @@ choose (`openai`, `@anthropic-ai/sdk`).
 ```ts
 import { createAI, AnthropicProvider } from '@guideflow/ai'
 
-// Node only — reads process.env.ANTHROPIC_API_KEY, model defaults to claude-3-haiku-20240307
+// Node only — reads process.env.ANTHROPIC_API_KEY, model defaults to claude-haiku-4-5
 const gf = createAI(new AnthropicProvider(), createGuideFlow())
 ```
 
@@ -312,16 +312,25 @@ const gf = createAI(
 
 ### Intent detection
 
-Passively watch user behaviour and trigger help flows yourself. `watch()` is manual by default; pass
-`{ autoWatch: true }` to have `createAI` start it for you.
+Passively watch user behaviour and surface a tour when someone gets stuck. Declare the mapping and
+the engine starts the flow for you:
 
 ```ts
 const gf = createAI(
   new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
   createGuideFlow(),
-  { autoWatch: false },
+  {
+    autoWatch: true,
+    intentTriggers: [
+      { type: 'stuck', minConfidence: 0.8, flow: helpFlow },
+    ],
+  },
 )
+```
 
+Or subscribe and decide for yourself — triggers are opt-in and off by default:
+
+```ts
 const stopWatch = gf.ai.watch()
 
 gf.ai.on('intent:detected', (signal) => {
@@ -331,9 +340,12 @@ gf.ai.on('intent:detected', (signal) => {
   }
 })
 
-// Stop watching when no longer needed
 stopWatch()
 ```
+
+Every automatic detection is a provider round trip, so the loop is capped: `minEventsBeforeDetect`
+(5), `detectCooldownMs` (30s) and `maxDetectsPerSession` (20). `gf.ai.stats` reports what has been
+spent. An explicit `detectIntent()` is never capped.
 
 `gf.ai` also exposes `chat(question)`, `detectIntent()`, `compress(steps, instance)`, `clearBuffer()` and
 `destroy()`, and emits `steps:generated`, `answer:ready` and `error` alongside `intent:detected`.
