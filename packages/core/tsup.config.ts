@@ -77,6 +77,38 @@ export default defineConfig([{
   platform: 'browser',
   banner: { js: '/* GuideFlow core/targeting — MIT License */' },
 }, {
+  // @guideflow/core/selector — build a CSS selector for an element that still
+  // resolves after the next deploy. Authoring-time only; nothing in
+  // src/index.ts imports it, so dist/index.js is unaffected.
+  entry: { selector: 'src/selector.ts' },
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  clean: false,
+  treeshake: true,
+  splitting: false,
+  minify: false,
+  target: 'es2020',
+  outDir: 'dist',
+  platform: 'browser',
+  banner: { js: '/* GuideFlow core/selector — MIT License */' },
+}, {
+  // @guideflow/core/authoring — validate a flow, and convert between the linear
+  // draft an editor produces and a real FlowDefinition. The only writer and the
+  // only reader of a .flow.json file.
+  entry: { authoring: 'src/authoring.ts' },
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  clean: false,
+  treeshake: true,
+  splitting: false,
+  minify: false,
+  target: 'es2020',
+  outDir: 'dist',
+  platform: 'browser',
+  banner: { js: '/* GuideFlow core/authoring — MIT License */' },
+}, {
   // @guideflow/core/html — opt-in `content.html` sanitisation. Evicted from the
   // default bundle per ADR-008's condition; see src/html.ts for the rationale.
   entry: { html: 'src/html.ts' },

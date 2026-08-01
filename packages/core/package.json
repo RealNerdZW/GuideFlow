@@ -75,6 +75,26 @@
         "default": "./dist/versioning.cjs"
       }
     },
+    "./selector": {
+      "import": {
+        "types": "./dist/selector.d.ts",
+        "default": "./dist/selector.js"
+      },
+      "require": {
+        "types": "./dist/selector.d.cts",
+        "default": "./dist/selector.cjs"
+      }
+    },
+    "./authoring": {
+      "import": {
+        "types": "./dist/authoring.d.ts",
+        "default": "./dist/authoring.js"
+      },
+      "require": {
+        "types": "./dist/authoring.d.cts",
+        "default": "./dist/authoring.cjs"
+      }
+    },
     "./html": {
       "import": {
         "types": "./dist/html.d.ts",
@@ -151,6 +171,18 @@
       "name": "versioning subpath",
       "path": "./dist/versioning.js",
       "limit": "500 B",
+      "gzip": true
+    },
+    {
+      "name": "selector subpath",
+      "path": "./dist/selector.js",
+      "limit": "2.5 kB",
+      "gzip": true
+    },
+    {
+      "name": "authoring subpath",
+      "path": "./dist/authoring.js",
+      "limit": "5.5 kB",
       "gzip": true
     }
   ],

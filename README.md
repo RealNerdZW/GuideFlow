@@ -35,8 +35,8 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 - **A/B testing** — deterministic variant assignment with `ExperimentEngine`
 - **Hotspots & hints** — persistent pulsing beacons and hint badges independent of tours
 - **i18n** — per-instance translation registry with locale fallback
-- **CLI** — scaffold starter files, serve a directory over Vite, reformat a flow JSON, POST a flow to your
-  own API. Early — read the [CLI](#cli) section before relying on it
+- **CLI** — scaffold starter files, validate flow files in CI, normalise a flow to JSON, POST a flow
+  to your own API. Read the [CLI](#cli) section before relying on it
 - **Strict TypeScript** — full generics, exact optional property types, declaration maps
 
 ---
@@ -52,15 +52,20 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 | [`@guideflow/ai`](packages/ai) | `GuideBrain`, Proxy / OpenAI / Anthropic / Ollama / Mock providers | — |
 | [`@guideflow/analytics`](packages/analytics) | `AnalyticsCollector`, transport adapters, `ExperimentEngine` | — |
 | [`@guideflow/checklist`](packages/checklist) | `createChecklist` + docked `mountChecklist` widget — a projection of `ProgressStore`, not a second source of truth | — |
-| [`@guideflow/cli`](packages/cli) | `init`, `studio`, `export`, `push` commands _(early — see [CLI](#cli))_ | — |
+| [`@guideflow/cli`](packages/cli) | `init`, `export`, `validate`, `push` commands _(see [CLI](#cli))_ | — |
 | [`@guideflow/devtools`](packages/devtools) | MV3 browser extension — flow inspector and step recorder. Not published to npm: build it from source and load it unpacked | — |
 
 The core size is what `size-limit` reports for `dist/index.js` bundled, minified and gzipped
 (`pnpm --filter @guideflow/core size`) — **14.96 kB against a 15 kB budget**. The published file itself
-is unminified, so what you ship depends on your bundler. Four opt-in subpaths sit outside that number
-and cost nothing unless imported: `@guideflow/core/targeting` (2.18 kB),
+is unminified, so what you ship depends on your bundler. Six opt-in subpaths sit outside that number
+and cost nothing unless imported: `@guideflow/core/authoring` (5.3 kB),
+`@guideflow/core/targeting` (2.18 kB), `@guideflow/core/selector` (1.76 kB),
 `@guideflow/core/navigation` (1.55 kB), `@guideflow/core/html` (767 B) and
-`@guideflow/core/versioning` (336 B).
+`@guideflow/core/versioning` (336 B). Seven bundles, each gated independently by `size-limit`.
+`authoring` (flow validation and the `.flow.json` format) and `selector` (build a CSS selector that
+survives a deploy) are **authoring-time only** — nothing in the engine imports either, so neither
+can reach an application bundle unless you import it yourself. See
+[packages/core](packages/core#subpath-entry-points).
 
 > The devtools panel discovers a page through the `window.__guideflow` global. The library never sets it —
 > assign your instance to it yourself if you want the extension to see your app.
@@ -548,16 +553,21 @@ sanitiser.
 | `destroy` | `() => void` | Tears down the tour, hotspots, hints and the cross-tab channel |
 
 Read-only: `isActive`, `currentStepId`, `currentStepIndex`, `totalSteps`, `currentStep`, `currentContent`.
-`currentStepIndex` and `totalSteps` are scoped to the **current state**, not the whole flow — a flow split
-across three states reports "1 of 2", then "1 of 1".
+`currentStepIndex` and `totalSteps` are **flow-wide**: they walk the `NEXT` path from `initial`, so a tour
+split across three states counts 1…n across all of them. (`machine.totalSteps` is still the *current
+state's* count — do not confuse the two.) A state reachable only by a non-`NEXT` event sits off that walk
+and is left out of the total, which is what `guideflow validate` reports as `off-default-path`.
 
 ---
 
 ## Flow Definition (State Machine)
 
 GuideFlow tours are finite state machines. Each state holds an array of steps; events trigger transitions.
-`next()` walks the steps of the current state and, when they run out, follows the transition table. A flow
-with no `final: true` state never emits `tour:complete`.
+`next()` walks the steps of the current state and, when they run out, follows the transition table. A tour
+ends when there is nothing left to render — **not** because a state is `final`. A flow with no
+`final: true` state still emits `tour:complete`; `final` stops the walk that computes the step counter and
+records the author's intent, which is why `guideflow validate` grades a missing one as a *warning*, not an
+error.
 
 ```ts
 import { createGuideFlow, type GuidanceContext } from '@guideflow/core'
@@ -683,16 +693,16 @@ Install the CLI globally or use it via `pnpm exec`:
 pnpm add -g @guideflow/cli
 ```
 
-> **Early and incomplete.** There is no visual tour editor yet, `export` only produces a usable file
-> from JSON input, and `push` needs an API you host yourself. The table below says what each command
-> does today, not what it is named after.
+> **Not everything here is automatable.** `push` needs an API you host yourself, and there is no
+> hosted service. `validate` is the command built for CI and `export` runs the same validator.
+> The table below says what each command does today, not what it is named after.
 
 | Command | What it actually does |
 |---|---|
-| `guideflow init` | Writes `guideflow.ts`, `my-tour.ts` (+ `GuideFlowProvider.tsx` for React) into a directory. Always prompts; no config file is created |
-| `guideflow studio` | Serves your project with Vite on `127.0.0.1:4747` and injects `window.__GUIDEFLOW_DEVTOOLS__` — a flag nothing currently reads. Vite is an optional peer, install it yourself |
-| `guideflow export` | Reformats a `.json` flow (pass `-o`, or it overwrites the input). For `.ts`/`.js` it writes a truncated raw-source stub, **not** a `FlowDefinition` |
-| `guideflow push` | POSTs a flow JSON file to `--endpoint`. `--api-key` is required. The default endpoint `https://api.guideflow.dev/v1/flows` is a placeholder for a service that does not exist |
+| `guideflow init` | Writes `guideflow.ts`, `my-tour.ts` and one framework file (`GuideFlowProvider.tsx` / `guideflow-plugin.ts` / `guideflow-store.ts`) into a directory. Prompts only for what it does not know; `--yes` or a non-TTY suppresses prompting. Existing files are skipped unless `--force`. No config file is created |
+| `guideflow export` | Validates a `.json` flow and rewrites it as a pretty-printed flow file. Refuses to write a flow with any error, refuses to overwrite the input, and refuses an existing output without `--force`. `.ts`/`.js` input is an error that points you at `stringifyFlowFile` |
+| `guideflow validate` | Checks `.flow.json` files with the validator from `@guideflow/core/authoring`, printing each issue's message and then its fix on a `→` line. `--strict` treats warnings as errors. Exit 0 = no errors; exit 1 = at least one error, an unreadable file, or — with `--strict` — any warning. Meant for CI |
+| `guideflow push` | POSTs a flow JSON file to `--endpoint`. A key is required, from `--api-key` or `GUIDEFLOW_API_KEY`. The default endpoint `https://api.guideflow.dev/v1/flows` is a placeholder for a service that does not exist |
 
 Full reference, including every flag and default: [apps/docs/api/cli.md](apps/docs/api/cli.md).
 

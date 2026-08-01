@@ -167,9 +167,8 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
   // ── Analytics ticker ────────────────────────────────────────────────────
   const [, forceUpdate]               = useState(0)
   // ── DevTools detection ─────────────────────────────────────────────
-  type WinExt = Window & { __guideflow?: unknown; __GUIDEFLOW_DEVTOOLS__?: boolean }
+  type WinExt = Window & { __guideflow?: unknown }
   const [extDetected, setExtDetected]     = useState<boolean | null>(null)
-  const [studioActive, setStudioActive]   = useState(false)
 
   // ── CLI / Flow exporter ────────────────────────────────────────────
   const [exportFlowKey, setExportFlowKey] = useState('onboardingFlow')
@@ -200,12 +199,11 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
     const id = setInterval(() => forceUpdate((n) => n + 1), 1500)
     return () => clearInterval(id)
   }, [])
-  // ── Poll for devtools extension + guideflow studio ──────────────────────────
+  // ── Poll for the devtools extension ────────────────────────────────────────
   useEffect(() => {
     const check = () => {
       const w = window as WinExt
       setExtDetected(typeof w.__guideflow !== 'undefined')
-      setStudioActive(w.__GUIDEFLOW_DEVTOOLS__ === true)
     }
     check()
     const id = setInterval(check, 2000)
@@ -721,15 +719,6 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
                 </span>
                 <span style={{ fontSize: 12, color: C.subtle }}>Set by main.tsx on load</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={badge(studioActive ? 'green' : 'amber')}>
-                  {studioActive ? '✓ guideflow studio active' : '○ guideflow studio not detected'}
-                </span>
-                <span style={{ fontSize: 12, color: C.subtle }}>
-                  Run <code style={S.code}>pnpm guideflow studio</code> to inject{' '}
-                  <code style={S.code}>__GUIDEFLOW_DEVTOOLS__</code>
-                </span>
-              </div>
             </div>
           </div>
 
@@ -780,10 +769,10 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
             {([
               ['guideflow init [--dir <path>] [--framework react|vue|svelte]',
                'Scaffold guideflow.ts, an example flow, and optionally a framework provider component.'],
-              ['guideflow studio [-p <port>] [--root <dir>]',
-               'Start a Vite dev server on port 4747 (default) with __GUIDEFLOW_DEVTOOLS__ injected into index.html.'],
-              ['guideflow export <file> [-o <out>] [--pretty]',
-               'Read a .ts/.js/.json flow file and serialise it to <file>.flow.json (or -o path).'],
+              ['guideflow export <file.json> [-o <out>] [--force]',
+               'Validate a .flow.json and rewrite it in the one on-disk format. Refuses an invalid flow; .ts/.js is an error.'],
+              ['guideflow validate <files...> [--strict]',
+               'Check flow files. Exit 1 on any error, or on any warning with --strict. Built for CI.'],
               ['guideflow push <file> [-k <apiKey>] [-e <endpoint>] [--env <name>]',
                'POST the flow JSON to api.guideflow.dev/v1/flows (or a custom endpoint).'],
             ] as [string, string][]).map(([cmd, desc]) => (

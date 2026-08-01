@@ -29,8 +29,8 @@ transition table `on`, `onEntry`/`onExit` hooks, and an optional `final` flag. P
 **Consequences.**
 - This is the project's differentiator. Do not add a flat-array API "for convenience" — it splits the
   model in two.
-- A flow with no reachable `final: true` state never completes, so completion is never persisted and
-  the tour replays forever. Validation must catch this.
+- A flow with no reachable `final: true` state still completes — see the Phase 7.9 correction below;
+  `final` only stops the step-counter walk, so validation grades a missing one as a warning.
 - Step ids must be unique across *all* states; persistence and analytics key on them.
 - A persisted `stepIndex` is meaningless without its `state`.
 - Serialising a flow to JSON is lossy: `showIf`, function `content` and `HTMLElement` targets do not
@@ -404,3 +404,72 @@ deliberately **below** `--gf-z-overlay` — plus `visibility: hidden` and `inert
   the flow id — is deliberately rejected: it is one subsystem reaching through a documented escape
   hatch to overwrite another's data byte for byte, on a key `@guideflow/ai` also reads. The right
   fix is `clearCompleted` in core, which is real bytes and its own conversation.
+
+---
+
+## ADR-012 — The authoring path is a library problem: two core subpaths, one selector, one flow file
+2026-08-01 · Status: Accepted · No core-entry budget change
+
+**Context.** `no-authoring-path-for-non-engineers` asked for one finished authoring surface. Its
+prescribed fix named the DevTools panel's Builder tab as the host. A 49-agent read of the codebase
+plus direct measurement changed two of that prescription's assumptions.
+
+**What measurement changed.**
+
+1. **Playwright cannot drive a `devtools_page`.** Verified: `chromium.launchPersistentContext` with
+   `channel: 'chromium'` loads the MV3 extension headlessly and reaches the service worker, the
+   content script, `chrome.storage` and `popup.html` — but there is no API, and no CDP path, to the
+   DevTools window. So anything living only in `panel/app.tsx` is **unprovable, permanently**. That
+   is the state Phase 3's extension hardening has been in for four phases, and the state the e2e
+   suite was in for two while CI stayed green.
+2. **The blocking permission question (D8) resolves favourably.** `chrome.tabs.sendMessage` from an
+   extension page does reach a statically-registered content script with only `activeTab`:
+   `GF_START_INSPECT` landed and the page really gained `#__gf_inspector_style__`. The narrower real
+   defect is that `chrome.tabs.query` returns `url: null` without the `tabs` permission, so any code
+   selecting a tab *by URL* gets nothing. Caveat for later: a `--load-extension` profile reports
+   `origins: ["<all_urls>"]` as granted, so a green extension e2e run does **not** prove the
+   real-install permission story.
+
+**Decision.** The parts of authoring that can be proven are extracted into two zero-byte
+`@guideflow/core` subpaths, and the UI is wired to them rather than owning them.
+
+- **`@guideflow/core/selector`** — one ranked, uniqueness-verified selector engine, replacing three
+  broken copies (`devtools/src/content/inspector.ts`, `ai/src/dom-context.ts`, and the panel's
+  implicit third). Every candidate is re-queried before acceptance; `unique: false` is returned
+  rather than a plausible-looking string.
+- **`@guideflow/core/authoring`** — `validateFlow` plus the one draft⇄flow converter and the one
+  reader/writer of `.flow.json`. Four mutually incompatible things called "export" collapse to one.
+
+**Not a tenth package**, overruling the winning design. A new `@guideflow/*` joins the changesets
+`fixed` glob automatically and must be scaffolded at the group's version; it needs a
+`verify-pack.mjs` edit, a peer range, four config files and a coverage ratchet — and the design that
+proposed it shipped it with no size gate at all. Two subpaths need two tsup entries, two `exports`
+entries and two `size-limit` entries, and `verify-pack.mjs` walks `pkg.exports` generically, so both
+are CI-gated with zero script changes.
+
+**Consequences.**
+- **`dist/index.js` is unchanged at 14.96 kB / 15 kB.** Neither subpath is imported by `src/index.ts`.
+  There is no sixth budget raise, and if that number ever moves, `authoring.ts` value-imported
+  something and the bug is there.
+- **The `authoring` gate is 5.5 kB, set from a measurement rather than an estimate.** The design
+  guessed 3 kB and said "shorten the hints, do not raise the gate". Measured: stripping *every*
+  `message` and `hint` saves 880 B. The weight is rules, not prose, and the hints are the
+  deliverable — they are what turns "invalid" into something a non-engineer can act on. The trade is
+  stated in the file's own docblock: authoring-time-only, opt-in, never in an app bundle.
+- **A documented falsehood is retracted.** CLAUDE.md claimed for eight phases that a flow with no
+  `final: true` state "never completes". It completes normally. `no-final-state` is therefore a
+  warning, and `authoring-engine.test.ts` pins every rule severity to real engine behaviour so the
+  rule table cannot drift from the engine again.
+- **`guideflow studio` is deleted**, with its test and its `vite` optional peer. It injected a global
+  nothing has ever read. The audit's instruction — choose one surface, finish it, delete the other —
+  is honoured; only its guess about which host could be finished is overruled, on evidence it did
+  not have.
+- **`guideflow export`'s `.ts`/`.js` path is deleted**, closing a P1: it wrote a truncated 500-char
+  slice of the user's own source, printed success and exited 0, and `push` would upload it.
+- Two pre-existing repo defects surfaced and were fixed: turbo's `lint`/`type-check` raced a
+  package's own `dist` deletion (intermittent, reproduced 1-in-3), and Vite's bare-string alias is a
+  prefix match that broke the demo on the first subpath import.
+
+**Deferred to 7.9b, and not claimed anywhere:** the Recorder page, service-worker-owned recording
+state, the extension zip and CI artifact, the Playwright extension project, and any store listing.
+The extension still exports the old flat draft shape.

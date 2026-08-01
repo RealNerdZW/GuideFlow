@@ -1,24 +1,25 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, extname } from 'node:path';
 
+import { parseFlowFile, stringifyFlowFile } from '@guideflow/core/authoring';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
 /**
- * `guideflow export [flowFile]` — read a TypeScript/JSON flow definition and
- * write it out as a portable JSON file suitable for:
- *   - GuideFlow Cloud
- *   - The DevTools browser extension import
- *   - Other tooling that consumes the FlowDefinition schema
+ * `guideflow export [flowFile]` — normalise a flow file into the one on-disk
+ * format, validating it on the way through.
  *
- * For `.ts` / `.js` files a best-effort static extraction is performed.  For
- * complex dynamic flows the user should use the programmatic API instead.
+ * **The `.ts` / `.js` path is gone.** It regex-matched the source, wrote
+ * `{ _note, rawSnippet: match[0].slice(0, 500) }` — a truncated slice of the
+ * user's own source, not a flow — printed a green success and exited **0**.
+ * `guideflow push` would then happily upload it. Deleting the lie is the fix;
+ * a TypeScript parser is a dependency this package should not carry.
  */
 export const exportCommand = new Command('export')
   .description('Export a flow definition to JSON')
   .argument('[file]', 'Path to the flow file (.ts, .js, or .json)', 'my-tour.ts')
   .option('-o, --output <file>', 'Output JSON file path')
-  .option('--pretty', 'Pretty-print output JSON', false)
+  .option('--pretty', 'Accepted and ignored — output is always pretty-printed', false)
   .option('--force', 'Overwrite the output file if it already exists', false)
   .action((file: string, opts: { output?: string; pretty: boolean; force: boolean }) => {
     const src = resolve(file);
@@ -29,33 +30,29 @@ export const exportCommand = new Command('export')
     }
 
     const ext = extname(src).toLowerCase();
-    let flowJson: unknown;
 
-    if (ext === '.json') {
-      const raw = readFileSync(src, 'utf-8');
-      flowJson = JSON.parse(raw) as unknown;
-    } else if (ext === '.ts' || ext === '.js') {
-      // Static extraction: look for an object literal with 'id' and 'states' (FlowDefinition shape)
-      const raw = readFileSync(src, 'utf-8');
-      const match = raw.match(/\{[\s\S]*?id\s*:\s*['"]([^'"]+)['"][\s\S]*?states\s*:\s*\{/);
-      if (!match) {
-        console.error(chalk.red('\n  Could not statically extract a FlowDefinition from the file.'));
-        console.error(chalk.dim('  Tip: ensure the file exports a FlowDefinition object with { id, initial, states }.'));
-        console.error(chalk.dim('  For complex flows, write the definition to a JSON file directly.\n'));
-        process.exit(1);
-      }
-      // For now emit a helpful stub and warn
-      flowJson = {
-        _note: 'Static extraction was used. Review and complete this file.',
-        rawSnippet: match[0].slice(0, 500),
-      };
-      console.warn(
-        chalk.yellow('\n  ⚠  TypeScript static extraction is limited. Please verify the output.\n'),
-      );
-    } else {
-      console.error(chalk.red(`\n  Unsupported file type: ${ext}\n`));
+    if (ext !== '.json') {
+      console.error(chalk.red(`\n  Cannot export ${ext || 'that'} — this command reads JSON.`));
+      console.error(chalk.dim('  A flow in TypeScript is code; export it from code:\n'));
+      console.error(chalk.dim("    import { stringifyFlowFile } from '@guideflow/core/authoring'"));
+      console.error(chalk.dim("    import { flow } from './my-tour.js'"));
+      console.error(chalk.dim("    writeFileSync('my-tour.flow.json', stringifyFlowFile(flow))\n"));
       process.exit(1);
     }
+
+    // One reader, one writer. The old code JSON.parsed and re-emitted the bytes
+    // without ever asking whether they were a flow.
+    const parsed = parseFlowFile(readFileSync(src, 'utf-8'));
+    for (const issue of parsed.issues) {
+      const tag = issue.severity === 'error' ? chalk.red('  error') : chalk.yellow('  warn ');
+      console.error(`${tag} ${chalk.dim(issue.path)} ${issue.message}`);
+      console.error(chalk.dim(`        → ${issue.hint}`));
+    }
+    if (!parsed.valid || !parsed.flow) {
+      console.error(chalk.red('\n  Refusing to export an invalid flow.\n'));
+      process.exit(1);
+    }
+    const flow = parsed.flow;
 
     // `src.replace(/\.(ts|js)$/, '.flow.json')` does not match a `.json` input,
     // so `guideflow export flow.json` used to resolve the output to the input
@@ -80,8 +77,9 @@ export const exportCommand = new Command('export')
       process.exit(1);
     }
 
-    const json = opts.pretty ? JSON.stringify(flowJson, null, 2) : JSON.stringify(flowJson);
-    writeFileSync(outPath, json, 'utf-8');
+    // Always pretty: a flow file lives in a repo and is read in diffs.
+    // `--pretty` is kept as an accepted no-op so existing scripts do not break.
+    writeFileSync(outPath, stringifyFlowFile(flow, { generator: 'guideflow export' }), 'utf-8');
 
     console.log(chalk.green(`\n  ✓ Exported flow to ${chalk.bold(outPath)}\n`));
   });

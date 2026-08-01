@@ -37,7 +37,8 @@ the one published up to v0.1.9 threw `ERR_REQUIRE_ESM` and has been removed.
   const { isActive, currentStepIndex, totalSteps } = tour
 
   // A flow is a state machine. A flat `{ id, steps: [...] }` object is not
-  // valid, and a flow with no `final: true` state never completes.
+  // valid. Mark the last state `final: true`: the tour completes either way,
+  // but `final` is what stops the walk that computes `totalSteps`.
   const flow: FlowDefinition = {
     id: 'welcome',
     initial: 'main',

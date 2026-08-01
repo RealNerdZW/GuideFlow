@@ -56,8 +56,9 @@ Same `GuidanceContext`, same predicate shape. There is nothing new to learn.
 
 ## Audience
 
-Prefer the declarative form — it survives `JSON.stringify`, so a flow stored in a CMS or exported
-with `guideflow export` keeps its rules. A predicate does not.
+Prefer the declarative form — it survives `JSON.stringify`, so a flow stored in a CMS or written to
+a `.flow.json` keeps its rules. A predicate does not: `stringifyFlowFile` refuses to write a flow
+that contains one.
 
 ```ts
 audience: {

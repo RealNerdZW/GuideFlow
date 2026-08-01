@@ -96,9 +96,10 @@ own endpoint — see [Running AI on your server](/guide/ai-proxy).
 
 ### CLI
 
-`@guideflow/cli` installs `commander`, `chalk`, `inquirer` and `ora`. The
-`studio` command additionally needs **Vite**, which is an *optional* peer — add
-it (`pnpm add -D vite`) only if you intend to run Studio.
+`@guideflow/cli` installs `commander`, `chalk`, `inquirer`, `ora` and
+`@guideflow/core` — the last of these because `guideflow validate` and
+`guideflow export` share the validator in `@guideflow/core/authoring`. There are
+no optional peers to add.
 
 ## CDN (no bundler)
 

@@ -205,9 +205,9 @@ hash routers work with no special case. Everything else is matched against `path
 ```
 
 ::: warning String patterns are the portable form
-`RegExp` and function patterns are dropped by `JSON.stringify`, so a flow that round-trips through
-`guideflow export` or the devtools panel silently loses them. The same applies to the function form
-of `Step.target`.
+`RegExp` and function patterns are not JSON, so a flow that round-trips through a file cannot carry
+them. `stringifyFlowFile` throws rather than writing a flow that contains one; the devtools panel
+drops them silently. The same applies to the function form of `Step.target`.
 :::
 
 ## Configuration

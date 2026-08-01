@@ -24,7 +24,7 @@ Read this first, because it catches out everyone porting a tour:
 | `.nextStep()` / `.previousStep()` | `gf.next()` / `gf.prev()` — both async |
 | `.goToStep(n)` | `gf.goTo(stepId)` — by step id, not index; it can cross states |
 | `.onbeforechange(fn)` / `.onchange(fn)` | `gf.on('step:enter', ({ stepId, stepIndex, target }) => …)` |
-| `.oncomplete(fn)` | `gf.on('tour:complete', …)` — needs a `final: true` state |
+| `.oncomplete(fn)` | `gf.on('tour:complete', …)` — fired when the tour runs out of steps to render |
 | `.onexit(fn)` | `gf.on('tour:dismiss', …)` for a user exit; `gf.on('tour:abandon', …)` for any early end |
 | `step.element` | `step.target` — selector, `HTMLElement`, or `null` for a centred step |
 | `step.intro` | `step.content.body` (escaped text) or `step.content.html` (allowlist-sanitised markup) |
@@ -88,7 +88,8 @@ await gf.start({
         { id: '1', content: { body: 'Hello World! 👋' }, target: '#step1', placement: 'bottom' },
         { id: '2', content: { body: 'This is how you do it.' }, target: '#step2', placement: 'right' },
       ],
-      // Without this the tour never emits tour:complete
+      // Not required to complete — the tour ends when it runs out of steps —
+      // but `final` is what stops the walk that computes totalSteps.
       final: true,
     },
   },

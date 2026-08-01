@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Importing the entry point pulls in every command module, and studio.ts imports
+// Importing the entry point pulls in every command module, and validate.ts imports
 // `vite` at module scope — a hard runtime dependency of @guideflow/cli (audit
 // finding `cli-ships-vite-as-runtime-dependency`). Loading it once per test,
 // with a reset module registry each time, took ~7s and timed out under parallel
@@ -33,7 +33,7 @@ const pkg = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'),
 ) as { version: string };
 
-const SUBCOMMANDS = ['init', 'studio', 'export', 'push'] as const;
+const SUBCOMMANDS = ['init', 'validate', 'export', 'push'] as const;
 
 let written: string[];
 let argv: string[];
@@ -76,7 +76,7 @@ afterEach(() => {
 });
 
 describe('guideflow program', () => {
-  it('lists all four subcommands in --help', async () => {
+  it('lists every subcommand in --help', async () => {
     await runCli(['--help']);
 
     const help = output();
@@ -93,7 +93,7 @@ describe('guideflow program', () => {
     const help = output();
     expect(help).toContain('Scaffold a new GuideFlow configuration in your project');
     expect(help).toContain('Export a flow definition to JSON');
-    // `studio` and `push` used to advertise "a local visual tour editor" and
+    // `validate` and `push` used to advertise "a local visual tour editor" and
     // "GuideFlow Cloud". Neither exists — the editor was never built and the
     // Cloud endpoint is a placeholder — and these assertions pinned the false
     // strings in place. --help is documentation too.

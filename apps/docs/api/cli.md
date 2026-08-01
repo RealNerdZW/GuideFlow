@@ -1,19 +1,17 @@
 ---
-description: "GuideFlow CLI reference — the real flags for guideflow init, studio, export and push in @guideflow/cli, including their current limitations."
-keywords: GuideFlow CLI, guideflow init, guideflow studio, guideflow export, guideflow push, @guideflow/cli
+description: "GuideFlow CLI reference — the real flags for guideflow init, export, validate and push in @guideflow/cli, including their current limitations."
+keywords: GuideFlow CLI, guideflow init, guideflow export, guideflow validate, guideflow push, @guideflow/cli
 ---
 
 # CLI Reference
 
-`@guideflow/cli` provides the `guideflow` command for scaffolding starter files, serving your
-project with a dev server, converting flow files to JSON, and POSTing a flow JSON file to an HTTP
-endpoint.
+`@guideflow/cli` provides the `guideflow` command for scaffolding starter files, normalising and
+validating flow files, and POSTing a flow JSON file to an HTTP endpoint.
 
 ::: warning Status
-The CLI is the least finished part of GuideFlow. There is **no visual tour editor** — `studio` is a
-Vite dev server (see below) — `export` produces a usable file only for `.json` input, and `push`
-needs an endpoint you host yourself. Read each command's limitations before you build a workflow
-around it.
+`validate` is the command built for CI, and `export` runs the same validator. `init` prompts by
+default but takes `--yes` for unattended use, and `push` needs an endpoint you host yourself — there
+is no hosted service. Read each command's limitations before you build a workflow around it.
 :::
 
 Requires Node.js >= 18.
@@ -42,19 +40,23 @@ guideflow init [options]
 |---|---|---|
 | `--dir <directory>` | `.` | Target directory (pre-fills the interactive prompt) |
 | `--framework <framework>` | — | `react`, `vue`, `svelte` or `none`; skips the framework prompt |
+| `-y, --yes` | `false` | Accept the defaults and never prompt |
+| `--force` | `false` | Overwrite files that already exist |
 
-`init` is **always interactive**: it asks where to place the files even when `--dir` is passed
-(`--dir` only supplies the default answer), so it cannot be used unattended or in CI.
+Each prompt is skipped when its answer is already known, and prompting is suppressed entirely by
+`--yes` **or** by a non-TTY stdout — so `init` runs unattended in CI.
 
 Files written into the chosen directory:
 
 - `guideflow.ts` — creates and exports a `createGuideFlow({})` instance
 - `my-tour.ts` — an example `FlowDefinition` with two states, the second `final: true`
-- `GuideFlowProvider.tsx` — **React only**; a `TourProvider` wrapper. Choosing `vue` or `svelte`
-  writes no adapter file, only the two files above.
+- one framework file, chosen by `--framework`: `GuideFlowProvider.tsx` (React, a `TourProvider`
+  wrapper), `guideflow-plugin.ts` (Vue, an `installGuideFlow(app)` helper) or `guideflow-store.ts`
+  (Svelte, a `createTourStore` export). `--framework none` writes only the two files above.
 
-Existing files of those names are overwritten without a prompt. No `package.json` is modified and
-no dependencies are installed — `init` prints the `pnpm add` line for you to run yourself.
+**Existing files are left alone**, listed as skipped, and overwritten only with `--force`; when every
+file already exists the command writes nothing and says so. No `package.json` is modified and no
+dependencies are installed — `init` prints the `pnpm add` line for you to run yourself.
 
 ```bash
 # Scaffold into the current directory
@@ -62,6 +64,9 @@ guideflow init
 
 # Pre-fill the directory prompt and skip the framework question
 guideflow init --dir ./src --framework react
+
+# Unattended
+guideflow init --dir ./src --framework vue --yes
 ```
 
 There is no `guideflow.config.ts`. No GuideFlow command reads a project config file; every command
@@ -69,50 +74,9 @@ takes its input on the command line.
 
 ---
 
-### `guideflow studio`
-
-Starts a [Vite](https://vitejs.dev) dev server over your project directory and injects
-`window.__GUIDEFLOW_DEVTOOLS__ = true` into every HTML response.
-
-```bash
-guideflow studio [options]
-```
-
-| Option | Default | Description |
-|---|---|---|
-| `-p, --port <port>` | `4747` | Port to listen on |
-| `--root <dir>` | `.` | Project root directory to serve |
-| `--host <host>` | `127.0.0.1` | Interface to bind to |
-
-::: warning The editor does not exist yet
-`studio` does not open a tour editor, and it does not open a browser. It serves your project and
-sets one global flag. **No `@guideflow/*` package reads `window.__GUIDEFLOW_DEVTOOLS__`** — only the
-repo's own demo app looks at it, to show a badge. The DevTools extension detects pages through a
-different global, `window.__guideflow`, which the library does not set either. Until the editor is
-built, `guideflow studio` is `vite dev` plus an inert script tag.
-:::
-
-Vite is an **optional peer dependency** — it is not installed with the CLI. Projects that already
-have Vite need no extra step; anyone else gets an error telling them to run `pnpm add -D vite`.
-
-The server binds to `127.0.0.1` by default because it serves your entire project directory. Pass
-`--host` only when you genuinely need it reachable from another machine.
-
-```bash
-# Serve the current directory on 127.0.0.1:4747
-guideflow studio
-
-# Custom port and root
-guideflow studio --port 3000 --root ./packages/app
-```
-
-Press `Ctrl+C` to stop.
-
----
-
 ### `guideflow export`
 
-Reads a flow file and writes JSON.
+Normalises a flow file into the one on-disk format, validating it on the way through.
 
 ```bash
 guideflow export [file] [options]
@@ -120,68 +84,113 @@ guideflow export [file] [options]
 
 | Argument / Option | Default | Description |
 |---|---|---|
-| `[file]` | `my-tour.ts` | Path to the flow file (`.ts`, `.js` or `.json`) |
-| `-o, --output <file>` | see below | Output path, used exactly as given (relative to your current directory, not to the input file) |
-| `--pretty` | `false` | Pretty-print the output JSON |
+| `[file]` | `my-tour.ts` | Path to the flow file. **`.json` only** — see below |
+| `-o, --output <file>` | the input path with its extension replaced by `.flow.json` | Output path, used exactly as given (relative to your current directory, not to the input file) |
+| `--pretty` | — | Accepted and ignored; the output is always pretty-printed |
+| `--force` | `false` | Overwrite the output file if it already exists |
 
-Any other extension, or a missing file, exits with status 1.
+The file is read with `parseFlowFile`, graded by the same validator `guideflow validate` runs, and
+written back with `stringifyFlowFile` — all three from
+[`@guideflow/core/authoring`](/guide/authoring). Every issue found is printed, and **a flow with
+any error is not written**: the command prints `Refusing to export an invalid flow` and exits 1.
 
-**`.json` input** works: the file is parsed and re-serialised (minified, or indented with
-`--pretty`). The contents are not validated against the `FlowDefinition` schema.
+Output is always pretty-printed, because a flow file lives in a repo and is read in diffs.
+`--pretty` is accepted as a no-op so existing scripts keep working.
 
-::: danger `-o` is not optional for JSON input
-The implicit output path is the input path with a trailing `.ts`/`.js` replaced by `.flow.json`.
-A `.json` input has nothing to replace, so the implicit output path **is the input path** —
-`guideflow export my-tour.json` rewrites your source file in place. Always pass `-o` when exporting
-JSON.
-:::
+The command refuses to overwrite the input file, and refuses to overwrite an existing output file
+unless `--force` is passed. A missing file exits 1.
 
-**`.ts` / `.js` input does not produce a flow.** The command regex-scans the source for something
-that looks like `{ id: '…' … states: {` and, if it matches, writes a stub:
+::: warning `.ts` and `.js` input is now an error
+Only `.json` is read. The default argument is still `my-tour.ts`, so a bare `guideflow export` with
+no file exits 1 — pass the `.json` path you mean.
 
-```json
-{
-  "_note": "Static extraction was used. Review and complete this file.",
-  "rawSnippet": "…the first 500 characters of the matched source text…"
-}
-```
+If you have a file on disk shaped like `{ "_note": …, "rawSnippet": … }`, that is the output of the
+old `.ts`/`.js` path: a 500-character slice of your own source text with no `id`, no `initial` and
+no `states`. It is not a flow. Regenerate it with the snippet below.
 
-That object has no `id`, no `initial` and no `states` — it is not a `FlowDefinition`, so nothing that
-expects a flow can use it. (`guideflow push` will still upload it: it only checks that the file
-parses as JSON.) The command prints a warning but exits 0. If the regex finds no match it exits 1.
-
-To get a real JSON flow out of a TypeScript definition today, export the object from your flow
-module and serialise it yourself — a `FlowDefinition` is plain data, so `JSON.stringify` is enough:
+A flow written in TypeScript is code, so export it from code — the error message points you at the
+same three lines:
 
 ```ts
-// tools/export-flow.ts — run with `npx tsx tools/export-flow.ts`
 import { writeFileSync } from 'node:fs'
 
-import type { FlowDefinition } from '@guideflow/core'
+import { stringifyFlowFile } from '@guideflow/core/authoring'
 
-const welcomeTour: FlowDefinition = {
-  id: 'welcome-tour',
-  initial: 'intro',
-  states: {
-    intro: {
-      steps: [
-        {
-          id: 'intro',
-          target: '#app',
-          content: { title: 'Welcome!', body: 'This is your first step.' },
-        },
-      ],
-      final: true,
-    },
-  },
-}
+import { flow } from './my-tour.js'
 
-writeFileSync('welcome-tour.json', JSON.stringify(welcomeTour, null, 2))
+writeFileSync('my-tour.flow.json', stringifyFlowFile(flow))
 ```
+:::
 
 ```bash
-# Working example: reformat an existing JSON flow to a new file
-guideflow export ./flows/onboarding.json -o ./dist/flows/onboarding.json --pretty
+# Normalise and validate an existing JSON flow into a new file
+guideflow export ./flows/onboarding.json -o ./dist/flows/onboarding.flow.json
+```
+
+---
+
+### `guideflow validate`
+
+Checks flow files and reports what is wrong with them. Built for CI.
+
+```bash
+guideflow validate <files...> [options]
+```
+
+| Argument / Option | Default | Description |
+|---|---|---|
+| `<files...>` | — | **Required.** One or more flow files to check |
+| `--strict` | `false` | Treat warnings as errors |
+
+Each file is read with `parseFlowFile` and graded by `validateFlow` from
+[`@guideflow/core/authoring`](/guide/authoring). Nothing is repaired and nothing is written — the
+command only reports. Every issue prints its severity, its path into the flow, the problem, and the
+fix on a `→` line:
+
+```
+  ✗ flows/checkout.flow.json — 1 error(s), 1 warning(s)
+    error states.support.on.NEXT
+      Transition "NEXT" points at "confirmation", which is not a state. The tour stops there AND is recorded as completed, so it never shows again.
+      → Point it at one of: cart, payment, support.
+    warn  states
+      No state is marked `final: true`.
+      → The tour still completes when it runs out of steps, but marking the last state final says so explicitly and fixes the step counter.
+
+  1 error(s), 1 warning(s) across 1 file(s)
+```
+
+A clean file reports what it found, so a passing run is not silence:
+
+```
+  ✓ flows/welcome.flow.json — welcome, 2 state(s)
+
+  1 file(s) valid, 0 warning(s)
+```
+
+#### Exit codes are the contract
+
+| | exit 0 | exit 1 |
+|---|---|---|
+| default | no errors; warnings allowed | any error, or a file that could not be read |
+| `--strict` | no errors **and** no warnings | any error, any warning, or a file that could not be read |
+
+The reason to run this at all: the engine's only runtime check is that `flow.initial` names a real
+state. A transition pointing at a state that does not exist emits one `console.warn` and then fires
+`tour:complete` — the tour truncates *and* is recorded as completed, so it never shows again.
+Nothing throws. See [Authoring](/guide/authoring) for the rules and the severity each one carries.
+
+```bash
+# Every flow in the repo, warnings included
+guideflow validate flows/*.flow.json --strict
+```
+
+```json
+{ "scripts": { "lint:flows": "guideflow validate flows/*.flow.json --strict" } }
+```
+
+```yaml
+# .github/workflows/ci.yml
+- run: npx @guideflow/cli validate flows/*.flow.json --strict
 ```
 
 ---
@@ -197,7 +206,7 @@ guideflow push [file] [options]
 | Argument / Option | Default | Description |
 |---|---|---|
 | `[file]` | `my-tour.flow.json` | Path to the flow JSON file |
-| `-k, --api-key <key>` | — | **Required.** Sent as `Authorization: Bearer <key>` |
+| `-k, --api-key <key>` | `$GUIDEFLOW_API_KEY` | Sent as `Authorization: Bearer <key>`. A key is required; the flag is not |
 | `-e, --endpoint <url>` | `https://api.guideflow.dev/v1/flows` | Target URL |
 | `--env <env>` | `production` | Sent as the `X-GuideFlow-Env` header |
 
@@ -211,9 +220,10 @@ The request is a single `POST` with `Content-Type: application/json`, and the fi
 body. The file must parse as JSON — nothing else about it is validated. A non-2xx response prints
 the status and body and exits 1. If the response JSON contains a `url` field it is printed.
 
-`--api-key` is declared as a required option, so commander rejects the command before it runs when
-the flag is missing. The `GUIDEFLOW_API_KEY` environment variable is named in the option's help text
-but is **not** currently honoured — you must pass the flag.
+A key is required, but the flag is not: `--api-key` falls back to the `GUIDEFLOW_API_KEY` environment
+variable, and the command exits 1 with `API key is required` only when neither is set. **Prefer the
+environment variable** — a key passed on the command line lands in your shell history and in process
+listings.
 
 ```bash
 guideflow push ./flows/onboarding.json \
@@ -233,5 +243,5 @@ guideflow push ./flows/onboarding.json \
 
 ```bash
 guideflow --version
-guideflow studio --help
+guideflow validate --help
 ```

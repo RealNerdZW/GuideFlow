@@ -577,8 +577,30 @@ the budget could not absorb it**, so the packaging change had to come first.
       copies. Convert to `Object.keys({…} satisfies Record<keyof TourEvents, true>)` so the next
       event added to `TourEvents` fails to compile instead of rotting. Own changeset; nothing to do
       with checklists.
-- [ ] **7.9 A real authoring path** — finish the recorder, then build the studio on it. Closes
-      `no-authoring-path-for-non-engineers`.
+- [x] **7.9a The authoring core** — the provable half of `no-authoring-path-for-non-engineers`.
+      Two zero-byte `@guideflow/core` subpaths: `./selector` (one ranked, uniqueness-verified engine
+      replacing three broken copies) and `./authoring` (`validateFlow`, the one draft⇄flow converter,
+      and the one reader/writer of `.flow.json`). `guideflow validate` added; `guideflow export`
+      rewritten onto the one serialiser with its `.ts`/`.js` stub P1 deleted; `guideflow studio`
+      deleted with its `vite` peer. `dist/index.js` unchanged at 14.96 kB. See ADR-012.
+      **Measured, not read.** Two wrong-element selector failures reproduced in real Chromium and
+      fixed. Four engine behaviours measured to grade the validator's severities — one of which
+      showed CLAUDE.md had been **wrong for eight phases** about `final: true`, now corrected and
+      pinned by `authoring-engine.test.ts`.
+      Two pre-existing repo defects surfaced and fixed on the way: turbo's `lint`/`type-check` raced
+      a package's own `dist` deletion (intermittent, 1-in-3), and Vite's bare-string alias is a
+      prefix match that broke the demo on the first subpath import.
+- [ ] **7.9b The authoring surface** — the half that needs a browser. A `recorder.html` extension
+      page (Playwright can drive an extension page; it can **never** drive a `devtools_page`, so
+      logic that lives only in `panel/app.tsx` is unprovable — verified, see ADR-012), service-worker
+      -owned recording state (fixes navigation-kills-recording, DevTools-close-loses-recording and
+      popup-armed-captures-nothing in one change), deletion of the Builder tab, a zip + CI artifact
+      so a non-engineer can install it, and a chromium-only Playwright extension project. The
+      harness incantation is settled: `launchPersistentContext` with `channel: 'chromium'` —
+      Playwright's default headless chromium is the headless shell and silently loads no extension
+      at all.
+- [ ] **7.9c Chrome Web Store listing** — a developer account, a fee, a privacy policy and a review.
+      Not engineering; tracked so it is not mistaken for done.
 - [ ] **7.10 Backend / flow CMS** — `no-backend-cms-or-self-hosting-story`. See `MCP-AND-SKILLS.md`.
 - [ ] **7.11 Ship a GuideFlow MCP server** — see `MCP-AND-SKILLS.md` section 3.
 

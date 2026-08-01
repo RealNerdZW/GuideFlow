@@ -1,46 +1,18 @@
 import type { DOMContext, DOMElementInfo } from '@guideflow/core';
 import { isBrowser } from '@guideflow/core';
+// The third copy of a selector builder in this repo, deleted. This one ranked
+// aria-label above data-testid and fell back to a bare, unanchored
+// `tag:nth-of-type(n)` with no uniqueness check at all — so it could name an
+// element on the other side of the document. One engine now, verified by
+// re-query, tested against a hostile corpus.
+import { buildSelector as buildCoreSelector } from '@guideflow/core/selector';
+
+const buildSelector = (el: Element): string => buildCoreSelector(el).selector;
 
 /** CSS selector strategies tried in order (most specific first). */
 const INTERACTIVE_TAGS = new Set(['a', 'button', 'input', 'select', 'textarea', 'details', 'summary']);
 function isInteractive(el: Element): boolean {
   return INTERACTIVE_TAGS.has(el.tagName.toLowerCase()) || el.hasAttribute('tabindex') || el.getAttribute('role') === 'button';
-}
-
-const SELECTOR_STRATEGIES = [
-  (el: Element): string | null => {
-    const id = el.id;
-    return id ? `#${CSS.escape(id)}` : null;
-  },
-  (el: Element): string | null => {
-    const name = el.getAttribute('name');
-    if (!name) return null;
-    return `[name="${CSS.escape(name)}"]`;
-  },
-  (el: Element): string | null => {
-    const aria = el.getAttribute('aria-label');
-    if (!aria) return null;
-    return `[aria-label="${CSS.escape(aria)}"]`;
-  },
-  (el: Element): string | null => {
-    const testId = el.getAttribute('data-testid') ?? el.getAttribute('data-test-id');
-    if (!testId) return null;
-    return `[data-testid="${CSS.escape(testId)}"]`;
-  },
-];
-
-function buildSelector(el: Element): string {
-  for (const strategy of SELECTOR_STRATEGIES) {
-    const sel = strategy(el);
-    if (sel) return sel;
-  }
-  // Fallback: tagName + nth-of-type
-  const tag = el.tagName.toLowerCase();
-  const parent = el.parentElement;
-  if (!parent) return tag;
-  const siblings = Array.from(parent.children).filter((c) => c.tagName === el.tagName);
-  const idx = siblings.indexOf(el) + 1;
-  return `${tag}:nth-of-type(${idx})`;
 }
 
 function getLabel(el: Element): string | undefined {

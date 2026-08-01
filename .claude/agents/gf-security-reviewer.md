@@ -89,9 +89,9 @@ takes an `apiKey` that lives in the client bundle.
 
 ### 6. `packages/cli`
 
-`init`/`export`/`push`/`studio`: path traversal and unguarded overwrite of user files; the API key
-arriving via `--api-key` lands in shell history; endpoint is user-supplied with no allowlist; what
-does `studio` serve, on which interface, with what CORS?
+`init`/`export`/`validate`/`push`: path traversal and unguarded overwrite of user files; the API key
+arriving via `--api-key` lands in shell history (`GUIDEFLOW_API_KEY` is the safer path and is
+honoured); endpoint is user-supplied with no allowlist.
 
 ### 7. Supply chain
 

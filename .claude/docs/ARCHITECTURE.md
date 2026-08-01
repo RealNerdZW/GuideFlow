@@ -70,8 +70,9 @@ guards on transitions, and entry/exit side effects — all of which a `Step[]` c
 inventing a worse state machine on top.
 
 **Consequences:**
-- A flow with no reachable `final: true` state never completes and therefore never persists
-  completion, so it replays forever.
+- A flow with no reachable `final: true` state still completes: a tour ends when there is nothing
+  left to render, and `final` is read only to stop the step-counter walk (Phase 7.9 measurement).
+  Missing it is a `no-final-state` **warning**, not a broken flow.
 - Step ids must be unique across *all* states — persistence and analytics key on them.
 - `stepIndex` is per-state, so a saved `stepIndex` is only meaningful together with its `state`.
 

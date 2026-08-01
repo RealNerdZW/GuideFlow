@@ -28,6 +28,7 @@ description of the current state — see `.claude/docs/AUDIT.md` §AI.
 ```
 packages/
   core/         @guideflow/core       FSM engine, spotlight, popover, renderer, persistence, i18n. ZERO runtime deps.
+                                      Subpaths: /targeting /navigation /html /versioning /selector /authoring
   react/        @guideflow/react      TourProvider, useTour, useTourStep, useHotspot, GuidePopover, ConversationalPanel
   vue/          @guideflow/vue        GuideFlowPlugin + useTour composable (no components)
   svelte/       @guideflow/svelte     createTourStore (no components)
@@ -72,6 +73,7 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 | Unit tests | `pnpm test` |
 | Watch tests for one package | `pnpm --filter @guideflow/core test:watch` |
 | Bundle-size gate | `pnpm --filter @guideflow/core size` |
+| Validate a flow file | `pnpm --filter @guideflow/cli exec guideflow validate <file>` |
 | Demo app | `pnpm demo` |
 | Docs site | `pnpm docs:dev` |
 | Storybook | `pnpm storybook` |
@@ -82,15 +84,16 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.8, 2026-08-01)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.9a, 2026-08-01)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **947 unit tests pass**, 2 skipped
-(core 382, ai 153, react 114, analytics 98, checklist 73, vue 47, cli 37, svelte 34, devtools 9).
-Five bundles, each gated independently: `@guideflow/core` **14.96 kB / 15 kB**, `./targeting`
-**2.18 kB / 2.5 kB**, `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning`
-**336 B / 500 B**. `@guideflow/checklist` carries no size gate by design — see ADR-011.
+Build, type-check, lint and unit tests are **all green**: **1040 unit tests pass**, 1 skipped
+(core 472, ai 153, react 114, analytics 98, checklist 73, vue 47, cli 40, svelte 34, devtools 9).
+**Seven** bundles, each gated independently: `@guideflow/core` **14.96 kB / 15 kB**, `./authoring`
+**5.3 kB / 5.5 kB**, `./targeting` **2.18 kB / 2.5 kB**, `./selector` **1.76 kB / 2.5 kB**,
+`./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
+`@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
 **The Playwright e2e suite now actually runs: 281 passed, 3 conditionally skipped, across chromium,
@@ -218,8 +221,19 @@ interface FlowDefinition {
 ```
 
 `FlowMachine` tracks `(state, stepIndex)`. `next()` advances `stepIndex` within the current state;
-when the state's steps are exhausted it follows the transition table. A flow with **no `final: true`
-state never completes**. Flat `{ id, steps: [...] }` objects are **not** valid flows — that shape
+when the state's steps are exhausted it follows the transition table.
+
+**Correction (Phase 7.9).** This section used to say a flow with no `final: true` state "never
+completes". **That was wrong**, and it was wrong for eight phases. Measured against the real engine:
+such a flow emits `tour:complete` normally and `isActive` goes false. `machine.isFinal` is read by
+no engine code at all; the single functional read of `final` is `_defaultSuccessor`
+([machine.ts:121](packages/core/src/fsm/machine.ts#L121)), where it only stops the step-counter walk.
+A tour ends when there is nothing left to render — which is exactly what §6's first bullet says. So a
+missing `final: true` is an authoring slip worth a **warning**, not a broken flow, and
+`@guideflow/core/authoring` grades it that way. `packages/core/src/__tests__/authoring-engine.test.ts`
+pins the behaviour in both directions so this cannot rot again.
+
+Flat `{ id, steps: [...] }` objects are **not** valid flows — that shape
 appears in `apps/e2e/fixtures/index.html` and is one reason the e2e suite is broken.
 
 ### 5.3 Render pipeline
@@ -368,6 +382,22 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
   `matchFixedConstraint` forces the group's highest version onto every member — `npm init`'s
   default would major all nine packages, and then major them again as every `>=0.1.9 <1.0.0` peer
   falls out of range. `scripts/verify-pack.mjs` now fails CI when the group's versions diverge.
+- **`turbo`'s `^build` does not cover a package's own build.** `lint` and `type-check` run
+  type-aware rules, which resolve imports through emitted `.d.ts`. `packages/core` has no workspace
+  dependencies, so `^build` was empty for it — and its own `build` starts with `fsx rm dist`. The
+  result was an *intermittent* `no-unsafe-member-access` on an "error typed value", in whichever file
+  happened to be reading `dist` when it vanished (core's fixture-guard test imports
+  `apps/e2e/fixtures/flows.d.ts`, which imports `@guideflow/core` by package name). Both tasks now
+  declare `["^build", "build"]`. Reproduced 1-in-3 before, 0-in-3 after.
+- **A bare string alias in Vite is a PREFIX match.** `apps/demo/vite.config.ts` aliased
+  `'@guideflow/core'` to `…/src/index.ts`, so the first `@guideflow/core/selector` import in the tree
+  resolved to `…/src/index.ts/selector` and the build died. Subpath-aware aliases must come first,
+  as regex entries, with the exact-match entry after.
+- **There is exactly one selector builder now: `@guideflow/core/selector`.** There used to be three,
+  and all three were broken the same two ways — they trusted framework-generated ids, and none of
+  them ever re-queried to check what they had built. Measured in real Chromium, the devtools copy
+  pointed at the *wrong element* for two ordinary page shapes. If you need a selector anywhere, import
+  it; do not write a fourth.
 - **Two documentation sites exist.** `.github/workflows/docs.yml` publishes
   `apps/docs/.vitepress/dist` to GitHub Pages. The root `docs/*.html` files are stale leftovers that
   nothing builds — yet `docs.yml` still *triggers* on `docs/**`. Edit `apps/docs/`, never `docs/`.

@@ -31,6 +31,11 @@
  * nonce, (b) name a type on `RELAYABLE`, and (c) pass a per-type shape check.
  */
 
+import {
+  buildSelector as buildCoreSelector,
+  type SelectorResult,
+} from '@guideflow/core/selector';
+
 // Force TypeScript to treat this as a module (isolated scope)
 export {};
 
@@ -468,29 +473,25 @@ function injectHighlightStyle(): void {
   document.head.appendChild(style);
 }
 
+/**
+ * Build a selector for a picked or recorded element.
+ *
+ * The 24 lines this replaces had six defects, two of which were MEASURED
+ * against real Chromium as resolving to the wrong element: two buttons sharing
+ * `aria-label="Close"`, and a sidebar/main pair with matching nesting, where
+ * the unanchored four-segment `:nth-child` chain matched twice and
+ * `querySelector` returned the first. Nothing ever re-queried to notice.
+ *
+ * `@guideflow/core/selector` verifies every candidate, so a selector that is
+ * not provably unique arrives here flagged rather than silently wrong.
+ */
 function buildSelector(el: Element): string {
-  if (el.id) return `#${CSS.escape(el.id)}`;
-  const ariaLabel = el.getAttribute('aria-label');
-  // An aria-label inside a private subtree is page text, so it must not end up
-  // embedded in a selector either — fall through to a structural path instead.
-  if (ariaLabel && !isPrivate(el)) return `[aria-label="${CSS.escape(ariaLabel)}"]`;
-  const testId = el.getAttribute('data-testid');
-  if (testId) return `[data-testid="${CSS.escape(testId)}"]`;
+  return describeSelector(el).selector;
+}
 
-  // Build an nth-child path (up to 4 levels) for a unique selector
-  const parts: string[] = [];
-  let cur: Element | null = el;
-  while (cur && parts.length < 4) {
-    let seg = cur.tagName.toLowerCase();
-    if (cur.parentElement) {
-      const siblings = Array.from(cur.parentElement.children);
-      const idx = siblings.indexOf(cur) + 1;
-      seg += `:nth-child(${idx})`;
-    }
-    parts.unshift(seg);
-    cur = cur.parentElement;
-  }
-  return parts.join(' > ');
+/** The full result, so the panel can show confidence and refuse a bad step. */
+function describeSelector(el: Element): SelectorResult {
+  return buildCoreSelector(el, { privateSelector: `[${PRIVATE_ATTR}]` });
 }
 
 function onMouseOver(e: MouseEvent): void {

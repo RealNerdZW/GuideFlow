@@ -51,7 +51,20 @@ function writtenFile(): [string | undefined, string | undefined] {
   return [call[0], call[1]];
 }
 
-const FLOW_JSON = '{\n  "id": "welcome",\n  "initial": "s1",\n  "states": {}\n}';
+// A REAL flow. This fixture used to be `{ id, initial: 's1', states: {} }` —
+// a flow the engine cannot run — and every assertion below passed, because
+// export validated nothing on its way through.
+const FLOW_JSON = JSON.stringify(
+  {
+    id: 'welcome',
+    initial: 's1',
+    states: {
+      s1: { steps: [{ id: 'one', target: '#a', content: { title: 'One' } }], final: true },
+    },
+  },
+  null,
+  2,
+);
 
 const FLOW_TS = `import type { FlowDefinition } from '@guideflow/core';
 
@@ -103,19 +116,40 @@ describe('exportCommand — JSON input', () => {
     const [outPath, contents] = writtenFile();
     // `--output` is used verbatim, not resolved against cwd.
     expect(outPath).toBe('out.json');
-    expect(contents).toBe('{"id":"welcome","initial":"s1","states":{}}');
+    // One on-disk format now: the envelope, with a structural version stamped.
+    const parsed = JSON.parse(contents ?? '') as { gfFlowFile: number; flow: { id: string } };
+    expect(parsed.gfFlowFile).toBe(1);
+    expect(parsed.flow.id).toBe('welcome');
     expect(exitSpy).not.toHaveBeenCalled();
   });
 
-  it('pretty-prints with --pretty', async () => {
+  it('always pretty-prints — a flow file is read in diffs', async () => {
+    // `--pretty` is now an accepted no-op rather than a switch: a minified
+    // flow file in a pull request is unreviewable.
     onlyInputExists('flow.json');
     fs.readFileSync.mockReturnValue(FLOW_JSON);
 
-    await runExport(['flow.json', '-o', 'out.json', '--pretty']);
+    await runExport(['flow.json', '-o', 'out.json']);
 
     const [, contents] = writtenFile();
-    expect(contents).toContain('\n  "id": "welcome"');
-    expect(JSON.parse(contents ?? '')).toEqual({ id: 'welcome', initial: 's1', states: {} });
+    expect(contents).toContain('\n  "flow": {');
+    expect(contents?.endsWith('\n')).toBe(true);
+  });
+
+  it('refuses to export a flow that would not run', async () => {
+    onlyInputExists('flow.json');
+    // A transition naming a state that does not exist: the engine truncates the
+    // tour AND marks it completed, so it never shows again.
+    fs.readFileSync.mockReturnValue(
+      JSON.stringify({
+        id: 'broken',
+        initial: 'a',
+        states: { a: { steps: [{ id: 's', content: { title: 't' } }], on: { NEXT: 'ghost' } } },
+      }),
+    );
+
+    await expect(runExport(['flow.json', '-o', 'out.json'])).rejects.toThrow(ProcessExited);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
   });
 
   /*
@@ -160,47 +194,24 @@ describe('exportCommand — TypeScript / JavaScript input', () => {
    * statement that it is correct. See the `it.skip` beneath for the behaviour
    * this command is documented to have.
    */
-  it('writes a truncated raw-source stub for .ts input (current behaviour)', async () => {
+  it('refuses .ts input, and exits 1 — it used to write a stub and exit 0', async () => {
+    // Closes AUDIT `export-ts-js-emits-stub` by deletion, not by parsing. The
+    // old path regex-matched the source, wrote
+    // `{ _note, rawSnippet: match[0].slice(0, 500) }` — a truncated slice of
+    // the user's own file, not a flow — printed a green success and exited 0.
+    // `guideflow push` would then upload it.
     onlyInputExists('my-tour.ts');
     fs.readFileSync.mockReturnValue(FLOW_TS);
 
-    await runExport(['my-tour.ts']);
+    await expect(runExport(['my-tour.ts'])).rejects.toThrow(ProcessExited);
 
-    const [outPath, contents] = writtenFile();
-    expect(outPath).toBe(resolve('my-tour.flow.json'));
-
-    const parsed = JSON.parse(contents ?? '') as { _note?: string; rawSnippet?: string };
-    expect(parsed._note).toContain('Static extraction');
-    expect(parsed.rawSnippet).toContain("id: 'welcome'");
-    // The emitted object is *not* a FlowDefinition — no id / initial / states.
-    expect(parsed).not.toHaveProperty('id');
-    expect(parsed).not.toHaveProperty('states');
-    // The user is warned, and the command still reports success.
-    expect(console.warn).toHaveBeenCalled();
-    expect(exitSpy).not.toHaveBeenCalled();
-  });
-
-  /*
-   * SKIPPED — audit finding `export-ts-js-emits-stub`. The command's own
-   * description ("Export a flow definition to JSON") and README promise a
-   * portable FlowDefinition consumable by GuideFlow Cloud and the DevTools
-   * import. This is that contract.
-   */
-  it.skip('emits a real FlowDefinition for .ts input', async () => {
-    onlyInputExists('my-tour.ts');
-    fs.readFileSync.mockReturnValue(FLOW_TS);
-
-    await runExport(['my-tour.ts']);
-
-    const [, contents] = writtenFile();
-    const parsed = JSON.parse(contents ?? '') as {
-      id?: string;
-      initial?: string;
-      states?: Record<string, unknown>;
-    };
-    expect(parsed.id).toBe('welcome');
-    expect(parsed.initial).toBe('s1');
-    expect(parsed.states).toHaveProperty('s1');
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    // And it says what to do instead, rather than only what it will not do.
+    const said = (console.error as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .flat()
+      .join(' ');
+    expect(said).toContain('stringifyFlowFile');
   });
 
   it('exits 1 when no FlowDefinition can be extracted', async () => {

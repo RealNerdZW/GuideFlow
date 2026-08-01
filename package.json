@@ -19,7 +19,6 @@
     "docs:build": "pnpm --filter docs build",
     "storybook": "pnpm --filter @guideflow/storybook dev",
     "demo": "pnpm --filter @guideflow/demo dev",
-    "studio": "pnpm --filter @guideflow/cli run build && node packages/cli/dist/index.js studio",
     "sync-repo": "node scripts/sync-repo-meta.mjs"
   },
   "devDependencies": {

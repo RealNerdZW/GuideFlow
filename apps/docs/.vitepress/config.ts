@@ -179,6 +179,8 @@ export default defineConfig({
             { text: 'Targeting & frequency', link: '/guide/targeting' },
             { text: 'Checklist', link: '/guide/checklist' },
             { text: 'Announcements', link: '/guide/announcements' },
+            { text: 'Authoring', link: '/guide/authoring' },
+            { text: 'Flow file', link: '/reference/flow-file' },
             { text: 'Accessibility', link: '/guide/accessibility' },
             { text: 'Privacy', link: '/guide/privacy' },
             { text: 'i18n', link: '/guide/i18n' },
@@ -274,6 +276,23 @@ export default defineConfig({
           text: 'CLI',
           items: [
             { text: 'Commands', link: '/api/cli' },
+          ],
+        },
+      ],
+
+      '/reference/': [
+        {
+          text: 'Reference',
+          items: [
+            { text: 'Flow file', link: '/reference/flow-file' },
+          ],
+        },
+        {
+          text: 'Related',
+          items: [
+            { text: 'Authoring', link: '/guide/authoring' },
+            { text: 'FlowDefinition', link: '/api/flow-definition' },
+            { text: 'CLI commands', link: '/api/cli' },
           ],
         },
       ],
