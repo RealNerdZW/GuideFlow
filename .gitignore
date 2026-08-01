@@ -60,3 +60,4 @@ playwright-report
 packages/devtools/web-ext-artifacts
 *.crx
 *.xpi
+guideflow-devtools-*.zip

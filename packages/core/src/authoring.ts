@@ -380,11 +380,14 @@ export function validateFlow(input: unknown, options: ValidateOptions = {}): Flo
       }
 
       const content = raw['content']
+      // A non-empty string, not merely a string. `content: { title: '' }` is
+      // what an editor produces the moment someone clears the field, and it
+      // renders as an empty popover — which is the same failure as no content
+      // at all, so it is graded the same way.
+      const nonEmpty = (v: unknown): boolean => typeof v === 'string' && v.trim().length > 0
       const hasContent =
         isPlainObject(content) &&
-        (typeof content['title'] === 'string' ||
-          typeof content['body'] === 'string' ||
-          typeof content['html'] === 'string')
+        (nonEmpty(content['title']) || nonEmpty(content['body']) || nonEmpty(content['html']))
       if (!hasContent) {
         add(
           'step-missing-content',

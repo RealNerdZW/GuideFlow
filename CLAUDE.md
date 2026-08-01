@@ -37,7 +37,9 @@ packages/
   checklist/    @guideflow/checklist   createChecklist + docked mountChecklist widget. A projection of
                                       ProgressStore. Depends on core; core never imports it.
   cli/          @guideflow/cli        init / studio / export / push
-  devtools/     @guideflow/devtools   MV3 browser extension (private: not published)
+  devtools/     @guideflow/devtools   MV3 browser extension (private: not published). recorder.html is the
+                                      authoring surface; the panel inspects. Tested in real Chromium by
+                                      apps/e2e/tests-extension — the ONLY place it is exercised at all.
 apps/
   demo/         Vite + React playground that exercises core/react/ai/analytics
   docs/         VitePress site — THIS IS THE CANONICAL DOCS SITE
@@ -281,6 +283,18 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **Windows is fine now.** Package scripts call `node ../../scripts/fsx.mjs rm|cp` instead of
   `rm -rf` / `cp -r`, so they behave identically in PowerShell, cmd.exe and bash. Do not reintroduce a
   shell builtin into a package script.
+- **Playwright's default headless Chromium cannot load an extension, and says nothing about it.**
+  `chromium.launchPersistentContext(dir, { headless: true })` uses the *headless shell*, which has
+  no extension support: `context.serviceWorkers()` is `[]` and every assertion silently has
+  nothing to assert against. `channel: 'chromium'` selects the full build and it works. Measured
+  0 vs 1. `apps/e2e/tests-extension/fixtures.ts` pins it; do not "simplify" it away.
+- **The extension project must stay serial.** Each of its tests launches a full Chromium with a
+  fresh profile. Nine in parallel exhausted the machine and produced nine "Tearing down context
+  exceeded the test timeout" failures that read exactly like nine product bugs.
+- **A service worker cannot `chrome.runtime.sendMessage` to itself.** Chrome does not deliver a
+  message back to the sender's own context, so a worker asking itself gets "Could not establish
+  connection. Receiving end does not exist." Assert on `chrome.storage` instead — which is also
+  why the recording buffer is written through to `chrome.storage.session`.
 - **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
   that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
   app" report is this.

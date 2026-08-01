@@ -123,9 +123,15 @@ importers:
       '@guideflow/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@guideflow/devtools':
+        specifier: workspace:*
+        version: link:../../packages/devtools
       '@playwright/test':
         specifier: ^1.44.0
         version: 1.59.1
+      '@types/chrome':
+        specifier: ^0.0.268
+        version: 0.0.268
       '@types/node':
         specifier: ^20.11.20
         version: 20.19.37

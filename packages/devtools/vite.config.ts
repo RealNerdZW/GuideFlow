@@ -55,27 +55,34 @@ export default defineConfig({
           resolve(dist, 'devtools.js'),
         );
 
-        // Move the Vite-emitted HTML from dist/src/panel/index.html → dist/panel.html
-        // and fix the script path (Vite computes relative to the original location)
-        const nestedHtml = resolve(dist, 'src/panel/index.html');
-        if (existsSync(nestedHtml)) {
-          let html = readFileSync(nestedHtml, 'utf-8');
-          // Fix paths: the HTML is now at root, not src/panel/
-          html = html.replace(/(\.\.\/){2}/g, './');
-          // Strip crossorigin attribute (unnecessary in Chrome extensions and
-          // can cause issues with CSP)
+        // Move each Vite-emitted HTML file from dist/src/<dir>/<file> to the
+        // dist root, and rewrite its asset paths — Vite computes them relative
+        // to the original location.
+        //
+        // This THROWS when the source is missing. It used to be
+        // `if (existsSync(nested)) { … }`, so a change in Rollup's output
+        // layout would simply skip the write: `closeBundle` returned normally,
+        // the build went green, and the extension shipped with no panel and no
+        // popup. The bridge check below already fails loudly; these now match.
+        const relocateHtml = (from: string, to: string): void => {
+          const nested = resolve(dist, from);
+          if (!existsSync(nested)) {
+            throw new Error(
+              `Expected Vite to emit ${from}, but it is missing. The Rollup output layout ` +
+                `changed; update this relocation or ${to} will not exist in the extension.`,
+            );
+          }
+          let html = readFileSync(nested, 'utf-8');
+          // The file is at the dist root now, not two directories down.
+          html = html.replace(/(\.\.\/)+/g, './');
+          // `crossorigin` is unnecessary in an extension and trips the CSP.
           html = html.replace(/\s+crossorigin/g, '');
-          writeFileSync(resolve(dist, 'panel.html'), html);
-        }
+          writeFileSync(resolve(dist, to), html);
+        };
 
-        // Move the Vite-emitted popup HTML from dist/src/popup/popup.html → dist/popup.html
-        const nestedPopup = resolve(dist, 'src/popup/popup.html');
-        if (existsSync(nestedPopup)) {
-          let html = readFileSync(nestedPopup, 'utf-8');
-          html = html.replace(/(\.\.\/){2}/g, './');
-          html = html.replace(/\s+crossorigin/g, '');
-          writeFileSync(resolve(dist, 'popup.html'), html);
-        }
+        relocateHtml('src/panel/index.html', 'panel.html');
+        relocateHtml('src/popup/popup.html', 'popup.html');
+        relocateHtml('src/recorder/index.html', 'recorder.html');
 
         // Clean up the now-empty src/ tree
         if (existsSync(resolve(dist, 'src'))) {
@@ -127,6 +134,10 @@ export default defineConfig({
         panel: resolve(__dirname, 'src/panel/index.html'),
         // Popup UI (toolbar icon)
         popup: resolve(__dirname, 'src/popup/popup.html'),
+        // Recorder — the authoring surface, as an ordinary extension page.
+        // A page rather than a DevTools tab because Playwright can open a page
+        // and can NEVER open a devtools_page; see ADR-012.
+        recorder: resolve(__dirname, 'src/recorder/index.html'),
         // Background service worker
         background: resolve(__dirname, 'src/background/service-worker.ts'),
         // Content script injected into every page

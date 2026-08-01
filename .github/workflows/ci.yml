@@ -72,7 +72,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          for pkg in core react vue svelte ai analytics cli checklist; do
+          for pkg in core react vue svelte ai analytics cli checklist devtools; do
             if [ -f "packages/$pkg/vitest.config.ts" ]; then
               echo "::group::coverage $pkg"
               pnpm exec vitest run --root "packages/$pkg" --coverage --coverage.reporter=text-summary --coverage.reporter=lcov
@@ -133,12 +133,20 @@ jobs:
   # spec imported an export that does not exist. All three are fixed; this job
   # keeps it that way.
   e2e:
-    name: E2E (${{ matrix.browser }})
+    name: E2E (${{ matrix.project }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        # `project` and `browser` are separate on purpose: the extension project
+        # runs in Chromium but is not named `chromium`, and
+        # `playwright install extension` is not a thing. Keying the cache on
+        # `browser` also lets the two Chromium jobs share one download.
+        include:
+          - { project: chromium, browser: chromium }
+          - { project: firefox, browser: firefox }
+          - { project: webkit, browser: webkit }
+          - { project: extension, browser: chromium }
 
     steps:
       - uses: actions/checkout@v5
@@ -172,6 +180,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ matrix.browser }}
 
       - name: Install Playwright browser
+        # `chromium` here installs BOTH the headless shell and the full
+        # Chromium build. The extension project needs the full one —
+        # `channel: 'chromium'` — because the headless shell cannot load an
+        # extension at all, and fails by loading nothing rather than by erroring.
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
 
       - name: Save Playwright browsers
@@ -188,15 +200,39 @@ jobs:
         # No `--` before the flag: pnpm 8 forwards the separator itself, so
         # `test:e2e -- --project=x` reached Playwright as `test "--" "--project=x"`,
         # where `--` was read as a test-file regex — "No tests found", every run.
-        run: pnpm --filter e2e test:e2e --project=${{ matrix.browser }}
+        run: pnpm --filter e2e test:e2e --project=${{ matrix.project }}
 
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ matrix.browser }}
+          name: playwright-report-${{ matrix.project }}
           path: apps/e2e/playwright-report/
           retention-days: 7
+
+  # ── The extension, as a downloadable artifact ──────────────────────────────
+  # Until this existed the only way to obtain the extension was to clone the
+  # repo and build it, which is not a path a non-engineer completes.
+  extension-zip:
+    name: Package extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @guideflow/devtools build
+      - run: pnpm --filter @guideflow/devtools package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guideflow-devtools-extension
+          path: guideflow-devtools-*.zip
+          retention-days: 30
 
   # ── Dependency audit ───────────────────────────────────────────────────────
   # Split deliberately. The blocking check covers only what a consumer actually

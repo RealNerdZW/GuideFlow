@@ -7,13 +7,16 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "type-check": "tsc --noEmit",
-    "serve": "node serve.mjs"
+    "serve": "node serve.mjs",
+    "test:e2e:ext": "playwright test --project=extension"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
     "@guideflow/checklist": "workspace:*",
     "@guideflow/core": "workspace:*",
+    "@guideflow/devtools": "workspace:*",
     "@playwright/test": "^1.44.0",
+    "@types/chrome": "^0.0.268",
     "@types/node": "^20.11.20",
     "typescript": "^5.3.3"
   }

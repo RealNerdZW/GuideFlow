@@ -10,7 +10,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
     "clean": "node ../../scripts/fsx.mjs rm dist .turbo",
-    "test": "vitest run"
+    "test": "vitest run",
+    "package": "node ../../scripts/pack-extension.mjs"
   },
   "dependencies": {
     "@guideflow/core": "workspace:*",

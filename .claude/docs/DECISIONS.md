@@ -473,3 +473,88 @@ are CI-gated with zero script changes.
 **Deferred to 7.9b, and not claimed anywhere:** the Recorder page, service-worker-owned recording
 state, the extension zip and CI artifact, the Playwright extension project, and any store listing.
 The extension still exports the old flat draft shape.
+
+---
+
+## ADR-013 — The Recorder is an extension page, and the extension is finally tested
+2026-08-01 · Status: Accepted · Extends ADR-012
+
+**Context.** ADR-012 extracted the provable half of authoring into two core
+subpaths and recorded *why* the DevTools panel could not host the finished
+surface: Playwright cannot open a `devtools_page`, and there is no CDP path to
+one. This is the other half — the surface itself, and the harness that proves it.
+
+**Decision 1: the authoring UI is `recorder.html`, an ordinary extension page.**
+Not a DevTools tab, not a side panel. An extension page opens at
+`chrome-extension://<id>/recorder.html`, which a test can drive; `chrome.sidePanel`
+would add a permission and a Chrome-114 floor for zero verification gain. The
+panel's Builder tab is **deleted** — the audit's instruction was to finish one
+surface and delete the other, and shipping an editor nobody can test alongside
+one they can is the outcome it warned about. The panel keeps Events, Flows and
+Settings and gains an "Open Recorder" button; the popup gains the same.
+
+**Decision 2: recording state moves to the service worker, and through it to
+`chrome.storage.session`.** This fixes three defects structurally rather than
+patching each:
+
+- *Recording died silently on any navigation.* The content script and every
+  module-scope variable in it are destroyed by a page load, so `recordingMode`
+  came back `false` while the UI still read "Stop Rec". The worker owns the flag
+  and the content script asks for it on load.
+- *Closing the DevTools panel destroyed the captured steps.* They lived in the
+  panel's React state.
+- *Popup-armed recording captured nothing, by construction.* The worker posted
+  each step at `devtoolsPorts.get(tabId)` and dropped it when that was
+  `undefined` — which is always, for a popup-armed session.
+
+Writing through to `chrome.storage.session` is what makes the in-memory maps
+survivable: an MV3 worker is evicted after roughly 30 seconds of inactivity, and
+taking a user's in-progress recording with it is the same class of loss. It also
+made the buffer *observable*, which is how the e2e suite asserts on it — a
+service worker cannot `chrome.runtime.sendMessage` to itself, so there was no
+message-based way to ask.
+
+**Decision 3: one message vocabulary, in `src/messages.ts`.** Five processes
+exchanged these names as string literals; the worker kept a second hand-
+maintained copy of the allowlist. A typo is silence, not an error — which is how
+`GF_SET_DEBUG` came to be sent by the panel and handled by nobody.
+
+**Decision 4: the extension is packaged, and the package is tested.**
+`scripts/pack-extension.mjs` writes a deterministic zip with no new dependency
+(Node has zlib; a ZIP container is a documented format). CI uploads it as an
+artifact. A spec unpacks that zip with the platform's own tool and loads the
+result — because "the build is fine" and "the download works" are different
+claims, and `manifest.json` one directory too deep is the classic way the second
+fails while the first passes.
+
+**Consequences.**
+- **The extension is exercised in a browser for the first time.** CLAUDE.md has
+  said for four phases that the Phase 3 hardening "has still not been exercised
+  in a browser" and that a mismatch "would present as silence, not an error".
+  Ten specs now cover the worker, the content script, the nonce handshake and
+  relay allowlist, detection, recording across a navigation, buffering with no
+  UI open, the Recorder, and the packaged zip.
+- **`channel: 'chromium'` is mandatory and load-bearing.** Playwright's default
+  headless Chromium is the headless shell, which cannot load an extension and
+  fails by loading *nothing*: `serviceWorkers()` is `[]` and every assertion
+  silently has nothing to assert against. Measured 0 vs 1. That is precisely the
+  silent-zero-coverage failure that kept this suite at a 0% pass rate for two
+  phases.
+- **The extension project is serial.** Each test launches a full Chromium with a
+  fresh profile; nine at once exhausted the machine and produced nine
+  "Tearing down context exceeded the test timeout" failures that read exactly
+  like nine product bugs.
+- **`optional_host_permissions` is removed.** Nothing ever called
+  `chrome.permissions.request`, and an ungranted optional host permission is the
+  one thing that can put a Site-access control in front of a user and silently
+  withhold the statically declared content script.
+- **`@guideflow/devtools` coverage is scoped, not padded.** The worker, content
+  script, bridge, panel and popup are excluded from the unit ratchet with the
+  reason stated in the config: mocking `chrome.*` across four processes well
+  enough to produce a number would test the mock. They are covered by the e2e
+  project instead. The included set measures 99/91/100/99.
+- **What still cannot be proven, and is written down:** the DevTools panel as a
+  panel, the popup as a popup, context menus, and the permission prompt a real
+  Web Store install would show — a `--load-extension` profile reports
+  `origins: ["<all_urls>"]` as already granted, so a green run says nothing about
+  it. The store listing itself is 7.9c and is not engineering.

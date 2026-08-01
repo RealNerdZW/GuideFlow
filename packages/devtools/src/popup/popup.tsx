@@ -292,6 +292,23 @@ function App() {
     window.close();
   }, [tabId]);
 
+  /**
+   * Ask the worker whether this tab is already recording.
+   *
+   * `recording` was `useState(false)` and never hydrated, so reopening the
+   * popup always showed "Record" — and the only message it could realistically
+   * send was a duplicate start.
+   */
+  useEffect(() => {
+    if (!tabId) return;
+    void chrome.runtime
+      .sendMessage({ type: 'GF_GET_RECORDING', payload: { tabId } })
+      .then((reply: unknown) => {
+        setRecording((reply as { recording?: boolean } | undefined)?.recording === true);
+      })
+      .catch(() => undefined);
+  }, [tabId]);
+
   const handleToggleRecording = useCallback(async () => {
     if (!tabId) return;
     const type = recording ? 'GF_STOP_RECORDING' : 'GF_START_RECORDING';
@@ -299,6 +316,13 @@ function App() {
     setRecording(!recording);
     if (!recording) window.close(); // Close popup so user can interact
   }, [tabId, recording]);
+
+  /** Open the Recorder for this tab. The popup is a launcher, not an editor. */
+  const handleOpenRecorder = useCallback(() => {
+    if (!tabId) return;
+    void chrome.runtime.sendMessage({ type: 'GF_OPEN_RECORDER', payload: { tabId } });
+    window.close();
+  }, [tabId]);
 
   const handleRunTour = useCallback(async (tour: SavedTour) => {
     if (!tabId) return;
@@ -315,13 +339,6 @@ function App() {
     setSavedTours(prev => prev.filter(t => t.key !== key));
   }, []);
 
-  const handleOpenDevTools = useCallback(() => {
-    // Can't programmatically open DevTools — instruct user
-    if (tabId) {
-      void sendToTab(tabId, { type: 'GF_DEVTOOLS_OPEN' });
-    }
-    window.close();
-  }, [tabId]);
 
   const tourProgress = state.activeTour
     ? Math.round(((state.activeTour.stepIndex + 1) / state.activeTour.totalSteps) * 100)
@@ -374,25 +391,24 @@ function App() {
             <button
               style={S.actionBtn('primary')}
               onClick={() => void handlePickElement()}
-              disabled={!state.detected}
-              title={state.detected ? 'Pick an element on the page' : 'GuideFlow not detected'}
+              title="Pick an element on the page"
+
             >
               <span>⛶</span> Pick Element
             </button>
             <button
               style={S.actionBtn(recording ? 'danger' : 'accent')}
               onClick={() => void handleToggleRecording()}
-              disabled={!state.detected}
-              title={state.detected ? (recording ? 'Stop recording' : 'Record user interactions') : 'GuideFlow not detected'}
+              title={recording ? 'Stop recording' : 'Record user interactions'}
             >
               <span>{recording ? '⏹' : '⏺'}</span> {recording ? 'Stop Rec' : 'Record'}
             </button>
             <button
               style={S.actionBtn('secondary')}
-              onClick={handleOpenDevTools}
-              title="Open DevTools panel for advanced features"
+              onClick={handleOpenRecorder}
+              title="Open the Recorder to build a tour from what you record"
             >
-              <span>🛠</span> DevTools
+              <span>🔨</span> Recorder
             </button>
             <button
               style={S.actionBtn('secondary')}

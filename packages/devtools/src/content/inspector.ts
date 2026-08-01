@@ -274,11 +274,26 @@ function injectBridge(): void {
   // top-level bindings stay out of the page's global lexical scope.
   script.dataset['gfNonce'] = NONCE;
   script.onload = () => script.remove(); // Clean up DOM after execution
+  // A page CSP that forbids extension scripts, or a missing web-accessible
+  // resource, fails silently otherwise: `bridgeInjected` is set to true above
+  // BEFORE the load can fail, so nothing ever retries and detection is dead
+  // for the life of the page with no message anywhere.
+  script.onerror = () => {
+    bridgeInjected = false;
+    script.remove();
+    console.warn(
+      '[GuideFlow] The page blocked the DevTools bridge, so tours cannot be detected here. ' +
+        "This is usually a Content-Security-Policy that does not allow the extension's script.",
+    );
+  };
   (document.head || document.documentElement).appendChild(script);
 }
 
 // Inject as early as possible — after the relay listener above is live.
 injectBridge();
+
+// Then ask whether this tab was mid-recording when the page navigated.
+resumeRecordingIfArmed();
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -391,15 +406,20 @@ function onRecordClick(e: MouseEvent): void {
   const target = e.target instanceof Element ? e.target : null;
   if (!target || target.closest('#__gf_recording_badge__')) return;
 
-  const selector = buildSelector(target);
-  const rect = target.getBoundingClientRect();
+  // The full result, not just the string: the Recorder shows confidence and
+  // refuses to save a step whose selector was never proven unique.
+  const result = describeSelector(target);
+  const rect = result.element.getBoundingClientRect();
   send({
     type: 'GF_RECORDED_STEP',
     payload: {
       action: 'click',
-      selector,
-      label: describeElement(target),
-      tagName: target.tagName.toLowerCase(),
+      selector: result.selector,
+      label: describeElement(result.element),
+      tagName: result.element.tagName.toLowerCase(),
+      confidence: result.confidence,
+      unique: result.unique,
+      warnings: result.warnings,
       rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
       ts: Date.now(),
     },
@@ -416,27 +436,60 @@ function onRecordInput(e: Event): void {
   // would persist whatever was typed — passwords included — into
   // chrome.storage for nothing. The label is still redacted inside a
   // `[data-gf-private]` subtree, because the label *is* displayed.
+  const result = describeSelector(target);
   send({
     type: 'GF_RECORDED_STEP',
     payload: {
       action: 'input',
-      selector: buildSelector(target),
+      selector: result.selector,
       label: isPrivate(target)
         ? REDACTED
         : (target.getAttribute('aria-label') ?? target.getAttribute('placeholder') ?? ''),
       tagName: target.tagName.toLowerCase(),
+      confidence: result.confidence,
+      unique: result.unique,
+      warnings: result.warnings,
       ts: Date.now(),
     },
   });
 }
 
-function startRecording(): void {
+function startRecording(announce = true): void {
+  // Idempotent. Two senders can arm recording (the Recorder and the popup),
+  // and arming twice used to append a second badge and leave the first
+  // orphaned in the page forever.
+  if (recordingMode) return;
   recordingMode = true;
   recordingBadge = createRecordingBadge();
   document.body.appendChild(recordingBadge);
   document.addEventListener('click', onRecordClick, true);
   document.addEventListener('change', onRecordInput, true);
-  send({ type: 'GF_RECORDING_STARTED' });
+  // Suppressed when re-arming after a navigation: the session never stopped,
+  // so announcing a fresh start would reset every listening UI.
+  if (announce) send({ type: 'GF_RECORDING_STARTED' });
+}
+
+/**
+ * Ask the service worker whether this tab was recording before we loaded.
+ *
+ * A full navigation destroys the content script and every module-scope
+ * variable in it, so `recordingMode` came back false and recording silently
+ * ended — while the UI still showed "Stop Rec" and the badge was gone. The
+ * worker owns the flag now, so the fix is to ask it.
+ */
+function resumeRecordingIfArmed(): void {
+  chrome.runtime
+    .sendMessage({ type: 'GF_GET_RECORDING_FOR_SENDER' })
+    .then((reply: unknown) => {
+      if ((reply as { recording?: boolean } | undefined)?.recording === true) {
+        startRecording(false);
+      }
+    })
+    .catch(() => {
+      // The worker was evicted and is starting up, or the extension is
+      // reloading. Recording is not resumed; the badge's absence is the
+      // honest signal.
+    });
 }
 
 function stopRecording(): void {
@@ -597,6 +650,39 @@ chrome.runtime.onMessage.addListener((msg: GFMessage, sender: chrome.runtime.Mes
     case 'GF_HIGHLIGHT_SELECTOR':
       highlightSelector(msg.payload);
       break;
+
+    /**
+     * Answer "does this selector resolve, here, right now?".
+     *
+     * Highlighting used to be the only feedback, and it had three silent
+     * `return`s — a wrong-element match looked exactly like a right one.
+     */
+    case 'GF_VERIFY_SELECTOR': {
+      const raw = msg.payload;
+      if (typeof raw !== 'string') return;
+      let count = -1;
+      try {
+        count = document.querySelectorAll(raw).length;
+      } catch {
+        count = -1;
+      }
+      send({
+        type: 'GF_SELECTOR_VERIFIED',
+        payload: {
+          selector: raw,
+          matchCount: count,
+          status:
+            count === -1
+              ? 'invalid'
+              : count === 0
+                ? 'no-match'
+                : count === 1
+                  ? 'unique'
+                  : 'ambiguous',
+        },
+      });
+      break;
+    }
 
     // --- Recording commands ---
     case 'GF_START_RECORDING':

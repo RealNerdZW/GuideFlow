@@ -590,15 +590,24 @@ the budget could not absorb it**, so the packaging change had to come first.
       Two pre-existing repo defects surfaced and fixed on the way: turbo's `lint`/`type-check` raced
       a package's own `dist` deletion (intermittent, 1-in-3), and Vite's bare-string alias is a
       prefix match that broke the demo on the first subpath import.
-- [ ] **7.9b The authoring surface** — the half that needs a browser. A `recorder.html` extension
-      page (Playwright can drive an extension page; it can **never** drive a `devtools_page`, so
-      logic that lives only in `panel/app.tsx` is unprovable — verified, see ADR-012), service-worker
-      -owned recording state (fixes navigation-kills-recording, DevTools-close-loses-recording and
-      popup-armed-captures-nothing in one change), deletion of the Builder tab, a zip + CI artifact
-      so a non-engineer can install it, and a chromium-only Playwright extension project. The
-      harness incantation is settled: `launchPersistentContext` with `channel: 'chromium'` —
-      Playwright's default headless chromium is the headless shell and silently loads no extension
-      at all.
+- [x] **7.9b The authoring surface** — the half that needed a browser. `recorder.html` is an
+      ordinary extension page hosting the authoring UI; the panel's Builder tab is deleted.
+      Recording state and the captured-step buffer moved to the service worker and through it to
+      `chrome.storage.session`, which fixes navigation-kills-recording,
+      DevTools-close-loses-steps and popup-armed-captures-nothing in one change and makes the
+      buffer survive an MV3 eviction. One message vocabulary in `src/messages.ts`.
+      `scripts/pack-extension.mjs` + a CI artifact, so the extension can be downloaded rather than
+      cloned and built. See ADR-013.
+      **The extension is exercised in a browser for the first time in this repo's history** — ten
+      specs in a chromium-only Playwright project covering the worker, the content script, the
+      Phase 3 nonce handshake and relay allowlist, detection, recording across a navigation,
+      buffering with no UI open, the Recorder, and the packaged zip. `channel: 'chromium'` is
+      mandatory: the default headless chromium is the headless shell and loads no extension at
+      all, silently.
+      Retired on the way: `optional_host_permissions` (never requested, and able to silently
+      withhold the content script), the sticky bridge-injection failure, context menus that
+      stopped registering after an update, and an active-tour tracker reading fields
+      `tour:start` does not carry.
 - [ ] **7.9c Chrome Web Store listing** — a developer account, a fee, a privacy policy and a review.
       Not engineering; tracked so it is not mistaken for done.
 - [ ] **7.10 Backend / flow CMS** — `no-backend-cms-or-self-hosting-story`. See `MCP-AND-SKILLS.md`.
