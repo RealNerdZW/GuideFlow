@@ -72,7 +72,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          for pkg in core react vue svelte ai analytics cli; do
+          for pkg in core react vue svelte ai analytics cli checklist; do
             if [ -f "packages/$pkg/vitest.config.ts" ]; then
               echo "::group::coverage $pkg"
               pnpm exec vitest run --root "packages/$pkg" --coverage --coverage.reporter=text-summary --coverage.reporter=lcov

@@ -37,9 +37,11 @@ export default defineConfig({
   ],
 
   webServer: {
-    // Build core first: the fixture loads dist/index.global.js and dist/styles,
-    // so without this a stale bundle would silently be under test.
-    command: 'pnpm --filter @guideflow/core build && node serve.mjs',
+    // Build core and the checklist first: the fixture loads dist/index.global.js,
+    // dist/styles and packages/checklist/dist, so without this a stale bundle —
+    // or an absent one — would silently be under test.
+    command:
+      'pnpm --filter @guideflow/core --filter @guideflow/checklist build && node serve.mjs',
     url: BASE,
     reuseExistingServer: !process.env['CI'],
     timeout: 120 * 1000,

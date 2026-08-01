@@ -33,6 +33,8 @@ packages/
   svelte/       @guideflow/svelte     createTourStore (no components)
   ai/           @guideflow/ai         GuideBrain + OpenAI / Anthropic / Ollama / Mock providers
   analytics/    @guideflow/analytics  AnalyticsCollector, 5 transports, ExperimentEngine
+  checklist/    @guideflow/checklist   createChecklist + docked mountChecklist widget. A projection of
+                                      ProgressStore. Depends on core; core never imports it.
   cli/          @guideflow/cli        init / studio / export / push
   devtools/     @guideflow/devtools   MV3 browser extension (private: not published)
 apps/
@@ -80,17 +82,18 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 in progress, 2026-07-31)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.8, 2026-08-01)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **865 unit tests pass**, 2 skipped
-(core 382, ai 153, react 114, analytics 98, vue 47, cli 37, svelte 34). Five bundles, each gated
-independently: `@guideflow/core` **14.96 kB / 15 kB**, `./targeting` **2.18 kB / 2.5 kB**,
-`./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
+Build, type-check, lint and unit tests are **all green**: **947 unit tests pass**, 2 skipped
+(core 382, ai 153, react 114, analytics 98, checklist 73, vue 47, cli 37, svelte 34, devtools 9).
+Five bundles, each gated independently: `@guideflow/core` **14.96 kB / 15 kB**, `./targeting`
+**2.18 kB / 2.5 kB**, `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning`
+**336 B / 500 B**. `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 217 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 281 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -355,6 +358,16 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **De-emphasis goes through `--gf-muted-opacity`, not a literal.** `#111827` at `opacity: 0.5` over
   white is 3.4:1 and fails WCAG AA; the token is 0.72 (6.6:1) and the high-contrast theme resets it
   to 1. Same for `--gf-accent-color`: any override must clear 4.5:1 against `--gf-accent-fg`.
+- **`ProgressStore.setRecord` suffixes `completed` and `caps` are taken.** `setRecord(userId,
+  'completed', …)` overwrites core's completed-flows array byte for byte — `getRecord` and
+  `getCompletedFlows` read the identical `{ value, expiresAt }` wrapper — and `@guideflow/ai` reads
+  that key too. `caps` is targeting's, `checklist` is `@guideflow/checklist`'s. Use a fresh
+  single-segment suffix.
+- **A new `@guideflow/*` package must be scaffolded at the group's current version, never
+  `1.0.0`.** The changesets `fixed` group is a glob, so it joins automatically, and
+  `matchFixedConstraint` forces the group's highest version onto every member — `npm init`'s
+  default would major all nine packages, and then major them again as every `>=0.1.9 <1.0.0` peer
+  falls out of range. `scripts/verify-pack.mjs` now fails CI when the group's versions diverge.
 - **Two documentation sites exist.** `.github/workflows/docs.yml` publishes
   `apps/docs/.vitepress/dist` to GitHub Pages. The root `docs/*.html` files are stale leftovers that
   nothing builds — yet `docs.yml` still *triggers* on `docs/**`. Edit `apps/docs/`, never `docs/`.
@@ -415,10 +428,11 @@ CI (`.github/workflows/release.yml`) runs this automatically on `master` via
 
 ### Every package shares one version
 
-`fixed: [["@guideflow/*", "!@guideflow/demo"]]` puts all eight real packages —
-`core`, `react`, `vue`, `svelte`, `ai`, `analytics`, `cli`, `devtools` — in one fixed group. They
+`fixed: [["@guideflow/*", "!@guideflow/demo", "!@guideflow/storybook"]]` puts all nine real
+packages — `core`, `react`, `vue`, `svelte`, `ai`, `analytics`, `checklist`, `cli`, `devtools` — in
+one fixed group. They
 always carry the same version number, and the group takes the largest bump any member was given.
-**A changeset against a single package releases all eight.** That is the intended trade-off: a
+**A changeset against a single package releases all nine.** That is the intended trade-off: a
 matched set is easier to reason about than eight independently drifting versions, and it removes
 the question of which `core` a given `react` was built against.
 
@@ -430,7 +444,7 @@ This also keeps the peer ranges honest. Every package declares `@guideflow/core`
 `>=0.1.9 <1.0.0`, and fixed versioning means the matching core is always released alongside.
 **Do not "tighten" those peers to `workspace:^`.** A caret publishes as `^0.2.0`, which the next
 minor falls outside of; Changesets majors a peer dependent whose range goes out of range, and a
-fixed group takes the largest bump — so one caret would take all eight packages to `1.0.0`.
+fixed group takes the largest bump — so one caret would take all nine packages to `1.0.0`.
 
 `@guideflow/devtools` is deliberately **not** in that list. `private: true` already stops
 `changeset publish` from pushing it to npm, but it does *not* stop versioning — `privatePackages.version`

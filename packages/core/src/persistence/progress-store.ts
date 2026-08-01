@@ -129,6 +129,12 @@ export class ProgressStore {
    * This exists so `@guideflow/core/targeting` can persist frequency caps
    * without building a second driver and asking the user to configure
    * persistence twice.
+   *
+   * **Three single-segment suffixes are taken.** `'completed'` is this store's
+   * own completed-flows array — `getRecord` and `getCompletedFlows` read the
+   * identical `{ value, expiresAt }` wrapper, so writing it here overwrites it
+   * byte for byte, and `@guideflow/ai` reads that key too. `'caps'` belongs to
+   * `@guideflow/core/targeting` and `'checklist'` to `@guideflow/checklist`.
    */
   async getRecord<T>(userId: string, suffix: string): Promise<T | null> {
     const key = `${this._keyFn(userId)}:${suffix}`

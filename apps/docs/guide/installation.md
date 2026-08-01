@@ -55,6 +55,7 @@ Your framework is a peer dependency too:
 | `@guideflow/react` | `react` / `react-dom` ^18 \|\| ^19 |
 | `@guideflow/vue` | `vue` ^3 |
 | `@guideflow/svelte` | `svelte` ^4 \|\| ^5 |
+| `@guideflow/checklist` | none beyond `@guideflow/core` — it is framework-agnostic |
 
 React 17 is not supported: the adapter uses `useId` and `useSyncExternalStore`, both React 18.
 
@@ -68,6 +69,9 @@ pnpm add @guideflow/core @guideflow/ai @anthropic-ai/sdk  # AnthropicProvider (s
 
 # Analytics & A/B testing
 pnpm add @guideflow/core @guideflow/analytics
+
+# Onboarding checklist
+pnpm add @guideflow/core @guideflow/checklist
 
 # CLI tools
 pnpm add -D @guideflow/cli

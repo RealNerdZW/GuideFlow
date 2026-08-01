@@ -12,6 +12,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
+  announcementFlow,
   conditionalFlow,
   customActionsFlow,
   type DemoContext,
@@ -392,6 +393,10 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
             </button>
             <button style={btn('secondary')} onClick={() => void gf.start(conditionalFlow)}>
               showIf Skip Test
+            </button>
+            {/* A single-step `target: null` flow — the announcement recipe. */}
+            <button style={btn('secondary')} onClick={() => void gf.start(announcementFlow)}>
+              📣 Announcement
             </button>
             <button style={btn('secondary')} onClick={() => void gf.start(customActionsFlow)}>
               🎮 Custom Actions

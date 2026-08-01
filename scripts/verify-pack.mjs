@@ -26,9 +26,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 process.noDeprecation = true
 
 /** Packages that are actually published to npm (devtools is private). */
-const PACKAGES = ['core', 'react', 'vue', 'svelte', 'ai', 'analytics', 'cli']
+const PACKAGES = ['core', 'react', 'vue', 'svelte', 'ai', 'analytics', 'cli', 'checklist']
 
 let failed = 0
+/** name → version, for the fixed-group equality check after the loop. */
+const versions = new Map()
 
 /** Collect every concrete file path a manifest promises consumers. */
 function declaredPaths(pkg) {
@@ -83,6 +85,7 @@ for (const name of PACKAGES) {
   }
 
   const pkg = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  versions.set(pkg.name, pkg.version)
 
   let packed
   try {
@@ -130,8 +133,25 @@ for (const name of PACKAGES) {
   }
 }
 
+// Every member of the changesets `fixed` group must carry the SAME version.
+//
+// `matchFixedConstraint` takes the highest version across the whole group and
+// forces it onto every member. A new package scaffolded at npm's default
+// 1.0.0 therefore takes core, react, vue, svelte, ai, analytics, cli and
+// devtools to 1.x on the next release — and because every peer range is
+// ">=0.1.9 <1.0.0", each peer dependent then falls out of range and
+// `onlyUpdatePeerDependentsWhenOutOfRange` majors them again. Nothing else in
+// CI catches this, and by the time it shows up the release has happened.
+const distinct = [...new Set(versions.values())]
+if (distinct.length > 1) {
+  failed++
+  console.error('\n✗ changesets fixed group carries more than one version:')
+  for (const [name, version] of versions) console.error(`    ${name} @ ${version}`)
+  console.error('    All @guideflow/* packages release together and must share a version.')
+}
+
 if (failed > 0) {
   console.error(`\n${failed} package(s) would publish a broken tarball.`)
   process.exit(1)
 }
-console.log('\nAll publishable packages verified.')
+console.log(`\nAll publishable packages verified at ${distinct[0]}.`)

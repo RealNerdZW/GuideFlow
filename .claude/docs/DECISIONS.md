@@ -333,3 +333,74 @@ boundaries, portals and drawers are the others, and one code path covers all of 
   ripping it out unconditionally would delete a patch installed on top of it. The e2e suite asserts
   both branches, and skips the patch assertions where the Navigation API is in use.
 - Any docs figure quoting a bundle size must say **~14.7 kB**, or ~16.3 kB with navigation.
+
+---
+
+## ADR-011 — A checklist is a projection; it ships as a package and emits nothing on the bus
+2026-08-01 · Status: Accepted · No budget change
+
+**Context.** `no-checklists-surveys-banners-resource-centre` asked for the single most-requested
+onboarding primitive after tours. The obvious implementation — a widget with its own list of
+"done" flags — creates a second source of truth for something the engine already records, and the
+two drift the first time a user completes a tour from anywhere except the checklist.
+
+**Decision 1: completion truth is split by provenance, and the split is load-bearing.** An item
+that names a `flowId` is a pure projection of `ProgressStore.getCompletedFlows`; the checklist
+never writes that array. Everything else lives in the checklist's own record. An item is done if
+either source says so — a union, never an override.
+
+The trap, stated in the imperative: **`complete(itemId)` must not call `progress.markCompleted`.**
+`gf.start()` gates on `await progress.isCompleted(userId, flow.id)` and returns silently, with no
+error and a `Promise<void>` return there is nothing to inspect. Recording flow completion as a
+side effect of ticking a checkbox therefore permanently suppresses the tour that item launches. A
+test asserts `markCompleted` is never called; it is the load-bearing test of the design.
+
+The projection also makes the write race survivable: the most common item type is re-derived on
+every mount and cannot lose a tick.
+
+**Decision 2: a package, not a `@guideflow/core/checklist` subpath.** All five core tsup configs
+set `splitting: false`, so anything a subpath imports as a *value* is inlined into that bundle. A
+checklist needs `injectStyles`, which closes over a module-level de-dupe `Set`, and an id counter.
+Two copies means style de-duplication silently stops working and `aria-labelledby` can break on
+colliding ids — the same silent-duplicate-registry failure ADR-009 rejected side-effect
+registration over. `./targeting` survives as a subpath only because it imports types plus a
+locally duplicated two-line `isBrowser`; a stateful UI surface cannot. A subpath also cannot carry
+its own peer range, README, version or `sideEffects`, and core's `files` would ship checklist
+source inside every `@guideflow/core` tarball.
+
+**Decision 3: it emits nothing on the `TourEvents` bus.** `gf.emit` is public and type keys cost
+zero gzip, so this is not about bytes. The parity burden is seven hardcoded string-literal arrays
+with no exhaustiveness check — React, Vue, Svelte, analytics, two devtools files and the demo —
+and they already disagree in three measurable places. Four of the eighteen declared events never
+reach `gf.on()` at all. Adding four more to that surface buys observability `subscribe()` already
+delivers to all three adapters with zero edit sites. Consumers get `subscribe`/`getSnapshot`/
+`getServerSnapshot`; analytics gets a plain `onEvent` callback, host-wired.
+
+**Decision 4: a disclosure, not a dialog.** No `role="dialog"`, no `aria-modal`, no focus trap. A
+persistent docked surface that swallows Tab is a keyboard trap under WCAG 2.1.2, and a second
+capture-phase trap on `document` competing with `DefaultRenderer`'s is a keyboard deadlock that
+nothing in happy-dom would catch. A running tour wins, expressed three ways so eye, pointer and
+keyboard cannot disagree: z-index `var(--gf-z-checklist, 99999)` — above the hint/hotspot band,
+deliberately **below** `--gf-z-overlay` — plus `visibility: hidden` and `inert`.
+
+**Consequences.**
+- **No sixth size raise.** Core gains one CSS custom property and a docblock. `@guideflow/core`
+  still measures 14.96 kB / 15 kB.
+- The package declares **no size budget and no `size` script** in v1. Unlike core, whose gzip
+  number is a headline promise, this is opt-in weight a consumer chooses to install. Adding a CI
+  gate without an agreed number would be theatre.
+- `verify-pack.mjs` now fails when the changesets `fixed` group carries more than one version.
+  Nothing checked that before, and `matchFixedConstraint` forces the group maximum onto every
+  member — a package scaffolded at `npm init`'s default `1.0.0` would have majored all nine, then
+  majored them again as every `>=0.1.9 <1.0.0` peer fell out of range.
+- **Cross-tab writes remain last-write-wins**, documented on the docs page rather than buried in a
+  risks list. Within a tab, every write re-reads and merges through one promise chain. Closing the
+  cross-tab case needs a storage-level compare-and-swap no driver exposes — the same limitation
+  `markCompleted` and the frequency caps already carry.
+- **Manual ticks expire with the instance TTL**, 30 days by default, with no per-record override.
+  `persistence: { ttl: 0 }` means never-expire; that is prominent on the docs page, not a footnote.
+- A completed tour cannot be replayed from the checklist. `isCompleted` is version-blind and there
+  is no `clearCompleted`. The zero-byte hack — writing `setRecord(userId, 'completed', …)` minus
+  the flow id — is deliberately rejected: it is one subsystem reaching through a documented escape
+  hatch to overwrite another's data byte for byte, on a key `@guideflow/ai` also reads. The right
+  fix is `clearCompleted` in core, which is real bytes and its own conversation.

@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
+    "@guideflow/checklist": "workspace:*",
     "@guideflow/core": "workspace:*",
     "@playwright/test": "^1.44.0",
     "@types/node": "^20.11.20",

@@ -36,9 +36,28 @@ runtime; `gf.configure({ context })` merges a context patch, which is how you se
 | `key` | `(userId: string) => string` | `` (userId) => `gf:${userId}:progress` `` | Key prefix factory |
 | `ttl` | `number` | `2592000000` (30 days) | Expiry in milliseconds |
 
-The prefix returned by `key` is suffixed per record —
-`…:<flowId>:snapshot`, `…:<flowId>:dismissed`, `…:completed` — so one user's
-data shares a prefix and `gf.progress.resetUser(userId)` can clear it in one go.
+The prefix returned by `key` is suffixed per record, so one user's data shares a
+prefix and `gf.progress.resetUser(userId)` can clear it in one go.
+
+### Reserved key suffixes
+
+| Suffix | Owner | Contents |
+|---|---|---|
+| `<flowId>:snapshot` | core | Resume point for one flow |
+| `<flowId>:dismissed` | core | "Don't show again" for one flow |
+| `completed` | core | The completed-flows array. **Reserved** |
+| `caps` | `@guideflow/core/targeting` | Frequency caps. **Reserved** |
+| `checklist` | `@guideflow/checklist` | Every checklist on the page, in one record |
+
+`gf.progress.getRecord` / `setRecord` let a sibling package store its own record under this
+prefix. Use a **single-segment** suffix: every flow-scoped key carries a second segment, so a
+one-segment suffix cannot collide with a flow id.
+
+::: danger `completed` and `caps` are taken
+`setRecord(userId, 'completed', …)` overwrites core's completed-flows array **byte for byte** —
+`getRecord` and `getCompletedFlows` read the identical `{ value, expiresAt }` wrapper — and
+`@guideflow/ai` reads that key too. Pick a name nothing else owns.
+:::
 
 ## What gets written, and when
 

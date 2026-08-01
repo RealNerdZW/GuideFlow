@@ -548,7 +548,35 @@ the budget could not absorb it**, so the packaging change had to come first.
       is already re-invoked by `configure()`, so one call site covers both.
       Also `StepAction.action` — it used `string & object`, which no string literal satisfies, so
       every custom FSM event name was a type error and the documented escape hatch was unusable.
-- [ ] **7.8 Checklists, banners, surveys** — `no-checklists-surveys-banners-resource-centre`.
+- [x] **7.8 Onboarding checklist** — `no-checklists-surveys-banners-resource-centre`, partially.
+      `@guideflow/checklist` ships as a ninth workspace package: `createChecklist()` headless plus
+      `mountChecklist()` at the `/widget` subpath. A **projection** of `ProgressStore`, never a
+      second source of truth — flow-backed items read `getCompletedFlows` and are never written
+      back, and `complete()` deliberately does not call `markCompleted`, because `gf.start()` gates
+      on `isCompleted` and would then permanently suppress the tour the item launches. **Zero bytes
+      reach core**; the only core change is one CSS token (`--gf-z-checklist`) and a docblock. 74
+      unit tests; a Playwright spec covering everything happy-dom cannot prove (tab order, focus
+      restoration, `inert`, computed reduced-motion, RTL geometry, z-order hit-testing). See
+      ADR-011.
+      Also closed the release hazard it exposed: `verify-pack.mjs` now fails when the changesets
+      `fixed` group carries more than one version. Nothing checked that before, and a package
+      scaffolded at npm's default `1.0.0` would have majored all nine.
+      Scope item B: the `target: null` centred modal announcement is now **documented** rather than
+      disparaged (`apps/docs/guide/announcements.md`), with an e2e spec pinning the geometry and the
+      dialog semantics, and `PRODUCT-ROADMAP.md` corrected — it works, it is accessible, and calling
+      it a hand-rolled workaround while shipping a docs page for it was working agreement 6 violated
+      in the opposite direction from usual.
+- [ ] **7.8b Docked banners** — deferred deliberately, not dropped. The checklist proves the docked
+      surface pattern (z-order below the overlay, inert during a tour, its own live region, no
+      focus trap); a banner is that pattern minus the list. Building both at once would have meant
+      guessing the shared abstraction before either had a consumer.
+- [ ] **7.8c Surveys / NPS** — deferred until after 7.10. A survey without somewhere to send the
+      answers is a form that discards them, and the backend is where they would live.
+- [ ] **Devtools event-list rot** (standalone, no phase) — `devtools/src/bridge.ts:84-102` and
+      `panel/app.tsx:275-293` hardcode event-name arrays that already disagree with the other five
+      copies. Convert to `Object.keys({…} satisfies Record<keyof TourEvents, true>)` so the next
+      event added to `TourEvents` fails to compile instead of rotting. Own changeset; nothing to do
+      with checklists.
 - [ ] **7.9 A real authoring path** — finish the recorder, then build the studio on it. Closes
       `no-authoring-path-for-non-engineers`.
 - [ ] **7.10 Backend / flow CMS** — `no-backend-cms-or-self-hosting-story`. See `MCP-AND-SKILLS.md`.

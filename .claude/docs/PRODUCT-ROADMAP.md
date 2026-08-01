@@ -116,10 +116,18 @@ Turn the state-machine bet into visible advantage.
 - **Targeting rules** as guards on the flow itself — audience, feature flags, route, first-seen date,
   and frequency capping ("show at most once per 7 days"). This is what Appcues sells, and the FSM
   makes it natural rather than bolted on.
-- **Checklists** — a persistent multi-tour progress widget. The single most-requested onboarding
-  primitive after tours, and the FSM already tracks completion.
-- **Announcements / banners / modals** as first-class step types, not hand-rolled `target: null`
-  steps.
+- ~~**Checklists** — a persistent multi-tour progress widget.~~ **Shipped** as
+  `@guideflow/checklist` (Phase 7.8). A projection of `ProgressStore`, not a second source of
+  truth; zero bytes reach core. See ADR-011.
+- **Banners** — a docked, non-blocking announcement surface. This is the part that is genuinely
+  missing.
+  **Correction:** the `target: null` centred modal is *not* a hand-rolled workaround. It is a
+  supported single-step flow that renders `role="dialog"` + `aria-modal="true"`, suppresses the
+  progress bar and step counter, traps and restores focus, and announces through the live region.
+  It is now documented at `apps/docs/guide/announcements.md` and pinned by an e2e spec. Its real
+  limits are that the overlay blocks the page, only one can be up at a time, dismissal lands in
+  the tour funnel as `tour:dismiss` + `tour:abandon`, and the × and Skip button need a custom
+  renderer to remove — not that it is a hack.
 - **Flow versioning** — `flowId@version`, so a persisted snapshot from an old version does not restore
   into a changed state graph. Today it silently can, and `restore()` does not even clamp `stepIndex`.
 - **Surveys / NPS** as a step type feeding the analytics pipeline.

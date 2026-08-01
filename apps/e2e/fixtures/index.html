@@ -41,6 +41,7 @@
   <button id="start-routed-btn" type="button">Start Routed Tour</button>
   <button id="start-missing-target-btn" type="button">Start Missing-Target Tour</button>
   <button id="apply-brutalist-btn" type="button">Apply Brutalist Theme</button>
+  <button id="mount-checklist-btn" type="button">Mount Checklist</button>
 
   <p>
     <label for="text-input">Type here</label>
@@ -74,6 +75,16 @@
     come from flows.js, which the core unit suite imports too, so the fixture
     and the engine contract cannot drift apart.
   -->
+  <!--
+    @guideflow/checklist is built with `external: ['@guideflow/core']`, so its
+    ESM output carries a bare specifier the browser cannot resolve on its own.
+    Core itself needs no map — it has zero dependencies, which is exactly why
+    the rest of this fixture loads without a bundler.
+  -->
+  <script type="importmap">
+    { "imports": { "@guideflow/core": "/packages/core/dist/index.js" } }
+  </script>
+
   <script type="module">
     import { createGuideFlow } from '/packages/core/dist/index.js'
     import { createNavigation } from '/packages/core/dist/navigation/index.js'
@@ -119,6 +130,11 @@
 
     window.__gfFlows = flows
 
+    // Register every flow by id. The wire() helper below passes the definition
+    // object directly, but anything that starts a tour by NAME — the checklist's
+    // `flowId`, targeting, startVariant — needs it in the registry first.
+    Object.keys(flows).forEach(function (name) { gf.createFlow(flows[name]) })
+
     function wire (id, flow) {
       document.getElementById(id).addEventListener('click', function () {
         window.__gfEnters = []
@@ -156,6 +172,25 @@
     document.getElementById('clickable-target').addEventListener('click', function () {
       clicks++
       document.getElementById('click-count').textContent = String(clicks)
+    })
+
+    // The checklist is mounted on demand: most specs must not have a docked
+    // widget on the page, and a spec that wants one needs to seed localStorage
+    // before the first storage read happens.
+    document.getElementById('mount-checklist-btn').addEventListener('click', async function () {
+      if (window.__gfChecklist) return
+      const [{ createChecklist }, { mountChecklist }, { checklists }] = await Promise.all([
+        import('/packages/checklist/dist/index.js'),
+        import('/packages/checklist/dist/widget/index.js'),
+        import('./checklists.js'),
+      ])
+      window.__gfChecklistEvents = []
+      const controller = createChecklist(gf, checklists.gettingStarted, {
+        onEvent: function (e) { window.__gfChecklistEvents.push(e) },
+      })
+      window.__gfChecklist = controller
+      window.__gfChecklistView = mountChecklist(controller, { dock: 'bottom-end' })
+      window.__gfChecklistReady = true
     })
 
     // Signals to the specs that wiring is complete.

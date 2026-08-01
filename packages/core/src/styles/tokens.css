@@ -64,4 +64,9 @@
   /* Z-index base */
   --gf-z-overlay: 999998;
   --gf-z-popover: 999999;
+
+  /* Above the hint/hotspot band (99996-99998) and deliberately BELOW
+     --gf-z-overlay: a running tour must dim and cover the checklist.
+     Read by @guideflow/checklist as var(--gf-z-checklist, 99999). */
+  --gf-z-checklist: 99999;
 }

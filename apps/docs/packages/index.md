@@ -29,6 +29,7 @@ Each adapter takes `@guideflow/core` as a peer dependency, so install core along
 |---------|-------------|---------|
 | [@guideflow/ai](./ai) | Auto-generate tours, intent detection, conversational help | `npm i @guideflow/core @guideflow/ai` |
 | [@guideflow/analytics](./analytics) | Event tracking, transports (PostHog, Mixpanel, Amplitude), A/B testing | `npm i @guideflow/core @guideflow/analytics` |
+| [@guideflow/checklist](./checklist) | Docked onboarding checklist — a projection of `ProgressStore`, not a second source of truth | `npm i @guideflow/core @guideflow/checklist` |
 
 ## Tooling
 
@@ -52,6 +53,7 @@ than off this page:
 | `@guideflow/svelte` | [![npm](https://img.shields.io/npm/v/@guideflow/svelte.svg?label=)](https://www.npmjs.com/package/@guideflow/svelte) |
 | `@guideflow/ai` | [![npm](https://img.shields.io/npm/v/@guideflow/ai.svg?label=)](https://www.npmjs.com/package/@guideflow/ai) |
 | `@guideflow/analytics` | [![npm](https://img.shields.io/npm/v/@guideflow/analytics.svg?label=)](https://www.npmjs.com/package/@guideflow/analytics) |
+| `@guideflow/checklist` | [![npm](https://img.shields.io/npm/v/@guideflow/checklist.svg?label=)](https://www.npmjs.com/package/@guideflow/checklist) |
 | `@guideflow/cli` | [![npm](https://img.shields.io/npm/v/@guideflow/cli.svg?label=)](https://www.npmjs.com/package/@guideflow/cli) |
 
 `@guideflow/devtools` is not published to npm — install it from source.

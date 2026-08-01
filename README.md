@@ -51,6 +51,7 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 | [`@guideflow/svelte`](packages/svelte) | `createTourStore`, `Readable` stores (no components) | — |
 | [`@guideflow/ai`](packages/ai) | `GuideBrain`, Proxy / OpenAI / Anthropic / Ollama / Mock providers | — |
 | [`@guideflow/analytics`](packages/analytics) | `AnalyticsCollector`, transport adapters, `ExperimentEngine` | — |
+| [`@guideflow/checklist`](packages/checklist) | `createChecklist` + docked `mountChecklist` widget — a projection of `ProgressStore`, not a second source of truth | — |
 | [`@guideflow/cli`](packages/cli) | `init`, `studio`, `export`, `push` commands _(early — see [CLI](#cli))_ | — |
 | [`@guideflow/devtools`](packages/devtools) | MV3 browser extension — flow inspector and step recorder. Not published to npm: build it from source and load it unpacked | — |
 

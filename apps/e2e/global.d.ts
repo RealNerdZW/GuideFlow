@@ -1,3 +1,4 @@
+import type { ChecklistController, ChecklistEvent } from '@guideflow/checklist'
 import type { FlowDefinition, GuideFlowInstance } from '@guideflow/core'
 
 declare global {
@@ -21,6 +22,20 @@ declare global {
     __gfTimeouts: string[]
     /** The fixture's pushState router — stands in for React Router et al. */
     __gfGo: (view: 'home' | 'settings') => void
+    /**
+     * The checklist controller, mounted on demand by `#mount-checklist-btn`.
+     *
+     * On demand rather than at load, because most specs must not have a docked
+     * widget on the page and a spec that wants one needs to seed localStorage
+     * before the first storage read happens.
+     */
+    __gfChecklist?: ChecklistController
+    /** Set once the checklist controller and widget are both wired. */
+    __gfChecklistReady?: boolean
+    /** Every `ChecklistEvent`, in order — the analytics seam, observed. */
+    __gfChecklistEvents?: ChecklistEvent[]
+    /** The mounted widget, so a spec can tear it down. */
+    __gfChecklistView?: { destroy(): void }
   }
 }
 
