@@ -10,16 +10,17 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **148 / 357 findings resolved** — Phases 0–5 complete on branch
-`fix/phase-0-1-engine-correctness`. Remaining open: **1 P0**, 43 P1, 123 P2, 42 P3.
+**Progress:** **190 / 371 findings resolved** — Phases 0–6 complete and Phase 7 through 7.10, on
+branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1, 113 P2, 42 P3.
 
-The total grew from 325 to 357 because Phase 4 found **32 new source bugs while verifying
+The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
-effective bug-finding technique in its own right. They are registered as P2 with
-`foundIn: "Phase 4 docs verification"`.
+effective bug-finding technique in its own right (registered as P2 with
+`foundIn: "Phase 4 docs verification"`) — and later phases registered what they found on the way
+past.
 
-**The one remaining P0, `no-spa-route-change-handling`, is not a defect** — it is an absent feature,
-and the highest-value item left in the plan. Every P0 that was *broken code* is now fixed.
+**There are no open P0s.** The last one, `no-spa-route-change-handling`, was never a defect — it was
+an absent feature, and it closed in Phase 7.1. Every P0 that was *broken code* was fixed before it.
 
 ---
 
