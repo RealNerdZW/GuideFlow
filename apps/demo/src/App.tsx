@@ -25,13 +25,6 @@ import {
 // ---------------------------------------------------------------------------
 type AugmentedGF = GuideFlowInstance & { ai?: GuideBrain }
 
-/** Mirrors PushOptions from @guideflow/cli (which ships no .d.ts currently). */
-interface PushOptions {
-  endpoint: string
-  apiKey?: string
-  env?: string
-}
-
 export interface AppProps {
   instance: AugmentedGF
   collector: AnalyticsCollector
@@ -174,10 +167,6 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
   const [exportFlowKey, setExportFlowKey] = useState('onboardingFlow')
   const [exportedJson, setExportedJson]   = useState<string | null>(null)
   const [copied, setCopied]               = useState(false)
-  const [pushConfig, setPushConfig]       = useState<PushOptions>({
-    endpoint: 'https://api.guideflow.dev/v1/flows',
-    apiKey: '',
-  })
   // ── Subscribe tour events for live log ───────────────────────────────
   useEffect(() => {
     const EVTS = [
@@ -773,8 +762,6 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
                'Validate a .flow.json and rewrite it in the one on-disk format. Refuses an invalid flow; .ts/.js is an error.'],
               ['guideflow validate <files...> [--strict]',
                'Check flow files. Exit 1 on any error, or on any warning with --strict. Built for CI.'],
-              ['guideflow push <file> [-k <apiKey>] [-e <endpoint>] [--env <name>]',
-               'POST the flow JSON to api.guideflow.dev/v1/flows (or a custom endpoint).'],
             ] as [string, string][]).map(([cmd, desc]) => (
               <div key={cmd} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid #1e293b` }}>
                 <div style={{ color: '#86efac', fontFamily: 'monospace', marginBottom: 3 }}>{`$ ${cmd}`}</div>
@@ -819,44 +806,6 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
               </button>
             </div>
           )}
-
-          <hr style={S.hr} />
-
-          {/* Push config */}
-          <p style={S.label}>Push config — mirrors <code style={S.code}>guideflow push</code> options</p>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: C.subtle }}>
-            Typed by <code style={S.code}>PushOptions</code> from <code style={S.code}>@guideflow/cli</code>.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <div>
-              <label style={S.label as React.CSSProperties}>endpoint</label>
-              <input
-                style={S.input}
-                value={pushConfig.endpoint}
-                onChange={(e) => setPushConfig((p) => ({ ...p, endpoint: e.target.value }))}
-                placeholder="https://api.guideflow.dev/v1/flows"
-              />
-            </div>
-            <div>
-              <label style={S.label as React.CSSProperties}>apiKey</label>
-              <input
-                style={S.input}
-                type="password"
-                value={pushConfig.apiKey ?? ''}
-                onChange={(e) => setPushConfig((p) => ({ ...p, apiKey: e.target.value }))}
-                placeholder="gf_sk_••••••••"
-              />
-            </div>
-          </div>
-          <div style={S.log as React.CSSProperties}>
-            <span style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 11 }}>
-              {'# Equivalent CLI command:\n'}
-              {'$ guideflow push '}
-              {exportFlowKey}.flow.json
-              {pushConfig.apiKey ? ` -k ${pushConfig.apiKey.slice(0, 8)}…` : ''}
-              {` -e ${pushConfig.endpoint}`}
-            </span>
-          </div>
         </section>
 
         {/* ── Analytics ─────────────────────────────────────────────────── */}

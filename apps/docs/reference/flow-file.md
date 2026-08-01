@@ -320,9 +320,9 @@ Exit `0` means no errors. Exit `1` means at least one error, an unreadable file,
 
 | Bundle | Size | Gate |
 |---|---|---|
-| `@guideflow/core/authoring` | **5.3 kB** gzip | 5.5 kB |
+| `@guideflow/core/authoring` | **5.35 kB** gzip | 5.5 kB |
 | `@guideflow/core/selector` | **1.76 kB** gzip | 2.5 kB |
-| `@guideflow/core` (entry) | 14.96 kB gzip | 15 kB — **unchanged** |
+| `@guideflow/core` (entry) | 15.13 kB gzip | 15.5 kB — **untouched by these two** |
 
 `authoring` is large next to `./targeting`'s 2.18 kB, and the difference is rules, not prose:
 stripping every `message` and `hint` in the file saves 880 B. The hints are the deliverable — they

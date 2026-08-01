@@ -25,6 +25,30 @@ function isExpired(entry: { expiresAt?: unknown }): boolean {
   return Date.now() > at
 }
 
+/**
+ * `flowId` or `flowId@version`, the two shapes the completed record holds.
+ *
+ * Module-level rather than class statics on purpose: a minifier inlines these
+ * and drops the names, where `ProgressStore._VERSION_SEP` survives as a real
+ * property. That difference is 60 B of a 201 B change.
+ */
+const VERSION_SEP = '@'
+
+function completedEntry(flowId: string, version?: string | number): string {
+  if (version !== undefined) return `${flowId}${VERSION_SEP}${String(version)}`
+  // An id with an INTERIOR separator and no version would be read back with its
+  // own tail stripped — `my@flow` becomes `my`, and a checklist item pointing at
+  // it silently never ticks. A trailing separator makes the split unambiguous.
+  // `@scope/flow` is unaffected: a leading separator is never a split point.
+  return flowId.lastIndexOf(VERSION_SEP) > 0 ? `${flowId}${VERSION_SEP}` : flowId
+}
+
+/** Strip a `@version` suffix, if there is one. A leading `@` is part of the id. */
+function completedFlowId(entry: string): string {
+  const at = entry.lastIndexOf(VERSION_SEP)
+  return at > 0 ? entry.slice(0, at) : entry
+}
+
 export class ProgressStore {
   private _driver: PersistenceDriver
   private _keyFn: (userId: string) => string
@@ -155,22 +179,70 @@ export class ProgressStore {
   }
 
   // ── Completed flows ───────────────────────────────────────────────────────
+  //
+  // Entries are `flowId` or `flowId@version`. Completion used to be keyed on the
+  // flow id alone, and `start()` checks it *before* the snapshot version gate —
+  // so a user who finished v1 of a tour never saw v2, no matter how much v2
+  // changed. `start()` returned silently: no render, no event, nothing to
+  // observe. Measured, and it is what made "edit the tour and republish"
+  // unreachable for exactly the users who had engaged with it most.
 
-  async markCompleted(userId: string, flowId: string): Promise<void> {
+  /**
+   * Record that this user finished this flow.
+   *
+   * Omitting `version` writes the bare id, byte-identical to what this wrote
+   * before — so a caller that does not care is unaffected.
+   */
+  async markCompleted(userId: string, flowId: string, version?: string | number): Promise<void> {
     const key = `${this._keyFn(userId)}:completed`
-    const existing = await this.getCompletedFlows(userId)
-    if (!existing.includes(flowId)) {
-      existing.push(flowId)
-      // Wrap in StoredEntry for consistency with markDismissed / saveSnapshot
-      const entry: StoredEntry<string[]> = {
-        value: existing,
-        expiresAt: this._expiry(),
-      }
-      await this._driver.set(key, entry)
+    const existing = await this._rawCompleted(userId)
+    const entry = completedEntry(flowId, version)
+    if (!existing.includes(entry)) {
+      existing.push(entry)
+      const stored: StoredEntry<string[]> = { value: existing, expiresAt: this._expiry() }
+      await this._driver.set(key, stored)
     }
   }
 
+  /**
+   * Completed flow **ids**, with any version suffix stripped and duplicates
+   * removed.
+   *
+   * The signature is unchanged on purpose. `@guideflow/checklist` projects this
+   * array by matching an item's `flowId` against it, and `@guideflow/ai` reads
+   * the same key — both would silently stop matching if raw `id@version`
+   * entries leaked out of here.
+   */
   async getCompletedFlows(userId: string): Promise<string[]> {
+    const raw = await this._rawCompleted(userId)
+    return [...new Set(raw.map(completedFlowId))]
+  }
+
+  /**
+   * Has this user finished this flow, at this version?
+   *
+   * A bare `flowId` entry — written before this record carried versions, or by
+   * a caller that passed none — suppresses **every** version. That is the
+   * conservative direction: an upgrade must never resurrect a tour someone
+   * already dismissed by completing it, and there is no way to know which
+   * version an unversioned record referred to.
+   */
+  async isCompleted(userId: string, flowId: string, version?: string | number): Promise<boolean> {
+    const raw = await this._rawCompleted(userId)
+    if (version === undefined) return raw.some((e) => completedFlowId(e) === flowId)
+    // `completedEntry(flowId)` normalises the unversioned form — identical to
+    // `flowId` for an ordinary id, and `flowId@` for one with an interior
+    // separator. Both spellings are checked so a record written before this
+    // release still suppresses every version.
+    return (
+      raw.includes(flowId) ||
+      raw.includes(completedEntry(flowId)) ||
+      raw.includes(completedEntry(flowId, version))
+    )
+  }
+
+  /** The stored entries, verbatim, including any `@version` suffix. */
+  private async _rawCompleted(userId: string): Promise<string[]> {
     const key = `${this._keyFn(userId)}:completed`
     const entry = await this._driver.get<StoredEntry<string[]>>(key)
     if (!entry) return []
@@ -181,11 +253,6 @@ export class ProgressStore {
       return []
     }
     return entry.value
-  }
-
-  async isCompleted(userId: string, flowId: string): Promise<boolean> {
-    const completed = await this.getCompletedFlows(userId)
-    return completed.includes(flowId)
   }
 
   // ── Full reset ────────────────────────────────────────────────────────────

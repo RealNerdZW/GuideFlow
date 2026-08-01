@@ -21,19 +21,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // with a reset module registry each time, took ~7s and timed out under parallel
 // turbo load. These commands are exercised by their own spec files; here we only
 // care about the program's argument surface, so the heavy deps are stubbed.
-vi.mock('vite', () => ({ createServer: vi.fn() }));
 vi.mock('inquirer', () => ({ default: { prompt: vi.fn() } }));
-vi.mock('ora', () => ({
-  default: () => ({
-    start: () => ({ succeed: vi.fn(), fail: vi.fn(), stop: vi.fn() }),
-  }),
-}));
 
 const pkg = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'),
 ) as { version: string };
 
-const SUBCOMMANDS = ['init', 'validate', 'export', 'push'] as const;
+const SUBCOMMANDS = ['init', 'validate', 'export'] as const;
 
 let written: string[];
 let argv: string[];
@@ -92,14 +86,13 @@ describe('guideflow program', () => {
 
     const help = output();
     expect(help).toContain('Scaffold a new GuideFlow configuration in your project');
-    expect(help).toContain('Export a flow definition to JSON');
-    // `validate` and `push` used to advertise "a local visual tour editor" and
-    // "GuideFlow Cloud". Neither exists — the editor was never built and the
-    // Cloud endpoint is a placeholder — and these assertions pinned the false
-    // strings in place. --help is documentation too.
-    expect(help).toContain('experimental');
+    expect(help).toContain('Validate flow files');
+    // `studio` and `push` used to advertise "a local visual tour editor" and
+    // "GuideFlow Cloud". Neither ever existed, and both commands are now
+    // deleted rather than merely re-worded. --help is documentation too.
     expect(help).not.toContain('visual tour editor');
     expect(help).not.toContain('GuideFlow Cloud');
+    expect(help).not.toContain('push');
   });
 
   it('prints the package version for -v', async () => {

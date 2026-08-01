@@ -29,7 +29,7 @@ asked for a full re-audit — a scoped `/gf-package-audit <pkg>` is usually what
    | ai-package | providers, validation, brain, dom-context, cost and reliability |
    | analytics-package | collector, transports, experiments, privacy |
    | devtools-extension | MV3 build wiring, worker lifecycle, recorder, panel UX |
-   | cli | init / export / validate / push |
+   | cli | init / export / validate |
    | tests-docs-truth | coverage map, and every doc claim vs real code |
    | a11y-i18n-ux | WCAG 2.2 AA, reduced motion, contrast, RTL, mobile |
 

@@ -78,9 +78,9 @@ more. Recording is faster than typing selectors for a first pass at a page you a
 for anything you intend to keep, treat the result as a draft you finish in code.
 
 ::: warning There is no visual editor and no hosted service
-The DevTools recorder and the code you write yourself are the whole authoring surface.
-`guideflow push` targets an endpoint with no server behind it. Flows live in your repo; that is the
-whole distribution story.
+The DevTools recorder and the code you write yourself are the whole authoring surface. Flows live in
+your repo. To change one without redeploying, serve the `.flow.json` as a static asset and fetch it
+at runtime — see [Hosting flows](/guide/hosting-flows).
 :::
 
 ## The flow file
@@ -265,12 +265,18 @@ shape in the set, and it is worth being specific about why.
 The engine emits one `console.warn` and then fires **`tour:complete`**. So the tour truncates at
 that state *and is recorded as completed*. `gf.start()` gates on completion and returns silently
 for a flow this user has finished — no error, no return value to inspect — so on every future
-visit, nothing happens. And `isCompleted` is keyed on the flow id alone with no version, so
-**shipping the fix does not give those users the tour back.**
+visit, nothing happens.
 
-In user terms: some fraction of your users saw the first half of a tour, and there is no
-redeploy that will show them the rest. One line in a console nobody was watching is the only
-notice you got. A typo in a state name deserves to fail a build.
+Whether **shipping the fix gives those users the tour back** depends on whether the flow carries a
+`version`. Completion is recorded as `flowId@version`, so a flow stamped by `stringifyFlowFile` or
+`withFingerprint` shows again once the fix changes its structure. A flow with **no** `version` — or
+a completion record written before version-scoped completion existed — records a bare id that
+suppresses every revision, and there is no redeploy that will show those users the rest. See
+[Persistence](/guide/persistence#completion-is-version-scoped).
+
+In user terms: some fraction of your users saw the first half of a tour, and getting them the rest
+depends on a `version` field you may not have set. One line in a console nobody was watching is the
+only notice you got. A typo in a state name deserves to fail a build.
 
 ### No `final: true` state → **warning**
 

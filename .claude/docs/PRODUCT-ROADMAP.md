@@ -65,10 +65,16 @@ the **workflow around the engine**: a no-code editor, hosted flow storage, audie
 scheduling and frequency capping, checklists, surveys/NPS, banners, a resource centre, and a
 dashboard. None of that exists here.
 
-You do not need all of it. But `packages/cli/src/commands/push.ts` already ships pointing at
-`https://api.guideflow.dev/v1/flows`, **a service that does not exist**, and `guideflow studio` is
-documented as "the visual tour editor" while actually being a Vite dev server that injects one
-boolean. Those two claims are the ones to either build or retract.
+You do not need all of it. Two of those claims used to be made without anything behind them: a
+`guideflow push` pointed at `https://api.guideflow.dev/v1/flows`, a service that never existed, and
+a `guideflow studio` documented as "the visual tour editor" while actually being a Vite dev server
+that injected one boolean. **Both commands were deleted** — `studio` in Phase 7.9, `push` in
+Phase 7.10 (ADR-014) — and hosted flow storage was answered without a backend: a `.flow.json` is a
+static asset you serve from your own CDN (`apps/docs/guide/hosting-flows.md`).
+
+What genuinely remains from that list is the *workflow*, not the delivery: a no-code editor with
+review and rollback, server-side audience selection, surveys/NPS, a resource centre, and a
+dashboard. Targeting, scheduling, frequency capping and checklists have since shipped.
 
 ---
 
@@ -82,7 +88,8 @@ done.
 Not new features. Closing the gap between README and reality.
 
 - Fix or retract: intro.js attribute migration, `overlayColor`, per-instance i18n, `guideflow studio`,
-  `guideflow export`, `guideflow push`'s endpoint, the devtools "coming soon" note.
+  `guideflow export`, the dead publish endpoint, the devtools "coming soon" note.
+  *(Done. `studio` and `push` were deleted rather than fixed; the rest were fixed.)*
 - Fix the P0/P1 engine and security findings in `AUDIT.md`.
 - Rebuild the e2e harness so visual behaviour can be verified at all.
 - Publish a browser support matrix and a bundle-size table.

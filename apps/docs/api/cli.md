@@ -1,18 +1,21 @@
 ---
-description: "GuideFlow CLI reference — the real flags for guideflow init, export, validate and push in @guideflow/cli, including their current limitations."
-keywords: GuideFlow CLI, guideflow init, guideflow export, guideflow validate, guideflow push, @guideflow/cli
+description: "GuideFlow CLI reference — the real flags for guideflow init, export and validate in @guideflow/cli, including their current limitations."
+keywords: GuideFlow CLI, guideflow init, guideflow export, guideflow validate, @guideflow/cli
 ---
 
 # CLI Reference
 
-`@guideflow/cli` provides the `guideflow` command for scaffolding starter files, normalising and
-validating flow files, and POSTing a flow JSON file to an HTTP endpoint.
+`@guideflow/cli` provides the `guideflow` command for scaffolding starter files, and for normalising
+and validating flow files. Three commands: `init`, `export` and `validate`.
 
 ::: warning Status
 `validate` is the command built for CI, and `export` runs the same validator. `init` prompts by
-default but takes `--yes` for unattended use, and `push` needs an endpoint you host yourself — there
-is no hosted service. Read each command's limitations before you build a workflow around it.
+default but takes `--yes` for unattended use. Read each command's limitations before you build a
+workflow around it.
 :::
+
+Shipping a flow is not a CLI concern: a `.flow.json` is a static asset you serve from your own CDN.
+See [Hosting flows](/guide/hosting-flows).
 
 Requires Node.js >= 18.
 
@@ -191,45 +194,6 @@ guideflow validate flows/*.flow.json --strict
 ```yaml
 # .github/workflows/ci.yml
 - run: npx @guideflow/cli validate flows/*.flow.json --strict
-```
-
----
-
-### `guideflow push`
-
-POSTs a flow JSON file to an HTTP endpoint.
-
-```bash
-guideflow push [file] [options]
-```
-
-| Argument / Option | Default | Description |
-|---|---|---|
-| `[file]` | `my-tour.flow.json` | Path to the flow JSON file |
-| `-k, --api-key <key>` | `$GUIDEFLOW_API_KEY` | Sent as `Authorization: Bearer <key>`. A key is required; the flag is not |
-| `-e, --endpoint <url>` | `https://api.guideflow.dev/v1/flows` | Target URL |
-| `--env <env>` | `production` | Sent as the `X-GuideFlow-Env` header |
-
-::: warning Experimental — bring your own endpoint
-The default endpoint, `https://api.guideflow.dev/v1/flows`, is a placeholder for a hosted service
-that **has never been deployed**, so a `push` without `--endpoint` cannot succeed. Treat this
-command as an experimental HTTP client for an API you host yourself.
-:::
-
-The request is a single `POST` with `Content-Type: application/json`, and the file's raw text as the
-body. The file must parse as JSON — nothing else about it is validated. A non-2xx response prints
-the status and body and exits 1. If the response JSON contains a `url` field it is printed.
-
-A key is required, but the flag is not: `--api-key` falls back to the `GUIDEFLOW_API_KEY` environment
-variable, and the command exits 1 with `API key is required` only when neither is set. **Prefer the
-environment variable** — a key passed on the command line lands in your shell history and in process
-listings.
-
-```bash
-guideflow push ./flows/onboarding.json \
-  --endpoint https://tours.myapp.com/v1/flows \
-  --api-key "$MY_API_KEY" \
-  --env staging
 ```
 
 ---

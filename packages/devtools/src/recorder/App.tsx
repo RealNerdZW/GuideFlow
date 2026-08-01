@@ -234,8 +234,9 @@ export function RecorderApp({ tabId }: { tabId: number }): React.ReactElement {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    // `.flow.json`, which is what `guideflow validate` and `guideflow push`
-    // expect by default. The Builder wrote `.json`, which neither picked up.
+    // `.flow.json`, which is the extension `guideflow validate` and
+    // `guideflow export` are pointed at by every doc and CI snippet. The
+    // Builder wrote `.json`, which neither picked up.
     a.download = `${slug(name) || 'guideflow-tour'}.flow.json`;
     document.body.appendChild(a);
     a.click();

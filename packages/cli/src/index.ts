@@ -15,7 +15,6 @@
  *   guideflow init      — scaffold GuideFlow configuration in a project
  *   guideflow export    — normalise and validate a flow file
  *   guideflow validate  — check flow files, for CI
- *   guideflow push      — publish a flow to GuideFlow Cloud or self-hosted API
  */
 
 import { readFileSync } from 'node:fs';
@@ -26,7 +25,6 @@ import { Command } from 'commander';
 
 import { exportCommand } from './commands/export.js';
 import { initCommand } from './commands/init.js';
-import { pushCommand } from './commands/push.js';
 import { validateCommand } from './commands/validate.js';
 
 // Resolve package version at runtime without import assertions (ESM-safe)
@@ -44,7 +42,6 @@ const program = new Command()
 program.addCommand(initCommand);
 program.addCommand(exportCommand);
 program.addCommand(validateCommand);
-program.addCommand(pushCommand);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   console.error(err);

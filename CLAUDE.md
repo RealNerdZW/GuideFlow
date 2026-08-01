@@ -36,7 +36,7 @@ packages/
   analytics/    @guideflow/analytics  AnalyticsCollector, 5 transports, ExperimentEngine
   checklist/    @guideflow/checklist   createChecklist + docked mountChecklist widget. A projection of
                                       ProgressStore. Depends on core; core never imports it.
-  cli/          @guideflow/cli        init / studio / export / push
+  cli/          @guideflow/cli        init / export / validate
   devtools/     @guideflow/devtools   MV3 browser extension (private: not published). recorder.html is the
                                       authoring surface; the panel inspects. Tested in real Chromium by
                                       apps/e2e/tests-extension — the ONLY place it is exercised at all.
@@ -86,19 +86,19 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.9a, 2026-08-01)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10, 2026-08-01)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1040 unit tests pass**, 1 skipped
-(core 472, ai 153, react 114, analytics 98, checklist 73, vue 47, cli 40, svelte 34, devtools 9).
-**Seven** bundles, each gated independently: `@guideflow/core` **14.96 kB / 15 kB**, `./authoring`
-**5.3 kB / 5.5 kB**, `./targeting` **2.18 kB / 2.5 kB**, `./selector` **1.76 kB / 2.5 kB**,
+Build, type-check, lint and unit tests are **all green**: **1063 unit tests pass**, 1 skipped
+(core 483, ai 153, react 114, analytics 98, checklist 73, vue 47, svelte 34, cli 33, devtools 28).
+**Seven** bundles, each gated independently: `@guideflow/core` **15.13 kB / 15.5 kB**, `./authoring`
+**5.35 kB / 5.5 kB**, `./targeting` **2.18 kB / 2.5 kB**, `./selector` **1.76 kB / 2.5 kB**,
 `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 281 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 319 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -129,16 +129,17 @@ assertion, which catches structure but not usability. Do not restore the "access
 marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOver.
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
-> accessibility) → **15 kB** (ADR-010, the navigation seam). ADR-008's condition on that last raise
-> — move `content.html` out of the default bundle first — was discharged by **ADR-009**, which
-> deliberately did *not* raise the limit at the same time: the eviction freed enough on its own, and
-> raising pre-emptively for unwritten code is the silent bump the rule exists to prevent.
+> accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
+> completion). Core measures **15.13 kB with 370 B of headroom**. Six raises is a lot; the next
+> addition should look for a real saving before asking for a seventh.
 >
-> Core is at **14.96 kB with 40 B of headroom** — which is not a budget, it is a tripwire.
-> **The next core addition of any size needs either a real saving or a sixth raise with an ADR.**
-> The targeting lever has already been pulled: 7.4 put its ~1.75 kB of rules in
-> `@guideflow/core/targeting` and landed only 130 B of driver access in core. What remains to move
-> is smaller and harder. Any docs figure quoting a bundle size must say **~14.9 kB**.
+> ADR-008's condition on the 15 kB raise — move `content.html` out of the default bundle first —
+> was discharged by **ADR-009**, which deliberately did *not* raise the limit at the same time.
+> ADR-014's ~200 B bought the difference between "republishing a tour works" and "republishing
+> silently reaches nobody who finished it", which is the bar a raise has to clear.
+>
+> Seven bundles are gated independently. Any docs figure quoting a bundle size must say
+> **~15.1 kB**.
 
 ## 4. Code conventions
 
@@ -412,6 +413,17 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
   them ever re-queried to check what they had built. Measured in real Chromium, the devtools copy
   pointed at the *wrong element* for two ordinary page shapes. If you need a selector anywhere, import
   it; do not write a fourth.
+- **Completion is stored as `flowId@version`, and `getCompletedFlows` strips it.** The suffix must
+  never leak out of `ProgressStore`: `@guideflow/checklist` projects that array by matching an
+  item's `flowId`, and `@guideflow/ai` reads the same key — both would silently stop matching. A
+  record written without a version suppresses *every* version, deliberately: there is no way to
+  know which revision it meant.
+- **`start()` checks `isCompleted` BEFORE the snapshot version gate** (`index.ts:390` vs `:399`).
+  That ordering is why a version-blind completion record made republishing unreachable, and why the
+  fix had to go in the completion record rather than in the gate.
+- **A server that serves flows must never rewrite `flow.version`.** A CMS's instinct is a monotonic
+  revision per publish; doing that discards every user's resume point on every copy edit.
+  `flowFingerprint` ignores content precisely so a typo fix interrupts nobody.
 - **Two documentation sites exist.** `.github/workflows/docs.yml` publishes
   `apps/docs/.vitepress/dist` to GitHub Pages. The root `docs/*.html` files are stale leftovers that
   nothing builds — yet `docs.yml` still *triggers* on `docs/**`. Edit `apps/docs/`, never `docs/`.
@@ -432,9 +444,10 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
   component instance, so a composable called from a bare `effectScope()` (a Pinia store, a shared
   composable) registers no teardown at all and leaks every listener. `onScopeDispose` covers the
   component case too, because `setup()` runs inside its own effect scope.
-- **Importing `packages/cli/src/index.ts` pulls in `vite`,** because `studio.ts` imports it at module
-  scope. In tests, `vi.mock('vite', …)` — without it, a spec that re-imports the entry point with a
-  reset module registry takes seconds per test.
+- **`@guideflow/cli` no longer imports `vite` or `ora`.** `studio.ts` imported `vite` at module
+  scope, so every spec that re-imported the entry point paid for it; `push.ts` pulled in `ora`. Both
+  commands are deleted (7.9a, 7.10) and so are the dependencies. The CLI is `init`, `export`,
+  `validate` — three commands, none of which touches the network.
 
 ---
 

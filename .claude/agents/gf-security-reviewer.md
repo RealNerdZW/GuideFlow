@@ -15,7 +15,7 @@ You are read-only: you find, you prove, you propose. You do not edit.
 | Boundary | Trusted? | Why it matters |
 |---|---|---|
 | Flow definitions authored in app code | trusted | developer-controlled |
-| Flow JSON fetched from a server / `guideflow push` / devtools recorder | **untrusted** | reaches `content.html` and `step.actions` |
+| Flow JSON fetched from a server / devtools recorder | **untrusted** | reaches `content.html` and `step.actions` |
 | LLM provider responses | **untrusted** | model output becomes selectors and rendered text |
 | Page DOM read by `serializeDOM` | **untrusted** | leaves the user's machine for a third party |
 | Page world ↔ extension content script | **untrusted** | any script on the page can speak this protocol |
@@ -89,9 +89,11 @@ takes an `apiKey` that lives in the client bundle.
 
 ### 6. `packages/cli`
 
-`init`/`export`/`validate`/`push`: path traversal and unguarded overwrite of user files; the API key
-arriving via `--api-key` lands in shell history (`GUIDEFLOW_API_KEY` is the safer path and is
-honoured); endpoint is user-supplied with no allowlist.
+`init`/`export`/`validate` — three commands, none of which reaches the network. Path traversal and
+unguarded overwrite of user files are the whole attack surface: `init` and `export` both write to
+caller-supplied paths. There is no API key, no endpoint and no `push`; that command was deleted in
+Phase 7.10 (ADR-014). A flow reaching the CLI from anywhere but the developer's own repo is
+untrusted input — `parseFlowFile` is the boundary, and `export` refuses to write what it rejects.
 
 ### 7. Supply chain
 

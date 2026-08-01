@@ -46,4 +46,4 @@ Complete API documentation for all GuideFlow.js packages.
 
 ## CLI
 
-- [CLI Reference](./cli) — `guideflow init`, `export`, `validate`, `push`
+- [CLI Reference](./cli) — `guideflow init`, `export`, `validate`

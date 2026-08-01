@@ -610,7 +610,31 @@ the budget could not absorb it**, so the packaging change had to come first.
       `tour:start` does not carry.
 - [ ] **7.9c Chrome Web Store listing** — a developer account, a fee, a privacy policy and a review.
       Not engineering; tracked so it is not mistaken for done.
-- [ ] **7.10 Backend / flow CMS** — `no-backend-cms-or-self-hosting-story`. See `MCP-AND-SKILLS.md`.
+- [x] **7.10 Flows are static assets** — `no-backend-cms-or-self-hosting-story`, closed as the
+      audit's option (a) plus the one engine fix that makes the replacement honest. See ADR-014.
+      **No backend, no server package, no `loadFlows()`** — a `.flow.json` is a static asset, and
+      `fetch` + `parseFlowFile` + `gf.createFlow()` already swap a live tour. Proved end to end by
+      rewriting a file on disk between two assertions with no rebuild
+      (`apps/e2e/tests/remote-flows.spec.ts`, 7 tests).
+      **The actual blocker was never transport.** MEASURED: a user who completed v1 of a flow never
+      saw v2, because `start()` checks `isCompleted` before the version gate and completion was
+      keyed on the flow id alone — `start()` returned silently, no render, no event. Completion is
+      now `flowId@version`; `getCompletedFlows` still returns bare ids so the checklist projection
+      and `@guideflow/ai` are unaffected. Sixth budget raise, 15 → 15.5 kB, measured at 15.13 kB.
+      **`guideflow push` deleted** with `ora`: a dead default endpoint plus four measured defects —
+      it printed `unknown` for every real `.flow.json`, reported a successful 204/empty-201 as a
+      network error and exited 1, validated nothing, and its tests pinned a format `export` no
+      longer writes. Cross-tab sync gained the version check its own comment assumed it did not
+      need. New guide: `apps/docs/guide/hosting-flows.md`.
+- [ ] **7.10b `ProgressStore.clearCompleted(userId, flowId?)`** — "let this user replay this tour".
+      Today only `resetUser()` exists and it also wipes dismissals, snapshots, targeting caps and
+      checklist state. Own change, own tests. Named by ADR-011 and ADR-014.
+- [ ] **7.10c Version-scoped dismissal** — `isDismissed` is still keyed on the flow id alone. That
+      is arguably correct ("don't show me this again" is about the tour, not the revision) but it is
+      now an asymmetry with completion that someone will file. Decide deliberately.
+- [ ] **7.10d `createTargeting().install()` re-scan** — it filters `listFlows()` once, so a flow
+      registered after `install()` is never considered for a `selector` trigger. Documented as an
+      ordering rule for now (await your loads, then install).
 - [ ] **7.11 Ship a GuideFlow MCP server** — see `MCP-AND-SKILLS.md` section 3.
 
 > **Budget note for whoever picks this up.** Core is at 14.13 kB / 14.5 kB. The projected remainder

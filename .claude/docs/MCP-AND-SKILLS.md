@@ -78,11 +78,11 @@ PR without shelling out to `gh` is a real time saver — particularly for the re
 
 | Server | Connect when | Why |
 |---|---|---|
-| **Cloudflare** (`cloudflare-bindings`, `cloudflare-observability`) | You build the flow-hosting backend | `packages/cli/src/commands/push.ts` ships pointed at `https://api.guideflow.dev/v1/flows`, **a service that does not exist**. Workers + D1 (flow storage) + KV (edge-cached flow delivery) + R2 (media) is the cheapest credible way to make that endpoint real, and it is a genuine product gap, not a nice-to-have. |
+| **Cloudflare** (`cloudflare-bindings`, `cloudflare-observability`) | You build a flow **CMS** — an editing UI with review, rollback and server-side audience selection | Delivery is already solved without a backend: ADR-014 made a `.flow.json` a static asset you serve from any CDN (`apps/docs/guide/hosting-flows.md`), and deleted the CLI command that pointed at a service that never existed. R2/KV would host those files, but so does S3 or GitHub Pages — the gap that remains is the *editor*, not the endpoint. Connect only if that is what you are building. |
 | **shadcn/ui** | You build `guideflow studio` | The visual editor is currently the weakest headline claim. shadcn components + Tailwind give you a credible editor UI fast without inventing a design system. Already available in this workspace. |
 | **Figma** | You formalise the theming system | `packages/core/src/styles/tokens.css` plus `fromTailwind`/`fromRadix`/`fromShadcn` already imply a token pipeline. Figma variables → design tokens closes it. Already available in this workspace. |
 | **Sentry** | The library reports its own errors | `tour:error` is emitted and then swallowed by the host app. A first-party error-reporting story is table stakes for a library embedded in other people's products. |
-| **Postman** | You publish the Cloud API | Spec-first design + contract tests for the `push`/flow-delivery API. Already available in this workspace. |
+| **Postman** | You publish an HTTP API of any kind | There is none today, and ADR-014 committed to there not being one for flow delivery. Relevant only if a CMS or a hosted service is actually started. Already available in this workspace. |
 
 ### Explicitly not recommended
 

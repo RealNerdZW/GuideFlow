@@ -11,9 +11,9 @@ import { Command } from 'commander';
  *
  * **The `.ts` / `.js` path is gone.** It regex-matched the source, wrote
  * `{ _note, rawSnippet: match[0].slice(0, 500) }` — a truncated slice of the
- * user's own source, not a flow — printed a green success and exited **0**.
- * `guideflow push` would then happily upload it. Deleting the lie is the fix;
- * a TypeScript parser is a dependency this package should not carry.
+ * user's own source, not a flow — printed a green success and exited **0**,
+ * leaving a file that looked shippable and was not. Deleting the lie is the
+ * fix; a TypeScript parser is a dependency this package should not carry.
  */
 export const exportCommand = new Command('export')
   .description('Export a flow definition to JSON')

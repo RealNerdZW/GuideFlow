@@ -558,3 +558,79 @@ fails while the first passes.
   Web Store install would show — a `--load-extension` profile reports
   `origins: ["<all_urls>"]` as already granted, so a green run says nothing about
   it. The store listing itself is 7.9c and is not engineering.
+
+---
+
+## ADR-014 — Flows are static assets; completion becomes version-scoped
+2026-08-01 · Status: Accepted · **Sixth core budget raise: 15 kB → 15.5 kB**
+
+**Context.** `no-backend-cms-or-self-hosting-story` offered two options: remove
+the Cloud/push story, or ship a self-hostable flow store with a
+`gf.loadFlows(url)` client and a reference server. Four designs were argued and
+three judges chose the same one. The finding was written before 7.9a, and two of
+its premises no longer hold: the "documented JSON schema" it asks for exists
+(`validateFlow` **is** the schema, deliberately not a hosted `$schema`), and a
+complete non-throwing reader for untrusted input exists (`parseFlowFile`).
+
+**Decision 1: no server, and no fetch client.** A `.flow.json` is a static
+asset. `fetch` + `parseFlowFile` + `gf.createFlow()` already swap a live tour —
+demonstrated end to end by rewriting a file on disk between two assertions with
+no rebuild (`apps/e2e/tests/remote-flows.spec.ts`). A `loadFlows()` would
+reimplement the HTTP cache, replace an app `fetch` that already carries auth and
+tracing, and either drag the 5.35 kB validator into production bundles or skip
+validation at a boundary `SECURITY-MODEL.md` already classifies as untrusted. A
+`packages/server` would add auth, storage, TLS, migrations and backups — the
+tenth half-built thing in a repo that has spent nine phases deleting nine.
+
+**Decision 2: the actual blocker was not transport.** Measured: a user who
+completed v1 of a flow **never saw v2**, however much v2 changed. `start()`
+checks `isCompleted` *before* the snapshot version gate, and completion was
+keyed on the flow id alone — so `start()` returned silently, with no render, no
+event and nothing to observe. No amount of client or server would have fixed
+that; "edit the tour and republish" reached only the users who had never
+finished it.
+
+Completion is now recorded as `flowId@version`. `getCompletedFlows` **strips**
+the suffix and deduplicates, keeping its signature — `@guideflow/checklist`
+projects that array by matching an item's `flowId`, and `@guideflow/ai` reads
+the same key; raw `id@version` entries leaking out would have silently broken
+both. A record written without a version suppresses every version, which is the
+conservative direction: there is no way to know which revision it meant, and
+resurrecting a tour someone finished is worse than not re-showing an edit.
+
+**Decision 3: `guideflow push` is deleted**, not repointed. Four measured
+defects — it printed `unknown` for every real `.flow.json` (it read `.id` off
+the envelope, which has none); a 2xx with a non-JSON body reported a **network
+error** and exited 1 because `res.json()` sat inside the try; it validated
+nothing, so it would upload a flow the engine truncates; and its test suite
+pinned a bare-flow format `export` no longer writes. Its default endpoint was a
+service that has never existed. `ora` goes with it.
+
+**Decision 4: the cross-tab restore gains a version check.** Its comment
+reasoned "both tabs are the same build, so a mismatch is impossible by
+construction" — true only while flows ship inside the bundle. A flow fetched at
+runtime falsifies it: two tabs of one build can hold different revisions.
+
+**The budget raise.** The completion change measures **15.13 kB against the
+15 kB limit** — 132 B over after tightening (class statics became module-level
+helpers, worth 29 B). The limit moves to **15.5 kB**. This is the sanctioned
+path, not an exception: CLAUDE.md's rule is that the next addition needs a real
+saving or a sixth raise *with an ADR*, and the rule exists to prevent silent
+growth. ~200 B buys the difference between "republishing works" and "republishing
+silently reaches nobody who engaged with the tour".
+
+**Consequences.**
+- **`@guideflow/core` is 15.13 kB / 15.5 kB.** 370 B of headroom, and the next
+  addition should still look for a saving first.
+- The stored completion format changes. Old records keep working and keep
+  suppressing; nothing migrates and nothing is lost.
+- `apps/e2e/serve.mjs` serves `.flow.json` with an `ETag` and honours
+  `If-None-Match`, scoped to that extension so the blanket `no-store` that keeps
+  stale bundles out still applies to everything else.
+- **Deferred, named, not smuggled:** `ProgressStore.clearCompleted()` (today only
+  `resetUser()` exists, and it also wipes dismissals, snapshots, targeting caps
+  and checklist state); version-scoped *dismissal*, which is arguably correct as
+  it stands because "don't show me this again" is about the tour rather than the
+  revision; and `createTargeting().install()`'s one-shot selector scan, which
+  does not see flows registered after it — documented as an ordering rule
+  instead.

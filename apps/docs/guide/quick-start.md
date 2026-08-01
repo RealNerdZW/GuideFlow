@@ -134,14 +134,13 @@ npx @guideflow/cli validate flows/*.flow.json
 
 # Validate a JSON flow and write it back as a pretty-printed flow file
 npx @guideflow/cli export my-tour.json --output my-tour.flow.json
-
-# POST a flow JSON file to an HTTP endpoint you control
-npx @guideflow/cli push my-tour.flow.json \
-  --endpoint https://example.com/api/flows \
-  --api-key "$GUIDEFLOW_API_KEY"
 ```
 
 `validate` exits 1 on any error, so it belongs in CI next to your linter; add
 `--strict` to fail on warnings too. `export` reads `.json` only and refuses to
 write a flow that does not validate — see the
 [CLI reference](/api/cli) for every flag.
+
+To change a tour without redeploying your app, serve the `.flow.json` from a CDN
+and fetch it at runtime — [Hosting flows](/guide/hosting-flows) has the recipe,
+the caching headers and the versioning rules.

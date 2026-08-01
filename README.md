@@ -35,8 +35,8 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 - **A/B testing** — deterministic variant assignment with `ExperimentEngine`
 - **Hotspots & hints** — persistent pulsing beacons and hint badges independent of tours
 - **i18n** — per-instance translation registry with locale fallback
-- **CLI** — scaffold starter files, validate flow files in CI, normalise a flow to JSON, POST a flow
-  to your own API. Read the [CLI](#cli) section before relying on it
+- **CLI** — scaffold starter files, validate flow files in CI, normalise a flow to JSON. Read the
+  [CLI](#cli) section before relying on it
 - **Strict TypeScript** — full generics, exact optional property types, declaration maps
 
 ---
@@ -45,20 +45,20 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 
 | Package | Description | Size |
 |---|---|---|
-| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 14.96 kB gzip |
+| [`@guideflow/core`](packages/core) | Zero-dependency FSM engine, spotlight, persistence, i18n | 15.13 kB gzip |
 | [`@guideflow/react`](packages/react) | `TourProvider`, `useTour`, `useTourStep`, `useHotspot`, `TourStep`, `GuidePopover`, `ConversationalPanel` | — |
 | [`@guideflow/vue`](packages/vue) | `GuideFlowPlugin`, `useTour` composable (no components) | — |
 | [`@guideflow/svelte`](packages/svelte) | `createTourStore`, `Readable` stores (no components) | — |
 | [`@guideflow/ai`](packages/ai) | `GuideBrain`, Proxy / OpenAI / Anthropic / Ollama / Mock providers | — |
 | [`@guideflow/analytics`](packages/analytics) | `AnalyticsCollector`, transport adapters, `ExperimentEngine` | — |
 | [`@guideflow/checklist`](packages/checklist) | `createChecklist` + docked `mountChecklist` widget — a projection of `ProgressStore`, not a second source of truth | — |
-| [`@guideflow/cli`](packages/cli) | `init`, `export`, `validate`, `push` commands _(see [CLI](#cli))_ | — |
+| [`@guideflow/cli`](packages/cli) | `init`, `export`, `validate` commands _(see [CLI](#cli))_ | — |
 | [`@guideflow/devtools`](packages/devtools) | MV3 browser extension — flow inspector and step recorder. Not published to npm: build it from source and load it unpacked | — |
 
 The core size is what `size-limit` reports for `dist/index.js` bundled, minified and gzipped
-(`pnpm --filter @guideflow/core size`) — **14.96 kB against a 15 kB budget**. The published file itself
+(`pnpm --filter @guideflow/core size`) — **15.13 kB against a 15.5 kB budget**. The published file itself
 is unminified, so what you ship depends on your bundler. Six opt-in subpaths sit outside that number
-and cost nothing unless imported: `@guideflow/core/authoring` (5.3 kB),
+and cost nothing unless imported: `@guideflow/core/authoring` (5.35 kB),
 `@guideflow/core/targeting` (2.18 kB), `@guideflow/core/selector` (1.76 kB),
 `@guideflow/core/navigation` (1.55 kB), `@guideflow/core/html` (767 B) and
 `@guideflow/core/versioning` (336 B). Seven bundles, each gated independently by `size-limit`.
@@ -693,18 +693,21 @@ Install the CLI globally or use it via `pnpm exec`:
 pnpm add -g @guideflow/cli
 ```
 
-> **Not everything here is automatable.** `push` needs an API you host yourself, and there is no
-> hosted service. `validate` is the command built for CI and `export` runs the same validator.
-> The table below says what each command does today, not what it is named after.
+> **Three commands, and none of them ship anything.** `validate` is the command built for CI and
+> `export` runs the same validator. The table below says what each command does today, not what it is
+> named after.
 
 | Command | What it actually does |
 |---|---|
 | `guideflow init` | Writes `guideflow.ts`, `my-tour.ts` and one framework file (`GuideFlowProvider.tsx` / `guideflow-plugin.ts` / `guideflow-store.ts`) into a directory. Prompts only for what it does not know; `--yes` or a non-TTY suppresses prompting. Existing files are skipped unless `--force`. No config file is created |
 | `guideflow export` | Validates a `.json` flow and rewrites it as a pretty-printed flow file. Refuses to write a flow with any error, refuses to overwrite the input, and refuses an existing output without `--force`. `.ts`/`.js` input is an error that points you at `stringifyFlowFile` |
 | `guideflow validate` | Checks `.flow.json` files with the validator from `@guideflow/core/authoring`, printing each issue's message and then its fix on a `→` line. `--strict` treats warnings as errors. Exit 0 = no errors; exit 1 = at least one error, an unreadable file, or — with `--strict` — any warning. Meant for CI |
-| `guideflow push` | POSTs a flow JSON file to `--endpoint`. A key is required, from `--api-key` or `GUIDEFLOW_API_KEY`. The default endpoint `https://api.guideflow.dev/v1/flows` is a placeholder for a service that does not exist |
 
 Full reference, including every flag and default: [apps/docs/api/cli.md](apps/docs/api/cli.md).
+
+Getting a flow into production is not a CLI job: a `.flow.json` is a static asset you serve from your
+own CDN and `fetch` at runtime. See
+[apps/docs/guide/hosting-flows.md](apps/docs/guide/hosting-flows.md).
 
 ---
 

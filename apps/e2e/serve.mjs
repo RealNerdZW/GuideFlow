@@ -57,11 +57,28 @@ const server = createServer((req, res) => {
     return
   }
 
+  // `.flow.json` is the one thing served here that a TEST wants cached and
+  // conditionally revalidated — it is the artefact a host would serve, and the
+  // remote-flow spec asserts on 304s. Everything else keeps `no-store`, because
+  // its stated reason (tests rebuild core between runs; never serve a stale
+  // bundle) still holds and does not apply to a flow document.
+  const isFlowFile = target.endsWith('.flow.json')
+  const etag = `W/"${stat.size.toString(16)}-${stat.mtimeMs.toString(16)}"`
+
+  if (isFlowFile && req.headers['if-none-match'] === etag) {
+    res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-cache' }).end()
+    return
+  }
+
   res.writeHead(200, {
     'Content-Type': MIME[extname(target).toLowerCase()] ?? 'application/octet-stream',
     'Content-Length': stat.size,
-    // Tests rebuild core between runs; never let the browser serve a stale bundle.
-    'Cache-Control': 'no-store',
+    ...(isFlowFile
+      // `no-cache` means "revalidate every time", NOT "do not store" — which is
+      // exactly what a flow document wants: always fresh, but a 304 when it has
+      // not changed.
+      ? { ETag: etag, 'Cache-Control': 'no-cache' }
+      : { 'Cache-Control': 'no-store' }),
   })
   createReadStream(target).pipe(res)
 })

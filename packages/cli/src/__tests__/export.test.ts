@@ -198,8 +198,8 @@ describe('exportCommand — TypeScript / JavaScript input', () => {
     // Closes AUDIT `export-ts-js-emits-stub` by deletion, not by parsing. The
     // old path regex-matched the source, wrote
     // `{ _note, rawSnippet: match[0].slice(0, 500) }` — a truncated slice of
-    // the user's own file, not a flow — printed a green success and exited 0.
-    // `guideflow push` would then upload it.
+    // the user's own file, not a flow — printed a green success and exited 0,
+    // leaving something on disk that looked shippable and was not.
     onlyInputExists('my-tour.ts');
     fs.readFileSync.mockReturnValue(FLOW_TS);
 

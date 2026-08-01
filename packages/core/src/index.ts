@@ -276,10 +276,14 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
   engine.on('tour:complete', ({ flowId }) => {
     const userId = _config.context?.userId
+    // Captured before `_activeFlow` is cleared: completion is recorded against
+    // the version the user actually finished, so republishing a changed flow
+    // reaches them again.
+    const completedVersion = _activeFlow?.version
     _activeFlow = null
     if (!userId) return
     void (async () => {
-      await progress.markCompleted(userId, flowId)
+      await progress.markCompleted(userId, flowId, completedVersion)
       // Drop the resume point too. Without this a completed flow left a
       // non-completed snapshot behind and resumed mid-flow on the next visit.
       await progress.clearSnapshot(userId, flowId)
@@ -388,7 +392,9 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         // completed check was missing entirely, so `markCompleted` was
         // write-only and every tour replayed on every visit.
         if (await progress.isDismissed(userId, flow.id)) return
-        if (await progress.isCompleted(userId, flow.id)) return
+        // Version-scoped: finishing v1 must not suppress v2. A record written
+        // without a version still suppresses every version — see isCompleted.
+        if (await progress.isCompleted(userId, flow.id, flow.version)) return
 
         const snapshot = await progress.loadSnapshot(userId, flow.id)
         if (snapshot && !snapshot.completed) {
@@ -529,8 +535,13 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     _broadcastSync = new BroadcastSync(userId)
     _broadcastSync.on('progress:sync', ({ snapshot: snap }) => {
       if (snap.flowId !== engine.flowId) return
-      // stepId forwarded, but no version check: both tabs are the same build,
-      // so a mismatch is impossible by construction.
+      // The version must match too. This used to reason "both tabs are the same
+      // build, so a mismatch is impossible by construction" — true only while
+      // flows ship inside the bundle. A flow fetched at runtime breaks it: two
+      // tabs of the same build can hold different revisions, and restoring one
+      // tab's position into the other's machine clamps a legacy snapshot into a
+      // different index space.
+      if ((snap.version ?? null) !== (_activeFlow?.version ?? null)) return
       if (engine.machine?.restore({
         state: snap.currentState,
         stepIndex: snap.stepIndex,

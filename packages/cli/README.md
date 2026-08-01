@@ -1,16 +1,17 @@
 # @guideflow/cli
 
-**Command-line helper for GuideFlow — scaffold starter files, validate flow files, normalise a flow to JSON, and POST a flow to an endpoint.**
+**Command-line helper for GuideFlow — scaffold starter files, validate flow files, and normalise a flow to JSON.**
 
 [![npm version](https://img.shields.io/npm/v/@guideflow/cli.svg)](https://www.npmjs.com/package/@guideflow/cli)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/RealNerdZW/GuideFlow/blob/master/LICENSE)
 
 Companion CLI for [GuideFlow](https://github.com/RealNerdZW/GuideFlow). Requires Node.js >= 18.
 
-> **Not everything here is automatable.** `push` targets an API you have to host yourself, and there
-> is no hosted service. `validate` is the command built for CI, `export` runs the same validator, and
-> `init` runs unattended with `--yes`. See the limitations under each command before building a
-> workflow on top of this package.
+> **Know what each command does.** `validate` is the command built for CI, `export` runs the same
+> validator, and `init` runs unattended with `--yes`. See the limitations under each command before
+> building a workflow on top of this package. Shipping a flow is not a CLI job — a `.flow.json` is a
+> static asset you serve yourself, see
+> [Hosting flows](https://realnerdzw.github.io/GuideFlow/guide/hosting-flows).
 
 ## Installation
 
@@ -24,12 +25,13 @@ npx @guideflow/cli init
 
 ## Commands
 
+Three of them.
+
 | Command | What it actually does |
 |---------|-----------------------|
 | `guideflow init` | Writes `guideflow.ts`, `my-tour.ts` and one framework file into a directory. `--yes` for CI; existing files are skipped unless `--force` |
 | `guideflow export` | Validates a `.json` flow and rewrites it as a pretty-printed flow file; refuses to write an invalid one |
 | `guideflow validate` | Checks flow files and prints every issue with its fix. `--strict` fails on warnings too |
-| `guideflow push` | POSTs a flow JSON file to an endpoint you supply with `--endpoint` |
 
 Full reference with every flag: <https://realnerdzw.github.io/GuideFlow/api/cli>
 
@@ -101,20 +103,18 @@ transition pointing at a state that does not exist emits one `console.warn` and 
 `tour:complete` — the tour truncates *and* is recorded as completed, so it never shows again.
 Nothing throws.
 
-### Push to an endpoint
+### Shipping a flow
+
+There is no publish command, because a `.flow.json` is a static asset. Validate it in CI, upload it
+wherever you serve your other static files, and fetch it at runtime:
 
 ```bash
-guideflow push [file] --api-key <key> --endpoint <url> [--env <env>]
+guideflow validate 'tours/*.flow.json' --strict
+aws s3 cp tours/ s3://my-bucket/tours/ --recursive --cache-control no-cache
 ```
 
-`[file]` defaults to `my-tour.flow.json`. Sends one `POST` with the file's raw text as the body,
-`Authorization: Bearer <key>` and `X-GuideFlow-Env: <env>` (default `production`).
-
-A key is required, but the flag is not: `--api-key` falls back to `GUIDEFLOW_API_KEY`, and the command
-exits 1 only when neither is set. Prefer the environment variable — a key on the command line lands in
-shell history and process listings. The endpoint defaults to `https://api.guideflow.dev/v1/flows`, a
-placeholder for a hosted service that **does not exist**, so `--endpoint` is effectively required.
-Treat this command as an experimental HTTP client for your own API.
+[Hosting flows](https://realnerdzw.github.io/GuideFlow/guide/hosting-flows) covers the fetch recipe,
+the caching headers and what happens to users who are mid-tour when the document changes.
 
 ## Related packages
 

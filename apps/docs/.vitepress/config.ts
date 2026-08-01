@@ -180,6 +180,7 @@ export default defineConfig({
             { text: 'Checklist', link: '/guide/checklist' },
             { text: 'Announcements', link: '/guide/announcements' },
             { text: 'Authoring', link: '/guide/authoring' },
+            { text: 'Hosting flows', link: '/guide/hosting-flows' },
             { text: 'Flow file', link: '/reference/flow-file' },
             { text: 'Accessibility', link: '/guide/accessibility' },
             { text: 'Privacy', link: '/guide/privacy' },

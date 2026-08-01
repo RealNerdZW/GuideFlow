@@ -1,0 +1,28 @@
+{
+  "gfFlowFile": 1,
+  "flow": {
+    "id": "remote-tour",
+    "initial": "s0",
+    "version": "rev-one",
+    "states": {
+      "s0": {
+        "steps": [
+          {
+            "id": "step-one",
+            "target": "#step-one",
+            "placement": "bottom",
+            "content": {
+              "title": "Served over HTTP",
+              "body": "This step came from remote.flow.json, not from the bundle."
+            }
+          }
+        ],
+        "final": true
+      }
+    }
+  },
+  "meta": {
+    "generator": "apps/e2e fixture",
+    "sourceUrl": "apps/e2e/fixtures/remote.flow.json"
+  }
+}
