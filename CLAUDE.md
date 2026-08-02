@@ -86,19 +86,19 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10, 2026-08-01)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10d, 2026-08-02)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1063 unit tests pass**, 1 skipped
-(core 483, ai 153, react 114, analytics 98, checklist 73, vue 47, svelte 34, cli 33, devtools 28).
-**Seven** bundles, each gated independently: `@guideflow/core` **15.13 kB / 15.5 kB**, `./authoring`
-**5.35 kB / 5.5 kB**, `./targeting` **2.18 kB / 2.5 kB**, `./selector` **1.76 kB / 2.5 kB**,
+Build, type-check, lint and unit tests are **all green**: **1082 unit tests pass**, 1 skipped
+(core 497, ai 153, react 114, analytics 98, checklist 73, vue 47, svelte 34, cli 33, devtools 33).
+**Seven** bundles, each gated independently: `@guideflow/core` **15.2 kB / 15.5 kB**, `./authoring`
+**5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./selector` **1.76 kB / 2.5 kB**,
 `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 319 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 327 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -130,8 +130,14 @@ marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOve
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
 > accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
-> completion). Core measures **15.13 kB with 370 B of headroom**. Six raises is a lot; the next
+> completion). Core measures **15.2 kB with 300 B of headroom**. Six raises is a lot; the next
 > addition should look for a real saving before asking for a seventh.
+>
+> **ADR-016 raised the *targeting subpath* to 2.75 kB, not the core entry.** That is the pattern to
+> copy: `install()` needed real route handling, `watchHistory` cost 380 B, and the cost landed on
+> the opt-in subpath paid for by the people who asked for targeting. Duplicating `history.ts` into
+> that bundle is safe *only* because its refcount lives on `Symbol.for('guideflow.navigation')`, so
+> two module copies share one patch and one teardown.
 >
 > ADR-008's condition on the 15 kB raise — move `content.html` out of the default bundle first —
 > was discharged by **ADR-009**, which deliberately did *not* raise the limit at the same time.
@@ -359,6 +365,21 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **`clickThrough` carves a `clip-path` hole; it does not drop pointer capture.** The overlay stays
   `pointer-events: all` and excludes the target's rect. Setting `pointer-events: none` on it — the
   old implementation — makes the entire page interactive and throws away the tour's modality.
+- **`history.pushState` does not move `location.href` in happy-dom.** So `watchHistory`'s
+  href-coalescing correctly swallows it and any unit assertion about pushState is testing the mock.
+  Setting `location.hash` *does* move it and dispatches `hashchange` — that is the only real route
+  change the unit environment can produce. Anything else about routing belongs in `apps/e2e`, where
+  `fixtures/index.html` drives an actual ten-line pushState router.
+- **`evaluateFlow` is pure and has no document, so it cannot check a `selector` trigger's selector.**
+  It marks a flow eligible on `startTrigger === 'selector'` alone. That is why `install()`'s
+  `check()` passes an `only` predicate into `autoStart` — without it, an element appearing for one
+  flow started whichever selector flow had the higher priority, including one whose own element was
+  nowhere on the page.
+- **A `selector` trigger must fire once per flow per page load.** The MutationObserver does not
+  disconnect after a start (other flows may still be pending), so without the `selectorFired` set
+  the first DOM mutation after the user closes the tour restarts it — and so does the next one. Add
+  to that set only when `autoStart` actually returns a flow: a `null` means "a tour was already
+  running", and burning the flow there suppresses it for the whole page load.
 - **`page.goto('/')` in a Playwright spec does not go where you think.** Playwright resolves it as
   `new URL(url, baseURL)`, and a leading slash discards `baseURL`'s path. This repo's `baseURL` is
   `http://127.0.0.1:4173/apps/e2e/fixtures/`, so `'/'` lands on the repo root. Use `'index.html'`.

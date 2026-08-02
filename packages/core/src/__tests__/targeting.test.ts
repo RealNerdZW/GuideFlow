@@ -501,4 +501,129 @@ describe('createTargeting', () => {
 
     expect(gf.flowId).toBe('sel')
   })
+
+  // ── install() and flows that arrive late (7.10d) ────────────────────────
+  //
+  // Every case below was MEASURED failing before the fix. They matter because
+  // `apps/docs/guide/hosting-flows.md` documents fetching a `.flow.json` and
+  // calling `createFlow` when it resolves — which is, by construction, after
+  // `install()`. The old code filtered `listFlows()` exactly once.
+
+  async function appear(id: string): Promise<void> {
+    const el = document.createElement('div')
+    el.id = id
+    document.body.appendChild(el)
+    await new Promise((r) => setTimeout(r, 40))
+  }
+
+  it('arms a selector flow registered AFTER install(), with none present at install', async () => {
+    targeting = createTargeting(gf)
+    targeting.install()
+
+    gf.createFlow(flow('late', { startTrigger: 'selector', selector: '#late-el' }))
+    await appear('late-el')
+
+    expect(gf.flowId).toBe('late')
+  })
+
+  it('arms a selector flow registered after install() when another was already there', async () => {
+    // The observer already exists in this case, so this fails for the *other*
+    // reason: the candidate array was captured at install time.
+    gf.createFlow(flow('early', { startTrigger: 'selector', selector: '#never-appears' }))
+    targeting = createTargeting(gf)
+    targeting.install()
+
+    gf.createFlow(flow('late', { startTrigger: 'selector', selector: '#late-el' }))
+    await appear('late-el')
+
+    expect(gf.flowId).toBe('late')
+  })
+
+  it('does not re-start a selector tour the user closed', async () => {
+    // The observer never disconnected and `check()` had no memory, so the first
+    // DOM mutation after the tour ended started it again — and the next one,
+    // and the next. A frequency cap would have masked it; caps are optional.
+    gf.createFlow(flow('sel', { startTrigger: 'selector', selector: '#now-here' }))
+    targeting = createTargeting(gf)
+    targeting.install()
+
+    await appear('now-here')
+    expect(gf.flowId).toBe('sel')
+
+    gf.stop()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(gf.isActive).toBe(false)
+
+    document.body.appendChild(document.createElement('span'))
+    await new Promise((r) => setTimeout(r, 40))
+
+    expect(gf.flowId).toBe(null)
+  })
+
+  it('a selector flow that could not start stays retryable', async () => {
+    // The converse of the test above. Marking on *match* rather than on a
+    // successful start would burn the flow when the element happens to appear
+    // while another tour is on screen.
+    gf.createFlow(flow('blocker'))
+    gf.createFlow(flow('sel', { startTrigger: 'selector', selector: '#contested' }))
+    targeting = createTargeting(gf)
+    targeting.install()
+
+    await gf.start('blocker')
+    await appear('contested')
+    expect(gf.flowId).toBe('blocker')
+
+    gf.stop()
+    await new Promise((r) => setTimeout(r, 10))
+    document.body.appendChild(document.createElement('span'))
+    await new Promise((r) => setTimeout(r, 40))
+
+    expect(gf.flowId).toBe('sel')
+  })
+
+  // ── Route changes that are not the back button (7.10d) ──────────────────
+  //
+  // `install()` listened to `popstate` and nothing else, so the only navigation
+  // that re-evaluated `load` flows was the back button. `targeting.md` said
+  // "on every route change".
+  //
+  // happy-dom is the constraint on how far these can go: `history.pushState`
+  // there does NOT move `window.location.href`, so `watchHistory`'s
+  // href-coalescing correctly swallows it and a pushState assertion would be
+  // testing the mock. Setting `location.hash` *does* move it and dispatches
+  // `hashchange` — a genuine SPA route change (hash routers), and one the old
+  // popstate-only listener did not hear either. The pushState path is real only
+  // in a real browser; `apps/e2e` is where that lives.
+
+  it('re-evaluates load flows on a hash route change, which popstate never saw', async () => {
+    const start = window.location.href
+    targeting = createTargeting(gf)
+    targeting.install()
+    await new Promise((r) => setTimeout(r, 10))
+
+    gf.createFlow(flow('late-load', { startTrigger: 'load' }))
+    window.location.hash = '#pushed-route'
+    await new Promise((r) => setTimeout(r, 40))
+
+    expect(gf.flowId).toBe('late-load')
+    window.location.href = start
+  })
+
+  it('patches history cooperatively on install and restores it on destroy', () => {
+    // The half of `watchHistory` happy-dom can still prove: that targeting is
+    // wired into pushState at all, and that it lets go again. Without the
+    // restore, every test file that installed targeting would leave a wrapper
+    // on `history.pushState` for the rest of the run.
+    /* eslint-disable @typescript-eslint/unbound-method -- identity comparison
+       is the assertion; nothing is invoked detached. */
+    const pristine = history.pushState
+    targeting = createTargeting(gf)
+    targeting.install()
+    expect(history.pushState).not.toBe(pristine)
+
+    targeting.destroy()
+    targeting = null
+    expect(history.pushState).toBe(pristine)
+    /* eslint-enable @typescript-eslint/unbound-method */
+  })
 })

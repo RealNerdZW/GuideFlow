@@ -151,8 +151,24 @@ package. That decision is yours to make explicitly.
 |---|---|
 | `'manual'` *(default)* | Never auto-starts. `gf.start(flow)` only |
 | `'load'` | On `install()`, and on every route change |
-| `'selector'` | When `selector` matches something in the DOM |
+| `'selector'` | The first time `selector` matches something in the DOM |
 | `'event'` | When you call `targeting.send('name')` |
+
+"Every route change" means every one: `pushState` and `replaceState` (how React
+Router, Vue Router and Next.js navigate), the back button, and hash changes.
+`install()` uses the same watcher the [routing](/guide/routing) seam does — it
+prefers the Navigation API where the browser has it and patches nothing at all,
+and where it does not, it wraps whatever is installed rather than replacing it.
+
+A `selector` trigger fires **once per flow per page load**. It will not re-arm
+after the user closes the tour; use `frequency` if you want to bound it across
+sessions too.
+
+::: tip Flows can arrive whenever they like
+`install()` re-reads `gf.listFlows()` on every check, so a flow registered later
+— fetched from a CDN, added by a lazy route — is picked up with no ordering rule
+to remember. See [Hosting flows](/guide/hosting-flows).
+:::
 
 ```ts
 { startTrigger: 'selector', selector: '#empty-state' }

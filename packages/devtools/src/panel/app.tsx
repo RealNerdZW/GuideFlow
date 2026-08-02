@@ -1,3 +1,4 @@
+import type { TourEvents } from '@guideflow/core';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -252,26 +253,38 @@ function sendToContent(msg: { type: string; payload?: unknown }) {
   }
 }
 
-/** Unique well-known event types for filter chips. */
-const EVENT_TYPES = [
-  'tour:start',
-  'tour:complete',
-  'tour:abandon',
-  'step:enter',
-  'step:exit',
-  'step:skip',
-  'tour:pause',
-  'tour:resume',
-  'tour:error',
-  'hotspot:open',
-  'hotspot:close',
-  'hint:click',
-  'progress:sync',
-  'progress:discard',
-  'step:target-missing',
-  'step:waiting',
-  'step:timeout',
-];
+/**
+ * Well-known event types, in chip order.
+ *
+ * Same `satisfies` guard as `bridge.ts` — see the long comment there for why
+ * it catches drift in both directions. The two lists are deliberately separate
+ * copies: `bridge.ts` runs in the page world and must stay import-free of any
+ * module another entry point also imports, or Rollup emits a shared chunk and
+ * the build's classic-script guard rejects it. A duplicated list that cannot
+ * compile when it drifts beats a shared one that breaks the bundle.
+ *
+ * `devtools-events.test.ts` asserts the two stay equal to each other.
+ */
+const EVENT_TYPES = Object.keys({
+  'tour:start': true,
+  'tour:complete': true,
+  'tour:abandon': true,
+  'tour:dismiss': true,
+  'tour:pause': true,
+  'tour:resume': true,
+  'tour:error': true,
+  'step:enter': true,
+  'step:exit': true,
+  'step:skip': true,
+  'step:target-missing': true,
+  'step:waiting': true,
+  'step:timeout': true,
+  'hotspot:open': true,
+  'hotspot:close': true,
+  'hint:click': true,
+  'progress:sync': true,
+  'progress:discard': true,
+} satisfies Record<keyof TourEvents, true>);
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });

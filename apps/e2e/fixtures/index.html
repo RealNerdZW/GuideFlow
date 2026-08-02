@@ -193,6 +193,17 @@
       window.__gfChecklistReady = true
     })
 
+    // Targeting is NOT installed here. `install()` auto-starts eligible flows,
+    // which would fire in the middle of every other spec. A test opts in, and
+    // deliberately registers its flow AFTER installing — that ordering is the
+    // whole point of what it proves.
+    window.__gfInstallTargeting = async function () {
+      const mod = await import('/packages/core/dist/targeting/index.js')
+      window.__gfTargeting = mod.createTargeting(gf)
+      window.__gfTargeting.install()
+      return true
+    }
+
     // Signals to the specs that wiring is complete.
     window.__gfReady = true
   </script>

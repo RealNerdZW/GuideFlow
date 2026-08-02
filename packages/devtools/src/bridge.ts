@@ -29,6 +29,8 @@
 // Force TypeScript to treat this as a module (isolated scope)
 export {};
 
+import type { TourEvents } from '@guideflow/core';
+
 import { toCloneable } from './cloneable.js';
 
 // ---------------------------------------------------------------------------
@@ -80,26 +82,44 @@ const CONTENT_SOURCE = '__gf_content__';
 const PAGE_ORIGIN = window.location.origin;
 const TARGET_ORIGIN = /^https?:\/\//i.test(PAGE_ORIGIN) ? PAGE_ORIGIN : '*';
 
-/** All GuideFlow events that should be relayed to the DevTools panel. */
-const EVENTS = [
-  'tour:start',
-  'tour:complete',
-  'tour:abandon',
-  'tour:pause',
-  'tour:resume',
-  'tour:error',
-  'step:enter',
-  'step:exit',
-  'step:skip',
-  'hotspot:open',
-  'hotspot:close',
-  'hint:click',
-  'progress:sync',
-  'progress:discard',
-  'step:target-missing',
-  'step:waiting',
-  'step:timeout',
-];
+/**
+ * All GuideFlow events that should be relayed to the DevTools panel.
+ *
+ * Written as a keyed object rather than an array so `satisfies` can check it
+ * against core's own event map. That catches drift in **both** directions: a
+ * key added to `TourEvents` and not here fails `Record<keyof TourEvents, true>`
+ * as a missing property, and a key removed or renamed in core fails as an
+ * excess property (object literals are checked exactly).
+ *
+ * It had already rotted. `tour:dismiss` landed in core in Phase 6 and never
+ * arrived here, so the panel could not show a dismissal — the single event you
+ * most want when you are asking why a funnel drops.
+ *
+ * `import type` only: this bundle is injected into the page world as a classic
+ * script and the build fails loudly if `dist/bridge.js` contains ESM syntax
+ * (vite.config.ts). A type-only import is erased; the object literal is not,
+ * which is exactly the split we want.
+ */
+const EVENTS = Object.keys({
+  'tour:start': true,
+  'tour:complete': true,
+  'tour:abandon': true,
+  'tour:dismiss': true,
+  'tour:pause': true,
+  'tour:resume': true,
+  'tour:error': true,
+  'step:enter': true,
+  'step:exit': true,
+  'step:skip': true,
+  'step:target-missing': true,
+  'step:waiting': true,
+  'step:timeout': true,
+  'hotspot:open': true,
+  'hotspot:close': true,
+  'hint:click': true,
+  'progress:sync': true,
+  'progress:discard': true,
+} satisfies Record<keyof TourEvents, true>);
 
 // ---------------------------------------------------------------------------
 // Per-page-load nonce

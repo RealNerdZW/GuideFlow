@@ -10,7 +10,7 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **190 / 371 findings resolved** — Phases 0–6 complete and Phase 7 through 7.10, on
+**Progress:** **194 / 375 findings resolved** — Phases 0–6 complete and Phase 7 through 7.10d, on
 branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1, 113 P2, 42 P3.
 
 The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
@@ -573,11 +573,16 @@ the budget could not absorb it**, so the packaging change had to come first.
       guessing the shared abstraction before either had a consumer.
 - [ ] **7.8c Surveys / NPS** — deferred until after 7.10. A survey without somewhere to send the
       answers is a form that discards them, and the backend is where they would live.
-- [ ] **Devtools event-list rot** (standalone, no phase) — `devtools/src/bridge.ts:84-102` and
-      `panel/app.tsx:275-293` hardcode event-name arrays that already disagree with the other five
-      copies. Convert to `Object.keys({…} satisfies Record<keyof TourEvents, true>)` so the next
-      event added to `TourEvents` fails to compile instead of rotting. Own changeset; nothing to do
-      with checklists.
+- [x] **Devtools event-list rot** (standalone, no phase) — converted to
+      `Object.keys({…} satisfies Record<keyof TourEvents, true>)` at all three sites: the bridge
+      relay, the panel's filter chips, and `apps/demo`'s live log. Both drift directions were
+      *demonstrated* to fail `tsc` — a missing key as TS1360, a renamed one as TS2353.
+      They had already rotted: `tour:dismiss` shipped in Phase 6 and reached none of them, so the
+      panel could not show a dismissal, and the demo log was missing seven events.
+      The two devtools copies must stay separate — `bridge.ts` is injected into the page world as a
+      classic script, so importing a module another entry point also imports makes Rollup emit a
+      shared chunk and the build's ESM guard rejects it. `devtools-events.test.ts` asserts the two
+      still agree with each other, which is the one thing `satisfies` cannot check.
 - [x] **7.9a The authoring core** — the provable half of `no-authoring-path-for-non-engineers`.
       Two zero-byte `@guideflow/core` subpaths: `./selector` (one ranked, uniqueness-verified engine
       replacing three broken copies) and `./authoring` (`validateFlow`, the one draft⇄flow converter,
@@ -627,15 +632,36 @@ the budget could not absorb it**, so the packaging change had to come first.
       network error and exited 1, validated nothing, and its tests pinned a format `export` no
       longer writes. Cross-tab sync gained the version check its own comment assumed it did not
       need. New guide: `apps/docs/guide/hosting-flows.md`.
-- [ ] **7.10b `ProgressStore.clearCompleted(userId, flowId?)`** — "let this user replay this tour".
-      Today only `resetUser()` exists and it also wipes dismissals, snapshots, targeting caps and
-      checklist state. Own change, own tests. Named by ADR-011 and ADR-014.
-- [ ] **7.10c Version-scoped dismissal** — `isDismissed` is still keyed on the flow id alone. That
-      is arguably correct ("don't show me this again" is about the tour, not the revision) but it is
-      now an asymmetry with completion that someone will file. Decide deliberately.
-- [ ] **7.10d `createTargeting().install()` re-scan** — it filters `listFlows()` once, so a flow
-      registered after `install()` is never considered for a `selector` trigger. Documented as an
-      ordering rule for now (await your loads, then install).
+- [x] **7.10b `ProgressStore.clearCompleted(userId, flowId?)`** — "let this user replay this tour".
+      Clears **every** version of the flow — asking for a replay means the tour, not one revision —
+      and leaves dismissals, snapshots, targeting caps and checklist state alone, which is the whole
+      reason it exists next to `resetUser()`. Removes the key rather than storing `[]`, because
+      `_rawCompleted` returns `[]` for both and no consumer can tell them apart. Six tests, including
+      the interior-`@` id spelling.
+- [x] **7.10c Version-scoped dismissal** — **decided: no.** Dismissal stays keyed on the flow id.
+      Completion is a statement about *content* ("I have seen all of this"), so new content justifies
+      asking again; dismissal is a statement about *interruption* ("do not put this in front of me"),
+      which editing the tour does not answer. Three things make leaving it safe rather than merely
+      defensible: it is opt-in per flow (`persistDismissal`), `gf.progress.clearDismissed()` is a
+      public one-line escape hatch for an author who knows their rewrite was material, and it carries
+      none of the ordering harm that made completion's id-only key a bug. See **ADR-015**; the
+      reasoning is in the source above `markDismissed`, and `progress-store.test.ts` pins it in both
+      directions so it cannot be tidied into symmetry.
+- [x] **7.10d `createTargeting().install()` re-scan** — fixed, and the ordering rule is gone. The
+      candidate list is re-read inside `check()` and the observer is armed whether or not a selector
+      flow exists yet; both halves were needed, and a probe measured each failing on its own.
+      **Three more defects fell out of the same probe**, all now fixed and registered:
+      `load` re-evaluated on `popstate` **only**, so a `history.pushState` — every React/Vue/Next
+      route change — fired nothing while `targeting.md` claimed "on every route change";
+      the `selector` trigger could start the **wrong flow**, because `evaluateFlow` is pure, has no
+      document, and marks a selector flow eligible without asking whether *its* selector is present;
+      and the observer never stopped, so closing a selector-started tour and mutating the DOM
+      restarted it, indefinitely, unless a frequency cap happened to be set.
+      The route fix imports `watchHistory` rather than hand-rolling a second one — 380 B, taken as
+      **ADR-016**, moving the *targeting subpath* gate 2.5 → 2.75 kB with the **core entry
+      untouched**. `apps/e2e/tests/targeting.spec.ts` proves the pushState and re-arm behaviour in a
+      real browser; happy-dom's `pushState` does not move `location.href`, so a unit assertion there
+      would have been testing the mock.
 - [ ] **7.11 Ship a GuideFlow MCP server** — see `MCP-AND-SKILLS.md` section 3.
 
 > **Budget note for whoever picks this up.** Core is at 14.13 kB / 14.5 kB. The projected remainder

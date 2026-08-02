@@ -113,6 +113,25 @@ export class ProgressStore {
   }
 
   // ── "Don't show again" ────────────────────────────────────────────────────
+  //
+  // Dismissal is keyed on the flow id ALONE, while completion below is keyed on
+  // `flowId@version`. That asymmetry is deliberate, and it is the answer to
+  // "someone will file this" — see ADR-015.
+  //
+  // Completion is a statement about content: *I have seen all of this*. New
+  // content therefore justifies showing the tour again, which is what made
+  // republishing reach anyone at all (ADR-014).
+  //
+  // Dismissal is a statement about interruption: *do not put this in front of
+  // me*. Editing the tour does not answer that objection, and re-showing a tour
+  // someone actively closed because its author revised a step is the kind of
+  // thing that gets a library uninstalled. Two further reasons it is safe to
+  // leave alone: it is opt-in per flow (`FlowDefinition.persistDismissal` —
+  // closing a tour once suppresses nothing by default), and `clearDismissed` is
+  // public on `gf.progress` for an author who disagrees.
+  //
+  // `progress-store.test.ts` pins this in both directions so it cannot be
+  // "fixed" into symmetry by accident.
 
   async markDismissed(userId: string, flowId: string): Promise<void> {
     const key = `${this._keyFn(userId)}:${flowId}:dismissed`
@@ -239,6 +258,36 @@ export class ProgressStore {
       raw.includes(completedEntry(flowId)) ||
       raw.includes(completedEntry(flowId, version))
     )
+  }
+
+  /**
+   * Forget that this user finished a flow — "let them see it again".
+   *
+   * Omit `flowId` to clear every completion. With a `flowId`, **every** entry
+   * for that flow goes, at every version: someone asking for a replay means the
+   * tour, not one revision of it. That covers all three stored spellings —
+   * `flowId`, `flowId@version`, and the trailing-separator form an id with an
+   * interior `@` is normalised to.
+   *
+   * This is the surgical alternative to `resetUser()`, which also wipes
+   * dismissals, snapshots, targeting frequency caps and `@guideflow/checklist`
+   * state. Named by ADR-011 and ADR-014.
+   *
+   * The key is removed rather than left holding `[]`, because `_rawCompleted`
+   * returns `[]` for both and no consumer can tell them apart.
+   */
+  async clearCompleted(userId: string, flowId?: string): Promise<void> {
+    const key = `${this._keyFn(userId)}:completed`
+    const remaining =
+      flowId === undefined
+        ? []
+        : (await this._rawCompleted(userId)).filter((e) => completedFlowId(e) !== flowId)
+    if (remaining.length === 0) {
+      await this._driver.remove(key)
+      return
+    }
+    const stored: StoredEntry<string[]> = { value: remaining, expiresAt: this._expiry() }
+    await this._driver.set(key, stored)
   }
 
   /** The stored entries, verbatim, including any `@version` suffix. */

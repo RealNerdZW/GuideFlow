@@ -1,6 +1,6 @@
 import type { GuideBrain } from '@guideflow/ai'
 import { ExperimentEngine, type AnalyticsCollector, type AnalyticsEvent } from '@guideflow/analytics'
-import type { FlowDefinition, FlowSnapshot, GuideFlowInstance, HintStep, Step } from '@guideflow/core'
+import type { FlowDefinition, FlowSnapshot, GuideFlowInstance, HintStep, Step, TourEvents } from '@guideflow/core'
 import { watchAttributeTour } from '@guideflow/core'
 import {
   ConversationalPanel,
@@ -169,11 +169,30 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
   const [copied, setCopied]               = useState(false)
   // ── Subscribe tour events for live log ───────────────────────────────
   useEffect(() => {
-    const EVTS = [
-      'tour:start','tour:complete','tour:abandon','tour:pause','tour:resume',
-      'step:enter','step:exit','step:skip',
-      'hotspot:open','hotspot:close','hint:click',
-    ] as const
+    // Keyed object + `satisfies`, for the same reason as the two devtools
+    // copies: a plain array silently omits whatever core adds later. This one
+    // was missing seven events, `tour:dismiss` among them — so the live log
+    // showed a tour ending with no hint that the user had closed it.
+    const EVTS = Object.keys({
+      'tour:start': true,
+      'tour:complete': true,
+      'tour:abandon': true,
+      'tour:dismiss': true,
+      'tour:pause': true,
+      'tour:resume': true,
+      'tour:error': true,
+      'step:enter': true,
+      'step:exit': true,
+      'step:skip': true,
+      'step:target-missing': true,
+      'step:waiting': true,
+      'step:timeout': true,
+      'hotspot:open': true,
+      'hotspot:close': true,
+      'hint:click': true,
+      'progress:sync': true,
+      'progress:discard': true,
+    } satisfies Record<keyof TourEvents, true>) as Array<keyof TourEvents>
     const drops = EVTS.map((e) =>
       gf.on(e, () => setEventLog((p) => [...p.slice(-79), { evt: e, ts: Date.now() }]))
     )

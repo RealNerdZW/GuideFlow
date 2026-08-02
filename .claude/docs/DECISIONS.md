@@ -634,3 +634,144 @@ silently reaches nobody who engaged with the tour".
   revision; and `createTargeting().install()`'s one-shot selector scan, which
   does not see flows registered after it — documented as an ordering rule
   instead.
+
+---
+
+## ADR-015 — Dismissal stays flow-scoped while completion is version-scoped
+2026-08-02 · Status: Accepted · No byte cost
+
+**Context.** ADR-014 made completion `flowId@version`, so republishing a
+structurally changed tour reaches the people who finished the old one.
+Dismissal — `markDismissed` / `isDismissed` — was left keyed on the flow id
+alone. That leaves two adjacent methods on one class behaving differently, which
+ADR-014 itself flagged as "arguably correct… but an asymmetry someone will
+file". This decides it rather than leaving it to be tidied up by whoever notices
+first.
+
+**Decision: leave dismissal keyed on the flow id, and say why in the source.**
+
+The two records answer different questions.
+
+*Completion* is a statement about **content**: I have seen all of this. New
+content therefore justifies asking again, which is the whole of ADR-014.
+
+*Dismissal* is a statement about **interruption**: do not put this in front of
+me. Editing the tour does not answer that objection. Re-showing a tour someone
+actively closed, because its author reordered a step, spends the one piece of
+explicit negative feedback the library ever receives — and spends it on the
+users most likely to be annoyed by it.
+
+Three facts make leaving it alone safe rather than merely defensible:
+
+1. **It is opt-in per flow.** Nothing is written unless the flow sets
+   `persistDismissal`. Closing a tour suppresses nothing by default, so the
+   record only exists where an author deliberately asked for a durable "no".
+2. **There is a public escape hatch.** `gf.progress.clearDismissed(userId,
+   flowId)` is reachable — `progress` is on `GuideFlowInstance`. An author who
+   wants a rewrite to clear old dismissals can do it in one line, at the moment
+   they know the rewrite is material. The library cannot know that;
+   `flowFingerprint` deliberately ignores content, so it cannot tell a
+   restructure from a rewrite.
+3. **Dismissal is not on the same collision course.** The bug ADR-014 fixed was
+   that `start()` checks `isCompleted` *before* the version gate, making
+   republication silently unreachable. `isDismissed` sits at
+   [index.ts:394](../../packages/core/src/index.ts#L394), one line earlier — but
+   there is no equivalent harm, because suppressing a tour the user closed is
+   the intended behaviour, not an accident of ordering.
+
+**Rejected: scope dismissal to `flowId@version` for symmetry.** Symmetry between
+two APIs is worth something, but not the user-facing behaviour it would buy
+here. It would also silently resurrect every existing dismissal on the next
+publish, since old records carry no version — the opposite of the conservative
+direction ADR-014 chose for completion.
+
+**Rejected: make it configurable** (`persistDismissal: 'flow' | 'version'`). A
+third value on a boolean field, a new stored format, docs, and tests, for a
+choice a host can already make with one call to `clearDismissed`.
+
+**Consequences.**
+- `progress-store.test.ts` pins the behaviour in **both** directions — a
+  dismissal survives a version change, a completion does not. Neither can be
+  "made consistent" without a test failing and this ADR being re-read.
+- The reasoning lives in the source, above `markDismissed`, not only here.
+- `ProgressStore.clearCompleted(userId, flowId?)` ships in the same change
+  (7.10b) and clears **every** version of a flow, because a caller asking for a
+  replay means the tour, not one revision of it. It leaves dismissals,
+  snapshots, targeting caps and checklist state alone — which is the entire
+  reason it exists next to `resetUser()`.
+
+---
+
+## ADR-016 — Targeting reuses `watchHistory`; the targeting gate moves to 2.75 kB
+2026-08-02 · Status: Accepted · **Targeting subpath: 2.5 kB → 2.75 kB** (core entry untouched)
+
+**Context.** `createTargeting().install()` armed the `load` trigger with a bare
+`window.addEventListener('popstate', …)`. `apps/docs/guide/targeting.md` says
+that trigger fires "On `install()`, and on every route change".
+
+MEASURED, with a probe in happy-dom: a `history.pushState` navigation
+re-evaluated **nothing**. Every React Router, Vue Router in history mode and
+Next.js route change is a `pushState`. So the documented behaviour was "on the
+back button", and a `startTrigger: 'load'` flow scoped to a route the app pushed
+into never fired at all. Working agreement 6 — implement it or correct the docs —
+leaves two options and no third.
+
+**Decision: import `watchHistory` from `../navigation/history.js`.**
+
+The alternative was a second, smaller route watcher written inside targeting.
+This repo has already paid for that mistake once: 7.9a deleted three independent
+selector builders that were each broken in the same two ways, and CLAUDE.md now
+says to import the one that exists rather than write a fourth. `watchHistory`
+prefers the Navigation API and patches nothing where it exists, wraps
+cooperatively where it does not (Next.js 14.1+ has already patched), coalesces
+on `href` so a router calling `replaceState` three times notifies once, and
+unpatches only if its own wrapper is still outermost. A cheap copy would have
+none of that, and would be wrong in ways that only show up in someone else's
+router.
+
+**Why duplicating the module is safe.** `splitting: false` means the import is
+inlined, so an app using both subpaths ships two copies of `history.ts`. They do
+not fight: `watchHistory` keeps its refcount and its patch on
+`Symbol.for('guideflow.navigation')` — a global symbol, chosen for exactly this
+— so two module copies share one wrapper and one teardown. The cost is bytes,
+not correctness.
+
+**The measurement.** Three numbers, same build:
+
+| | targeting subpath |
+|---|---|
+| Before | 2.18 kB |
+| 7.10d re-scan + `selectorFired` + the `autoStart` predicate | **2.22 kB** (+40 B) |
+| …plus `watchHistory` | **2.6 kB** (+380 B) |
+
+The gate moves 2.5 → **2.75 kB**, leaving 150 B of headroom. **The core entry is
+not touched** — it stays at 15.2 kB against 15.5 kB, and this is not a seventh
+core raise. The cost lands on an opt-in subpath, paid by the people who asked
+for targeting, which is exactly the population that needs route changes to work.
+
+**Rejected: a `watchRoutes` option** (`createTargeting(gf, { watchRoutes })`,
+defaulting to popstate). ~20 B, and zero duplication for anyone already
+importing `@guideflow/core/navigation`. Rejected because it leaves the default
+wrong for most SPAs and the documentation still needing a caveat — it moves the
+defect into a knob nobody knows to turn.
+
+**Rejected: reuse the host's own `NavigationAdapter`.** `attach(onChange)` is
+already the right shape, and a host that wired SPA routing for the engine has
+one configured. But `_config.navigation` is private to the `createGuideFlow`
+closure; exposing it would add public surface to `GuideFlowInstance` and cost
+**core** bytes for every user, to save bytes on a subpath. Worth revisiting only
+if something else needs that seam too.
+
+**Consequences.**
+- `targeting.md`'s "every route change" is now true, and the guide says which
+  navigations are covered.
+- Two further defects were found by the same probe and fixed in the same change:
+  the `selector` trigger could start the **wrong flow** (`evaluateFlow` marks a
+  selector flow eligible without asking whether *its* selector is in the DOM, so
+  an element appearing for one flow started whichever had higher priority), and
+  the MutationObserver never stopped — closing a selector-started tour and then
+  mutating the DOM restarted it, forever, unless a frequency cap happened to be
+  configured.
+- happy-dom's `pushState` does not move `window.location.href`, so the unit test
+  uses a hash route change — a real SPA navigation the old popstate listener also
+  missed. The pushState path is only real in a real browser.

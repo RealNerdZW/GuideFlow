@@ -36,6 +36,15 @@ declare global {
     __gfChecklistEvents?: ChecklistEvent[]
     /** The mounted widget, so a spec can tear it down. */
     __gfChecklistView?: { destroy(): void }
+    /**
+     * Install `createTargeting(gf)` on demand.
+     *
+     * On demand rather than at load, because `install()` auto-starts eligible
+     * flows and would fire in the middle of every other spec.
+     */
+    __gfInstallTargeting: () => Promise<boolean>
+    /** The installed targeting engine, once `__gfInstallTargeting` has run. */
+    __gfTargeting?: { destroy(): void }
   }
 }
 
