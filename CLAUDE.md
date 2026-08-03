@@ -131,9 +131,15 @@ coverage improves, never lower them to make a build pass. The one remaining hole
 the relay allowlist and `optional_host_permissions` were reasoned about by reading. A mismatch would
 present as *silence*, not an error. Run `/gf-extension-dev` before trusting the extension.
 
-**No manual screen-reader pass has been run.** Phase 6's a11y work is verified by axe and by
-assertion, which catches structure but not usability. Do not restore the "accessible by default"
-marketing claim until someone has driven a tour end-to-end with NVDA or VoiceOver.
+**No manual screen-reader pass has been run.** Phase 6's a11y work is verified by axe, by
+assertion, and now by an announcement audit — `apps/e2e/tests/a11y-announcements.spec.ts` captures
+every live-region utterance in order with all four regions on one page, plus the real ARIA tree via
+`ariaSnapshot()`. That found two defects axe cannot see (the survey scale exposed every value
+twice; a tour step announced doubled punctuation) and measured a third it did not fix (two surfaces
+release held announcements in the same millisecond when a tour ends).
+It still is not a manual pass: pacing, verbosity and whether the result is pleasant need ears.
+`.claude/docs/SCREEN-READER-PASS.md` is the session script. Do not restore the "accessible by
+default" marketing claim until someone has run it.
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
 > accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
@@ -415,6 +421,16 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **De-emphasis goes through `--gf-muted-opacity`, not a literal.** `#111827` at `opacity: 0.5` over
   white is 3.4:1 and fails WCAG AA; the token is 0.72 (6.6:1) and the high-contrast theme resets it
   to 1. Same for `--gf-accent-color`: any override must clear 4.5:1 against `--gf-accent-fg`.
+- **`page.addInitScript` runs before `document.documentElement` exists.** `observe(null, …)` throws
+  and kills the whole init script silently — leaving instrumentation that is *defined* but forever
+  empty, which reads as "the feature does nothing" rather than "the probe is broken". Observe
+  `document` instead; it always exists. Cost an hour in the announcement audit.
+- **A backtick inside a JS template literal terminates it too**, not just inside CSS. Walked into
+  three times in one session: `spotlight.ts`-style CSS, `packages/banner/src/widget/styles.ts`, and
+  the `RECORDER` string in `a11y-announcements.spec.ts`. Write those comments without backticks.
+- **`page.accessibility` was removed from Playwright.** Use `locator.ariaSnapshot()`, which returns
+  the ARIA tree as YAML and works on all three engines. It is also the only tool here that shows
+  what an AT actually derives — the survey's duplicate-value defect was invisible in the DOM.
 - **Anything an MCP server writes to stdout is framed as a JSON-RPC message.** One `console.log`
   corrupts the stream and the client appears to hang with no error anywhere. `packages/mcp` writes
   its startup banner to stderr, and the smoke test asserts every stdout line parses as JSON — which

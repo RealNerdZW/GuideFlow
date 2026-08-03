@@ -304,7 +304,14 @@ export class DefaultRenderer implements RendererContract {
 
     const i18n = this._i18n ?? defaultI18n
     const position = total > 1 ? i18n.t('stepOf', { current: index + 1, total }) : ''
-    const parts = [content.title, content.body, position].filter(Boolean)
+    // Trailing sentence punctuation is stripped before the '. ' join, or a body
+    // that already ends in a full stop produces "This is step one.. Step 1 of
+    // 3". MEASURED in a real live region; some screen readers voice the stray
+    // mark, and all of them pause oddly on it.
+    const parts = [content.title, content.body, position]
+      .filter(Boolean)
+      .map((part) => String(part).replace(/[.!?]+\s*$/, ''))
+      .filter(Boolean)
 
     this._liveRegionEl.textContent = ''
     // Next frame, so the cleared value is observed as a change.

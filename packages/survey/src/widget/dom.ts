@@ -172,10 +172,19 @@ export function updateSurvey(
       input.type = 'radio'
       input.name = groupName
       input.value = String(value)
+      // Named explicitly rather than by the label's text, because the visible
+      // number is hidden from the accessibility tree just below. Without this
+      // the radio would have no accessible name at all.
+      input.setAttribute('aria-label', String(value))
       input.addEventListener('change', () => { onSelect(value) })
 
       const text = document.createElement('span')
       text.textContent = String(value)
+      // MEASURED in a real accessibility tree: the label's span was exposed as
+      // its own text node beside the radio it names, so the group read as
+      // "0, 0, 1, 1, 2, 2 …" all the way up. Hiding the purely visual copy
+      // leaves one announcement per option.
+      text.setAttribute('aria-hidden', 'true')
 
       label.append(input, text)
       els.scale.appendChild(label)

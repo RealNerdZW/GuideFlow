@@ -10,8 +10,9 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **200 / 381 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.11, on
-branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1, 113 P2, 42 P3.
+**Progress:** **202 / 384 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.11 plus
+the announcement audit, on branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**,
+26 P1, 114 P2, 42 P3.
 
 The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
@@ -450,7 +451,23 @@ Both were invisible until the browser suite actually ran for the first time:
 
 ### Still open from Phase 6
 
-- [ ] **Manual screen-reader pass.** No NVDA or VoiceOver session has been run. Everything above is
+- [ ] **Manual screen-reader pass.** **STILL NOT DONE — it needs a human with ears.** A session
+      script and everything needed to make it short now lives in
+      [`SCREEN-READER-PASS.md`](SCREEN-READER-PASS.md), together with the three defects an
+      automated audit found first.
+      What WAS done: `apps/e2e/tests/a11y-announcements.spec.ts` captures every live-region
+      utterance in order, tagged by surface, with all four regions on one page — plus the real
+      ARIA tree via `ariaSnapshot()`, across four browser projects. That covers *what is said* and
+      *what is exposed*; it cannot cover pacing, verbosity or whether the result is pleasant, which
+      is the whole point of the manual pass.
+      It found and fixed two defects axe cannot see — the survey scale exposed **every value
+      twice** (`radio "0"` followed by `text: "0"`, so an NPS scale read "0, 0, 1, 1, 2, 2"), and a
+      tour step announced **doubled punctuation** (`"This is step one.. Step 1 of 3"`). And it
+      measured one it did not fix: closing a tour releases the banner's and the survey's held
+      announcements **in the same millisecond**. Both polite, so they queue rather than collide, and
+      the spec now asserts a ceiling of two so it cannot grow silently. Whether two is acceptable is
+      exactly the question that needs ears.
+      Everything above is
       verified by axe and by assertion, which catches structure but not whether the result is
       *usable*. Until someone drives a tour end-to-end with a screen reader, do not restore the
       `docs-claim-accessible-by-default` marketing claim — that finding stays open.

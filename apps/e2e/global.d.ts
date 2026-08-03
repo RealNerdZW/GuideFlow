@@ -64,6 +64,16 @@ declare global {
     __gfInstallTargeting: () => Promise<boolean>
     /** The installed targeting engine, once `__gfInstallTargeting` has run. */
     __gfTargeting?: { destroy(): void }
+    /** Every live-region utterance, in order — see a11y-announcements.spec.ts. */
+    __gfSaid?: Array<{
+      source: string
+      text: string
+      at: number
+      politeness: string | null
+      role: string | null
+    }>
+    /** Timestamp of the first utterance, so `at` is relative to it. */
+    __gfT0?: number | null
   }
 }
 

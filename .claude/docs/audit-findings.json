@@ -6311,6 +6311,51 @@
       "impact": "MEASURED on Windows: os.tmpdir() returned the literal string 'undefined\\temp' under turbo, so mkdtempSync failed with ENOENT — inside turbo only, which reads as a flaky test rather than a config gap. No package's tests had needed a temp directory before @guideflow/mcp's sandbox suite.",
       "foundIn": "Phase 7.11",
       "fix": "TEMP, TMP and TMPDIR added to the test task's passThroughEnv, with the reason in a comment."
+    },
+    {
+      "id": "survey-scale-announces-each-value-twice",
+      "area": "a11y",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "The survey scale exposed every value twice in the accessibility tree",
+      "file": "packages/survey/src/widget/dom.ts",
+      "line": 170,
+      "evidence": "ariaSnapshot: radio \"0\" followed by text: \"0\", for all eleven values",
+      "impact": "An eleven-point NPS scale read as '0, 0, 1, 1, 2, 2' all the way up. The visible number is a span inside the label; the label named the radio AND the span was exposed as its own text node. Invisible to axe, which checks rules rather than output.",
+      "foundIn": "Phase 7.12 announcement audit",
+      "fix": "Explicit aria-label on the input plus aria-hidden on the visual span. Hiding the span alone would have left the radio unnamed."
+    },
+    {
+      "id": "renderer-announces-doubled-punctuation",
+      "area": "a11y",
+      "severity": "P3",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "A tour step announced doubled sentence punctuation",
+      "file": "packages/core/src/renderer/default-renderer.ts",
+      "line": 307,
+      "evidence": "live region text: 'Step One. This is step one.. Step 1 of 3'",
+      "impact": "_announce joins title, body and step counter with '. ', so a body already ending in a full stop produces two. Screen readers pause oddly on it and some voice the stray mark.",
+      "foundIn": "Phase 7.12 announcement audit",
+      "fix": "Trailing .!? stripped from each part before the join."
+    },
+    {
+      "id": "docked-surfaces-release-announcements-together",
+      "area": "a11y",
+      "severity": "P2",
+      "kind": "gap",
+      "verdict": "CONFIRMED",
+      "status": "open",
+      "title": "Two docked surfaces release held announcements in the same millisecond when a tour ends",
+      "file": "packages/banner/src/widget/index.ts",
+      "line": 150,
+      "evidence": "MEASURED: banner 'We shipped v2' at 318ms and survey 'How likely are you to recommend us?' at 318ms, both polite",
+      "impact": "Both are polite so they queue rather than overlap — the user hears both back to back immediately after the tour closes. Two may be fine; three is possible because the checklist holds one too. There is no cross-package coordination and adding one means one package knowing about another, which every ADR here has refused.",
+      "foundIn": "Phase 7.12 announcement audit",
+      "fix": "NOT FIXED. The e2e spec asserts a ceiling of two so the number cannot grow silently. Whether two is acceptable needs a human with a screen reader — see SCREEN-READER-PASS.md section C."
     }
   ]
 }
