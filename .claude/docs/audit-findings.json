@@ -6281,6 +6281,36 @@
       "impact": "Every named competitor ships in-app NPS. The roadmap's proposed shape — a tour STEP TYPE — would have made it worse than absent: submitting would emit tour:complete, so @guideflow/analytics would count every NPS response as a completed tour and the abandonment rate would move whenever a survey ran.",
       "foundIn": "Phase 7.8c",
       "fix": "@guideflow/survey, a docked card. One scale question covering NPS/CSAT/thumbs, a follow-up after the score, a cooldown measured from the ask. Answers go to a host-wired onEvent. ADR-018."
+    },
+    {
+      "id": "no-mcp-server",
+      "area": "product",
+      "severity": "P3",
+      "kind": "gap",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "No MCP server — tour authoring is not reachable from any agent",
+      "file": ".claude/docs/MCP-AND-SKILLS.md",
+      "line": 1,
+      "evidence": "MCP-AND-SKILLS.md section 3 proposed five tools; none existed.",
+      "impact": "@guideflow/ai's only AI story was calling a model from the browser with the customer's key in the bundle. The inverse — expose the authoring engine as tools — keeps credentials out entirely and makes authoring agentic in any client.",
+      "foundIn": "Phase 7.11",
+      "fix": "@guideflow/mcp: four read-only tools over stdio, holding no credentials and writing no files. simulate deferred and named. ADR-019."
+    },
+    {
+      "id": "turbo-filters-temp-env",
+      "area": "tooling",
+      "severity": "P3",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "turbo filters TEMP/TMP, so os.tmpdir() returns a broken path inside any task",
+      "file": "turbo.json",
+      "line": 14,
+      "evidence": "passThroughEnv: ['CI'] on the test task",
+      "impact": "MEASURED on Windows: os.tmpdir() returned the literal string 'undefined\\temp' under turbo, so mkdtempSync failed with ENOENT — inside turbo only, which reads as a flaky test rather than a config gap. No package's tests had needed a temp directory before @guideflow/mcp's sandbox suite.",
+      "foundIn": "Phase 7.11",
+      "fix": "TEMP, TMP and TMPDIR added to the test task's passThroughEnv, with the reason in a comment."
     }
   ]
 }

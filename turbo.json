@@ -13,7 +13,13 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
-      "passThroughEnv": ["CI"]
+      // TEMP/TMP/TMPDIR as well as CI: turbo filters the environment, and on
+      // Windows `os.tmpdir()` reads TEMP then TMP before falling back. With
+      // neither passed through it returns the string "undefined\temp", so
+      // `mkdtempSync(join(tmpdir(), …))` fails with ENOENT — inside turbo only,
+      // which makes it look like a flaky test rather than a config gap.
+      // @guideflow/mcp's sandbox tests are the first here to need a temp dir.
+      "passThroughEnv": ["CI", "TEMP", "TMP", "TMPDIR"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],

@@ -998,3 +998,94 @@ would replace the element that has focus.
 - **A fourth polite live region.** The renderer has one, the checklist has one,
   the banner has one, this adds a fourth — and no NVDA or VoiceOver session has
   ever been run against any of them. The docs page says so.
+
+---
+
+## ADR-019 — The MCP server exposes the authoring engine, holds no credentials, and writes nothing
+2026-08-03 · Status: Accepted · No core change
+
+**Context.** `MCP-AND-SKILLS.md` §3 called this "the most credible route to the
+'AI-powered' claim in the README", and it is right about the direction.
+`@guideflow/ai` today means "call an LLM from the browser with your API key in
+the bundle" — a security problem and a thin feature. Inverting it makes tour
+authoring agentic in any MCP client and keeps keys nowhere.
+
+It proposed five tools. Two of them needed rethinking before anything was
+written.
+
+**Decision 1: `author_flow` does not call a model.** The proposal reads
+"`author_flow(spec)` → generate a validated FlowDefinition". A server that
+generates needs a provider and a key, which reproduces the exact problem this
+inversion exists to solve — one layer further from the user, where it is harder
+to see.
+
+The client *is* the model. So `author_flow` is **mechanical**: it takes the
+linear step list the agent wrote, runs `draftToFlow`, validates the result, and
+hands back the bytes. The generating happens where the credentials already are.
+
+**Decision 2: every tool is read-only, including the authoring one.** It would
+have been easy to add `write_flow`. The client already has file tools, under
+whatever permission model the operator configured; a second write path inside an
+MCP server is new blast radius for no capability. `author_flow` returns
+`fileContents` and a `suggestedPath`.
+
+That also makes the annotations honest — `readOnlyHint: true` and
+`destructiveHint: false` on all four, asserted by a test that walks the registry.
+
+**Decision 3: `simulate` is deferred, and named.** "Drive it headlessly, return
+step-by-step screenshots" is the most valuable of the five tools. It needs a
+browser download, a running copy of the operator's app, and a screenshot
+transport. `apps/e2e` is a standing measurement of what that costs, and this
+repository has spent ten phases deleting things that were half of it. A
+`simulate` that worked on a static page and silently did nothing useful on a
+real SPA would be worse than none.
+
+What ships instead is honest about its limits: `validate_flow` catches every
+*structural* failure with no browser at all, and the docs say plainly that
+selector verification against a real page is the DevTools Recorder's job.
+
+**Decision 4: `list_flows` walks a directory.** ADR-014 decided there is no
+backend, so "what tours exist" has no service to ask. Walking the operator's
+root is the honest implementation, bounded to 8 levels and 500 files with the
+usual directories skipped.
+
+One refinement came out of testing: `validateFlow` deliberately returns **no
+flow** when the flow is invalid, so a naive listing shows `id: null` for every
+broken file — useless for the one question you ask when something is broken.
+The id is now recovered from the raw JSON as a fallback, treated as untrusted
+(a string or nothing) because it is displayed back to a model.
+
+**Decision 5: the sandbox is the package.** Reading files on behalf of a model
+means the only genuinely dangerous thing this can do is read one the operator
+did not mean to expose. `root.ts` is fifty lines and has its own test file with
+fifteen cases, which is the correct ratio.
+
+Four properties, each with a test:
+- **The root is the operator's**, from `--root` or the environment, never a tool
+  argument. A `root` parameter would let a model that had been talked into it
+  point the server anywhere.
+- `..` is collapsed by `resolve` and then refused.
+- Containment is checked on path **segments** via `relative`, not `startsWith` —
+  which accepts `/srv/tours-secret` for a root of `/srv/tours`.
+- Symlinks are resolved and re-checked **against the nearest existing ancestor**,
+  not just the leaf. The first implementation did `try { realpath(abs) } catch
+  { accept }`, which waves through a non-existent file underneath a directory
+  symlink that points out of the root — `escape/new.flow.json`. Found by writing
+  the test for it.
+
+**Consequences.**
+- **Twelve packages now share one version.** `@guideflow/mcp` joins the
+  changesets `fixed` group automatically (the glob) and is scaffolded at 0.1.9;
+  `verify-pack.mjs` enforces the equality.
+- **`@guideflow/core` is a real dependency here, not a peer** — this is an
+  application, not a library, and there is no host bundle for a peer to
+  deduplicate against. It is the second package after the CLI to do that.
+- **First package with third-party runtime dependencies that matter**:
+  `@modelcontextprotocol/sdk` and `zod`. Core's zero-dependency promise is
+  untouched and unrelated.
+- The unit suite drives the tools through a real `Client` over
+  `InMemoryTransport` rather than calling handlers, so a Zod schema that
+  disagrees with its handler fails in CI. A separate smoke test spawns the built
+  binary and speaks JSON-RPC over real stdio, which is the only way to catch the
+  classic MCP failure: anything written to stdout is framed as a protocol
+  message and corrupts the stream. Measured clean.

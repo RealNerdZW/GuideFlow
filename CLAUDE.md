@@ -40,6 +40,8 @@ packages/
                                       announcement at a time, targeted with core's own rule matchers.
   survey/       @guideflow/survey      createSurveys + docked mountSurvey widget. NPS/CSAT as a card,
                                       with a cooldown and a host-wired answer seam.
+  mcp/          @guideflow/mcp         guideflow-mcp, a read-only stdio MCP server over ./authoring.
+                                      Holds no credentials, makes no network calls, writes no files.
   cli/          @guideflow/cli        init / export / validate
   devtools/     @guideflow/devtools   MV3 browser extension (private: not published). recorder.html is the
                                       authoring surface; the panel inspects. Tested in real Chromium by
@@ -90,13 +92,13 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10d + 7.8b/7.8c, 2026-08-03)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, 2026-08-03)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1223 unit tests pass**, 1 skipped
-(core 497, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, vue 47, svelte 34,
-cli 33, devtools 33).
+Build, type-check, lint and unit tests are **all green**: **1260 unit tests pass**, 1 skipped
+(core 497, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, vue 47, mcp 37,
+svelte 34, cli 33, devtools 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.2 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./selector` **1.76 kB / 2.5 kB**,
 `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
@@ -413,6 +415,18 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **De-emphasis goes through `--gf-muted-opacity`, not a literal.** `#111827` at `opacity: 0.5` over
   white is 3.4:1 and fails WCAG AA; the token is 0.72 (6.6:1) and the high-contrast theme resets it
   to 1. Same for `--gf-accent-color`: any override must clear 4.5:1 against `--gf-accent-fg`.
+- **Anything an MCP server writes to stdout is framed as a JSON-RPC message.** One `console.log`
+  corrupts the stream and the client appears to hang with no error anywhere. `packages/mcp` writes
+  its startup banner to stderr, and the smoke test asserts every stdout line parses as JSON — which
+  is the only way to catch this, because `InMemoryTransport` never sees the process.
+- **`turbo` filters the environment, so `os.tmpdir()` is unreliable inside a task.** On Windows it
+  reads `TEMP` then `TMP`; with neither passed through it returns the literal string
+  `undefined	emp` and `mkdtempSync` fails with ENOENT — inside turbo only, which reads as a flaky
+  test. `turbo.json`'s `test` task now passes `TEMP`, `TMP` and `TMPDIR` through.
+- **`eslint-import-resolver-typescript` cannot follow the MCP SDK's `exports` subpaths**, which
+  node, `tsc` and the built binary all resolve. That is a resolver gap, not a code defect, and it is
+  scoped to `packages/mcp/.eslintrc.json` rather than weakened repo-wide. Verify with
+  `createRequire(...).resolve(...)` before assuming an unresolved-import error is real.
 - **A survey must never be a tour step type.** Submitting one would emit `tour:complete`, so
   `@guideflow/analytics` would count every NPS response as a completed tour and the abandonment
   rate would move whenever a survey ran. `PRODUCT-ROADMAP.md` proposed exactly that; ADR-018

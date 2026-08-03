@@ -26,7 +26,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 process.noDeprecation = true
 
 /** Packages that are actually published to npm (devtools is private). */
-const PACKAGES = ['core', 'react', 'vue', 'svelte', 'ai', 'analytics', 'cli', 'checklist', 'banner', 'survey']
+const PACKAGES = ['core', 'react', 'vue', 'svelte', 'ai', 'analytics', 'cli', 'checklist', 'banner', 'survey', 'mcp']
 
 let failed = 0
 /** name → version, for the fixed-group equality check after the loop. */

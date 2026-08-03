@@ -54,6 +54,7 @@ GuideFlow is a modular, framework-agnostic product tour library with a built-in 
 | [`@guideflow/checklist`](packages/checklist) | `createChecklist` + docked `mountChecklist` widget — a projection of `ProgressStore`, not a second source of truth | — |
 | [`@guideflow/banner`](packages/banner) | `createBanners` + docked `mountBanner` widget — one non-blocking announcement at a time, targeted with core's own rules | — |
 | [`@guideflow/survey`](packages/survey) | `createSurveys` + docked `mountSurvey` widget — NPS and CSAT as a card, with a cooldown and a host-wired answer seam | — |
+| [`@guideflow/mcp`](packages/mcp) | `guideflow-mcp` — a read-only MCP server exposing flow authoring and validation to any MCP client | — |
 | [`@guideflow/cli`](packages/cli) | `init`, `export`, `validate` commands _(see [CLI](#cli))_ | — |
 | [`@guideflow/devtools`](packages/devtools) | MV3 browser extension — flow inspector and step recorder. Not published to npm: build it from source and load it unpacked | — |
 

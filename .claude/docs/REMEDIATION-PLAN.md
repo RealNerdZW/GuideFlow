@@ -10,9 +10,8 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **198 / 379 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.10d plus
-7.8b and 7.8c, on branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1,
-113 P2, 42 P3.
+**Progress:** **200 / 381 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.11, on
+branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1, 113 P2, 42 P3.
 
 The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
@@ -699,7 +698,28 @@ the budget could not absorb it**, so the packaging change had to come first.
       untouched**. `apps/e2e/tests/targeting.spec.ts` proves the pushState and re-arm behaviour in a
       real browser; happy-dom's `pushState` does not move `location.href`, so a unit assertion there
       would have been testing the mock.
-- [ ] **7.11 Ship a GuideFlow MCP server** — see `MCP-AND-SKILLS.md` section 3.
+- [x] **7.11 Ship a GuideFlow MCP server** — `@guideflow/mcp`, the twelfth package. The inversion
+      `MCP-AND-SKILLS.md` §3 asked for: expose the authoring engine as tools instead of shipping an
+      LLM call inside the browser bundle with the customer's key.
+      **Two of the five proposed tools needed rethinking before anything was written.**
+      `author_flow` was specified as "generate a validated FlowDefinition" — a server that generates
+      needs a provider and a key, reproducing the exact problem the inversion exists to solve. The
+      client IS the model, so it is mechanical: `draftToFlow`, validate, hand back the bytes. And
+      `simulate` is deferred and named: a browser download, a running copy of the operator's app and
+      a screenshot transport, which `apps/e2e` is a standing measurement of.
+      **Every tool is read-only and nothing writes a file** — the client already has file tools under
+      the operator's permissions, and a second write path inside an MCP server is blast radius for
+      no capability. Asserted by a test that walks the registry.
+      `root.ts` is fifty lines with fifteen test cases, which is the right ratio for the only
+      dangerous thing here. Writing the tests found a real hole: `try { realpath(abs) } catch
+      { accept }` waves through a non-existent file underneath a directory symlink pointing out of
+      the root. It now resolves the nearest existing ancestor.
+      Two harness findings fixed on the way: turbo filters `TEMP`/`TMP`, so `os.tmpdir()` returned
+      `undefined	emp` inside a task; and `eslint-import-resolver-typescript` cannot follow the
+      MCP SDK's `exports` subpaths that node, tsc and the built binary all resolve — scoped to a
+      package-level override rather than weakened repo-wide.
+      37 unit tests through a real MCP `Client` over `InMemoryTransport`, plus a smoke test that
+      spawns the built binary and speaks JSON-RPC over real stdio. See **ADR-019**.
 
 > **Budget note for whoever picks this up.** Core is at 14.13 kB / 14.5 kB. The projected remainder
 > (7.1f + 7.3 + 7.4) is ~830 B, landing near 14.96 kB. **A raise to 15 kB will be needed, and it
