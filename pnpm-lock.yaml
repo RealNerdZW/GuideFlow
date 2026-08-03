@@ -129,6 +129,9 @@ importers:
       '@guideflow/devtools':
         specifier: workspace:*
         version: link:../../packages/devtools
+      '@guideflow/survey':
+        specifier: workspace:*
+        version: link:../../packages/survey
       '@playwright/test':
         specifier: ^1.44.0
         version: 1.59.1
@@ -388,6 +391,24 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      tsup:
+        specifier: ^8.0.2
+        version: 8.5.1(typescript@5.9.3)
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.3.1
+        version: 1.6.1(@types/node@20.19.37)(happy-dom@13.10.1)
+
+  packages/survey:
+    devDependencies:
+      '@guideflow/core':
+        specifier: workspace:*
+        version: link:../core
+      happy-dom:
+        specifier: ^13.6.2
+        version: 13.10.1
       tsup:
         specifier: ^8.0.2
         version: 8.5.1(typescript@5.9.3)

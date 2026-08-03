@@ -16,6 +16,7 @@
     "@guideflow/checklist": "workspace:*",
     "@guideflow/core": "workspace:*",
     "@guideflow/devtools": "workspace:*",
+    "@guideflow/survey": "workspace:*",
     "@playwright/test": "^1.44.0",
     "@types/chrome": "^0.0.268",
     "@types/node": "^20.11.20",

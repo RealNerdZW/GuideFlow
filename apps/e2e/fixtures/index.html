@@ -76,12 +76,14 @@
     and the engine contract cannot drift apart.
   -->
   <!--
-    @guideflow/checklist and @guideflow/banner are built with core as external,
+    @guideflow/checklist, @guideflow/banner and @guideflow/survey are built with
+    core as external,
     so their ESM output carries bare specifiers the browser cannot resolve on
     its own. Core itself needs no map — it has zero dependencies, which is
     exactly why the rest of this fixture loads without a bundler.
 
-    The SUBPATHS are mapped too, and must be: @guideflow/banner imports
+    The SUBPATHS are mapped too, and must be: @guideflow/banner and
+    @guideflow/survey both import
     `@guideflow/core/targeting` for the shared rule matchers and lazily imports
     `@guideflow/core/navigation` for url-scoped banners. A map entry for the
     root package does not cover its subpaths — a bare `@guideflow/core/targeting`
@@ -219,6 +221,21 @@
       })
       window.__gfBanners = controller
       window.__gfBannerView = mountBanner(controller, options)
+      return true
+    }
+
+    // Surveys, on demand for the same reason as the banner and the checklist.
+    window.__gfMountSurveys = async function (definitions, options) {
+      const [{ createSurveys }, { mountSurvey }] = await Promise.all([
+        import('/packages/survey/dist/index.js'),
+        import('/packages/survey/dist/widget/index.js'),
+      ])
+      window.__gfSurveyEvents = []
+      const controller = createSurveys(gf, definitions, {
+        onEvent: function (e) { window.__gfSurveyEvents.push(e) },
+      })
+      window.__gfSurveys = controller
+      window.__gfSurveyView = mountSurvey(controller, options)
       return true
     }
 

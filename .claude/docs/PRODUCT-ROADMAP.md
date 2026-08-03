@@ -137,7 +137,11 @@ Turn the state-machine bet into visible advantage.
   renderer to remove — not that it is a hack.
 - **Flow versioning** — `flowId@version`, so a persisted snapshot from an old version does not restore
   into a changed state graph. Today it silently can, and `restore()` does not even clamp `stepIndex`.
-- **Surveys / NPS** as a step type feeding the analytics pipeline.
+- ~~**Surveys / NPS** as a step type feeding the analytics pipeline.~~ **Shipped** as
+  `@guideflow/survey` (Phase 7.8c) — and *not* as a step type. A step-type survey lands in the
+  tour funnel, so submitting one would emit `tour:complete` and analytics would count every NPS
+  response as a completed tour. It is a docked card, like the checklist and the banner. See
+  ADR-018.
 
 ### Phase D — The authoring loop (months 3–6)
 

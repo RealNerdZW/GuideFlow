@@ -10,8 +10,9 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **197 / 378 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.10d plus
-7.8b, on branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1, 113 P2, 42 P3.
+**Progress:** **198 / 379 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.10d plus
+7.8b and 7.8c, on branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1,
+113 P2, 42 P3.
 
 The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
@@ -589,10 +590,26 @@ the budget could not absorb it**, so the packaging change had to come first.
       click a button the `position: fixed` bar sat on top of, so `dock: 'top'` became
       `position: sticky` — it reserves its own height and needs nothing from the host.
       62 unit tests, 8 e2e specs in real Chromium.
-- [ ] **7.8c Surveys / NPS** — the premise moved. It was deferred "until after 7.10, because the
-      backend is where the answers would live", and 7.10 decided there is no backend: analytics is
-      host-wired, so a survey's answers go wherever the host's collector sends them. That makes it
-      buildable now, and `@guideflow/banner`'s controller shape is the template.
+- [x] **7.8c Surveys / NPS** — `@guideflow/survey`, the eleventh package. The premise had moved:
+      it was deferred "until after 7.10, because the backend is where the answers would live", and
+      7.10 decided there is no backend — analytics was always host-wired, so the answers go to a
+      callback like every other event.
+      **Not a tour step type**, which is what `PRODUCT-ROADMAP.md` said. A step-type survey lands in
+      the tour funnel: submitting would emit `tour:complete`, so `@guideflow/analytics` would count
+      every NPS response as a completed tour and the abandonment rate would move whenever a survey
+      ran. The roadmap line is corrected in the same change.
+      **One question shape** — `scale` with configurable bounds is NPS (`0..10`), CSAT (`1..5`) and
+      a thumbs poll (`1..2`); the response carries a `normalized` score so a host can compare them.
+      **The cooldown is measured from the ask, not the answer**: someone who closed the card has
+      also been asked.
+      **A radiogroup of real radios**, which buys the arrow-key model, one tab stop and "3 of 11"
+      for free — and is the reason there is an e2e spec, since happy-dom has neither a tab order nor
+      an arrow-key model.
+      **The third copy of the dock helpers is now enforced rather than promised**:
+      `dock-drift.test.ts` compares the normalised body of `createLiveRegion` and `setTourActive`
+      across all three packages and asserts the two properties easy to "simplify" wrongly — the
+      clipped live region and the stylesheet refcount. One test file instead of a shared package.
+      See **ADR-018**. 79 unit tests, 8 e2e specs across four browser projects.
 - [x] **Devtools event-list rot** (standalone, no phase) — converted to
       `Object.keys({…} satisfies Record<keyof TourEvents, true>)` at all three sites: the bridge
       relay, the panel's filter chips, and `apps/demo`'s live log. Both drift directions were

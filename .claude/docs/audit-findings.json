@@ -6266,6 +6266,21 @@
       "impact": "MEASURED: an e2e spec could not click a button the bar was sitting on top of. On a small viewport it would cover a fixed app header including its own back button. Shipped first as a documented limitation, which two design judges flagged as insufficient.",
       "foundIn": "Phase 7.8b e2e",
       "fix": "dock:'top' is position:sticky, so it participates in flow, reserves its own height and then sticks on scroll — needing nothing from the host, unlike publishing a measured height to an element the library does not own. dock:'bottom' stays fixed."
+    },
+    {
+      "id": "surveys-nps-absent",
+      "area": "product",
+      "severity": "P2",
+      "kind": "gap",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "No survey or NPS surface — part of no-checklists-surveys-banners-resource-centre",
+      "file": "packages/core/src/index.ts",
+      "line": 1,
+      "evidence": "A repo-wide grep for survey and nps returned zero product hits.",
+      "impact": "Every named competitor ships in-app NPS. The roadmap's proposed shape — a tour STEP TYPE — would have made it worse than absent: submitting would emit tour:complete, so @guideflow/analytics would count every NPS response as a completed tour and the abandonment rate would move whenever a survey ran.",
+      "foundIn": "Phase 7.8c",
+      "fix": "@guideflow/survey, a docked card. One scale question covering NPS/CSAT/thumbs, a follow-up after the score, a cooldown measured from the ask. Answers go to a host-wired onEvent. ADR-018."
     }
   ]
 }

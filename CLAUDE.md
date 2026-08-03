@@ -38,6 +38,8 @@ packages/
                                       ProgressStore. Depends on core; core never imports it.
   banner/       @guideflow/banner      createBanners + docked mountBanner widget. One non-blocking
                                       announcement at a time, targeted with core's own rule matchers.
+  survey/       @guideflow/survey      createSurveys + docked mountSurvey widget. NPS/CSAT as a card,
+                                      with a cooldown and a host-wired answer seam.
   cli/          @guideflow/cli        init / export / validate
   devtools/     @guideflow/devtools   MV3 browser extension (private: not published). recorder.html is the
                                       authoring surface; the panel inspects. Tested in real Chromium by
@@ -88,20 +90,20 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10d + 7.8b, 2026-08-02)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10d + 7.8b/7.8c, 2026-08-03)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1144 unit tests pass**, 1 skipped
-(core 497, ai 153, react 114, analytics 98, checklist 73, banner 62, vue 47, svelte 34, cli 33,
-devtools 33).
+Build, type-check, lint and unit tests are **all green**: **1223 unit tests pass**, 1 skipped
+(core 497, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, vue 47, svelte 34,
+cli 33, devtools 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.2 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./selector` **1.76 kB / 2.5 kB**,
 `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 359 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 391 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -411,6 +413,22 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **De-emphasis goes through `--gf-muted-opacity`, not a literal.** `#111827` at `opacity: 0.5` over
   white is 3.4:1 and fails WCAG AA; the token is 0.72 (6.6:1) and the high-contrast theme resets it
   to 1. Same for `--gf-accent-color`: any override must clear 4.5:1 against `--gf-accent-fg`.
+- **A survey must never be a tour step type.** Submitting one would emit `tour:complete`, so
+  `@guideflow/analytics` would count every NPS response as a completed tour and the abandonment
+  rate would move whenever a survey ran. `PRODUCT-ROADMAP.md` proposed exactly that; ADR-018
+  corrected it. The same argument rules out any other "form as a step".
+- **`createLiveRegion` and `setTourActive` exist in THREE packages, and `dock-drift.test.ts` is what
+  keeps them one implementation.** It compares brace-matched, comment-stripped function bodies
+  across checklist, banner and survey. Edit one and you must edit all three — that is the deal that
+  bought not having a shared `@guideflow/dock` package. The files are deliberately not identical
+  (only the checklist needs `restoreFocus`), so the check is per-function, never per-file.
+- **Firefox makes every radio in an UNCHECKED group its own tab stop; Chromium makes only the
+  first.** Both are correct. A test that tabs out of an untouched radio group therefore needs one
+  press in one browser and eleven in the other — check a radio first, or assert backwards.
+- **Headless Firefox cannot test a forward Tab OUT of the last element in the document.** There is
+  no browser chrome for focus to move into, so it stays put — measured as a trail ending
+  `dismiss, dismiss, dismiss`. Assert `Shift+Tab` instead: the page before the surface is real in
+  every browser.
 - **`injectStyles` de-dupes by id, so `removeStyles` on teardown is a footgun.** A second mount of
   the same widget injects nothing; an unconditional `removeStyles(id)` in the first `destroy()` then
   strips the stylesheet from every survivor, silently. `@guideflow/checklist` shipped that bug and

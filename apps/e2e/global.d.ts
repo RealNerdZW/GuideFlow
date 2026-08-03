@@ -47,6 +47,14 @@ declare global {
     __gfBannerView?: { destroy(): void }
     /** Every `BannerEvent`, in order — the analytics seam, observed. */
     __gfBannerEvents?: Array<{ type: string; bannerId: string }>
+    /** Mount `@guideflow/survey` on demand. */
+    __gfMountSurveys: (definitions: unknown[], options?: unknown) => Promise<boolean>
+    /** The survey controller, once `__gfMountSurveys` has run. */
+    __gfSurveys?: { destroy(): void }
+    /** The mounted card, so a spec can tear it down. */
+    __gfSurveyView?: { destroy(): void }
+    /** Every `SurveyEvent`, in order — the answers seam, observed. */
+    __gfSurveyEvents?: Array<{ type: string; surveyId: string; score?: number; comment?: string }>
     /**
      * Install `createTargeting(gf)` on demand.
      *

@@ -76,4 +76,10 @@
      tour dims and covers it like everything else.
      Read by @guideflow/banner as var(--gf-z-banner, 99995). */
   --gf-z-banner: 99995;
+
+  /* Lowest of the three docked surfaces, deliberately: a survey is the least
+     urgent thing on the page and must never cover an announcement or a
+     control.
+     Read by @guideflow/survey as var(--gf-z-survey, 99994). */
+  --gf-z-survey: 99994;
 }

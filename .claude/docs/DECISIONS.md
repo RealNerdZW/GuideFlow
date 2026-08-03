@@ -905,3 +905,96 @@ also why `BannerTone` has no `'error'` member, since an error tone is what makes
   NVDA or VoiceOver session has ever been run. The structure is right by
   assertion and by axe. How the three sound together is unknown, and the docs
   page says so rather than claiming behaviour nobody has verified.
+
+---
+
+## ADR-018 — A survey is a docked surface, not a step type; and the third copy stays a copy
+2026-08-03 · Status: Accepted · No core budget change (one CSS token)
+
+**Context.** 7.8c was deferred with a reason that has since evaporated: "a survey
+without somewhere to send the answers is a form that discards them, and the
+backend is where they would live." ADR-014 decided there is no backend, and
+analytics has always been host-wired — so the answers go to a callback, which is
+where every other event in this library already goes.
+
+Two questions were open. Neither is the one the roadmap thought.
+
+**Decision 1: docked, not a tour step type.** `PRODUCT-ROADMAP.md` said
+"Surveys / NPS **as a step type** feeding the analytics pipeline." That is
+wrong, and 7.8b is why. A step-type survey inherits all four limits
+`apps/docs/guide/announcements.md` records against the `target: null` modal: the
+overlay dims the page, only one can be up, the chrome needs a custom renderer,
+and — decisively — it lands in the tour funnel. Submitting would emit
+`tour:complete`, so `@guideflow/analytics` would count every NPS response as a
+completed tour, and the abandonment rate would move whenever you ran a survey.
+
+An NPS prompt that dims the whole application is also just wrong as a product:
+it is the least urgent thing on the page, which is why its z-index token sits
+below every other docked surface.
+
+The roadmap line is corrected in the same change.
+
+**Decision 2: an eleventh package, and the third copy of the dock helpers stays
+a copy — but is now enforced.** ADR-017 deferred extracting `@guideflow/dock`
+when there were two copies. A third is where CLAUDE.md's warning starts to
+apply: "There is exactly one selector builder now. There used to be three, and
+all three were broken the same two ways."
+
+Measured against that, the analogy does not hold. Those were three ~200-line
+ranked heuristics, written independently, each wrong. These are three trivial
+DOM helpers — `createLiveRegion` is thirty lines of `createElement` plus aria
+attributes — copied from one verified original. The copies are also deliberately
+*subsets*: the checklist needs `restoreFocus` and neither of the others does, so
+a shared module would export something two of its three consumers do not use.
+
+What was missing was a guard, not a package. `dock-drift.test.ts` extracts the
+brace-matched body of `createLiveRegion` and `setTourActive` from all three
+packages, normalises away comments and whitespace, and fails if they differ. It
+also asserts the two properties that are easy to "simplify" wrongly in one copy:
+that the region is clipped rather than `display: none` (which would remove it
+from the accessibility tree and produce a live region that never speaks), and
+that every package refcounts its stylesheet. That converts three copies that
+*could* diverge into one implementation that mechanically cannot — for the price
+of one test file instead of a package, a manifest, a tsconfig, a tsup config, a
+README, a docs page and a slot in the fixed version group.
+
+**Decision 3: one question shape.** `scale` with configurable bounds is NPS
+(`0..10`, the default), CSAT (`1..5`) and a thumbs poll (`1..2`). Multiple
+choice is a different widget with different keyboard semantics and nothing has
+asked for one. The response carries a `normalized` score in `0..1` so a host can
+compare scales without knowing either one's bounds.
+
+The follow-up appears **after** a score, so the first thing anyone sees is one
+click rather than a form — and submitting is an explicit button rather than
+auto-submit on selection, which would fire once per arrow key for a keyboard
+user moving through the scale.
+
+**Decision 4: the cooldown is measured from the ASK, not the answer.** Someone
+who closed the card without answering has also been asked, and re-asking them
+tomorrow is the behaviour people uninstall over. Omitting `cooldownMs` makes one
+ask final, which is ADR-015's default applied to a third surface.
+
+`@guideflow/core/targeting`'s `FlowFrequency` and `CapRecord` were considered and
+rejected: that record is keyed by flow id under the `'caps'` suffix, which
+belongs to targeting, so `targeting.resetCaps()` would wipe survey cooldowns —
+and it tracks session windows and global counts a survey has no use for.
+
+**Decision 5: a radiogroup of real radios.** Arrow keys move within the group,
+Tab treats it as one stop, and a screen reader announces "3 of 11". A row of
+`<button>`s looks identical and loses all three plus the selected state. The
+inputs are visually replaced by their labels but never `display: none`, which
+would remove them from the tab order and break the arrow-key model. Choosing a
+score toggles `checked` rather than rebuilding the group, because rebuilding
+would replace the element that has focus.
+
+**Consequences.**
+- **Core gains one CSS custom property**, `--gf-z-survey: 99994`. No JavaScript,
+  no budget change. Core stays 15.2 kB / 15.5 kB.
+- Eleven packages now share one version. `verify-pack.mjs` enforces it.
+- `bottom-end` is both this package's default dock and `mountChecklist`'s, and
+  neither can detect the other. Documented rather than solved: solving it means
+  one package knowing about another, which is the coupling every one of these
+  ADRs has refused.
+- **A fourth polite live region.** The renderer has one, the checklist has one,
+  the banner has one, this adds a fourth — and no NVDA or VoiceOver session has
+  ever been run against any of them. The docs page says so.

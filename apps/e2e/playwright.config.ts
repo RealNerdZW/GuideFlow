@@ -64,14 +64,14 @@ export default defineConfig({
 
   webServer: {
     // Build core and the docked-surface packages first: the fixture loads
-    // dist/index.global.js, dist/styles, packages/checklist/dist and
-    // packages/banner/dist, so without this a stale bundle — or an absent one —
+    // dist/index.global.js, dist/styles, packages/checklist/dist,
+    // packages/banner/dist and packages/survey/dist, so without this a stale bundle — or an absent one —
     // would silently be under test.
     // The extension's dist/ is the artefact under test, so it is built here
     // for the same reason core is: otherwise a stale — or absent — bundle is
     // silently what the suite exercises.
     command:
-      'pnpm --filter @guideflow/core --filter @guideflow/checklist --filter @guideflow/banner --filter @guideflow/devtools build && node serve.mjs',
+      'pnpm --filter @guideflow/core --filter @guideflow/checklist --filter @guideflow/banner --filter @guideflow/survey --filter @guideflow/devtools build && node serve.mjs',
     url: BASE,
     reuseExistingServer: !process.env['CI'],
     timeout: 120 * 1000,
