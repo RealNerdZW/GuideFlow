@@ -11,7 +11,14 @@ import { injectStyles, isBrowser, removeStyles } from '@guideflow/core'
 
 import type { ChecklistController, ChecklistState } from '../types.js'
 
-import { createLiveRegion, restoreFocus, setTourActive, type LiveRegion } from './a11y.js'
+import {
+  createLiveRegion,
+  releaseStyles,
+  restoreFocus,
+  retainStyles,
+  setTourActive,
+  type LiveRegion,
+} from './a11y.js'
 import {
   DEFAULT_STRINGS,
   buildSkeleton,
@@ -58,6 +65,7 @@ export function mountChecklist(
   if (!isBrowser()) return NOOP_VIEW
 
   injectStyles(CHECKLIST_CSS, CHECKLIST_STYLE_ID, options.nonce)
+  retainStyles()
 
   const strings: ChecklistStrings = { ...DEFAULT_STRINGS, ...options.strings }
   const container = options.container ?? document.body
@@ -200,7 +208,10 @@ export function mountChecklist(
       live?.destroy()
       live = null
       mounted = false
-      removeStyles(CHECKLIST_STYLE_ID)
+      // Only when this was the last mount. `injectStyles` de-dupes by id, so a
+      // second mount injects nothing and an unconditional `removeStyles` here
+      // stripped the stylesheet out from under it.
+      if (releaseStyles()) removeStyles(CHECKLIST_STYLE_ID)
     },
   }
 }

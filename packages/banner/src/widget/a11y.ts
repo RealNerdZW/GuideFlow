@@ -1,9 +1,14 @@
 // ---------------------------------------------------------------------------
-// The announcement channel and the focus bookkeeping.
+// The announcement channel, the tour-active state, and the stylesheet refcount.
 //
-// The live region is the widget's OWN element with its own id, appended to
-// document.body so it outlives the panel — sharing the renderer's region would
-// mean the two surfaces clobbering each other's utterances.
+// `createLiveRegion` / `setTourActive` are copied from
+// `@guideflow/checklist/src/widget/a11y.ts`, which is 82 lines of three
+// shape-free functions. Extracting them into a `@guideflow/dock` package was
+// considered and rejected in ADR-017: a package whose entire reason to exist is
+// three functions costs a manifest, a tsconfig, a tsup config, a README, a
+// version in the fixed group and a docs page — and it would pull those
+// well-covered lines out of the checklist's coverage denominator, which is a
+// ratchet set just under a measured number.
 // ---------------------------------------------------------------------------
 
 export interface LiveRegion {
@@ -19,6 +24,12 @@ export interface LiveRegion {
  * classic way to ship a live region that never speaks. The text is cleared and
  * then written inside requestAnimationFrame so an identical string
  * re-announces rather than being deduplicated by the AT.
+ *
+ * Separate from the visible bar on purpose. Putting `role="status"` on the
+ * surface itself would re-announce the entire banner on every mutation — the
+ * queue advancing to the next one after a dismissal would re-read the whole
+ * thing — and interactive descendants of a live region get folded into the
+ * utterance.
  */
 export function createLiveRegion(id: string): LiveRegion {
   const el = document.createElement('div')
@@ -26,9 +37,6 @@ export function createLiveRegion(id: string): LiveRegion {
   el.setAttribute('role', 'status')
   el.setAttribute('aria-live', 'polite')
   el.setAttribute('aria-atomic', 'true')
-  // Clipped, never display:none or visibility:hidden — both remove the element
-  // from the accessibility tree, which is the classic way to ship a live region
-  // that never speaks. `clip` is kept alongside `clip-path` for older engines.
   el.style.cssText =
     'position:absolute;width:1px;height:1px;overflow:hidden;' +
     'clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap'
@@ -66,21 +74,6 @@ export function setTourActive(root: HTMLElement, active: boolean): void {
   root.toggleAttribute('inert', active)
 }
 
-/**
- * Move focus to `el` only if it is still in the document.
- *
- * The regression this exists to avoid: core restores focus to whatever was
- * focused before the tour, guarded on `isConnected`. If the user started that
- * tour from a checklist row and the row's button has since been replaced by a
- * done row, focus falls to `<body>` with no announcement. The list is patched
- * in place precisely so the `<li>` survives and can take it.
- */
-export function restoreFocus(el: HTMLElement | null | undefined): boolean {
-  if (!el?.isConnected) return false
-  el.focus()
-  return true
-}
-
 // ── Stylesheet refcount ────────────────────────────────────────────────────
 
 let mounts = 0
@@ -88,13 +81,15 @@ let mounts = 0
 /**
  * Track how many widgets share the one injected stylesheet.
  *
- * `injectStyles` de-dupes by id, so a second `mountChecklist` injects nothing —
- * and `removeStyles(id)` then removes the tag unconditionally, so the FIRST
- * teardown stripped the styles out from under every surviving mount. Silently:
- * no error, no warning, just an unstyled widget.
+ * `injectStyles` de-dupes by id, so a second mount injects nothing — and
+ * `removeStyles(id)` then removes the tag unconditionally, so the FIRST
+ * teardown strips the styles out from under every surviving mount. Silently:
+ * no error, no warning, just an unstyled bar.
  *
- * Two mounts is not exotic. Two lists on one page does it, and so does a React
- * StrictMode double-mount in development.
+ * That defect is live in `@guideflow/checklist` today (its `destroy()` calls
+ * `removeStyles` with no count) and is fixed there in the same change that
+ * added this. Two mounts is not exotic — two banners on one page, or a React
+ * StrictMode double-mount in development, does it.
  */
 export function retainStyles(): void {
   mounts += 1

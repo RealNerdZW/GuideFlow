@@ -76,13 +76,26 @@
     and the engine contract cannot drift apart.
   -->
   <!--
-    @guideflow/checklist is built with `external: ['@guideflow/core']`, so its
-    ESM output carries a bare specifier the browser cannot resolve on its own.
-    Core itself needs no map — it has zero dependencies, which is exactly why
-    the rest of this fixture loads without a bundler.
+    @guideflow/checklist and @guideflow/banner are built with core as external,
+    so their ESM output carries bare specifiers the browser cannot resolve on
+    its own. Core itself needs no map — it has zero dependencies, which is
+    exactly why the rest of this fixture loads without a bundler.
+
+    The SUBPATHS are mapped too, and must be: @guideflow/banner imports
+    `@guideflow/core/targeting` for the shared rule matchers and lazily imports
+    `@guideflow/core/navigation` for url-scoped banners. A map entry for the
+    root package does not cover its subpaths — a bare `@guideflow/core/targeting`
+    with no entry is a hard module-resolution error at load, which is how this
+    was found.
   -->
   <script type="importmap">
-    { "imports": { "@guideflow/core": "/packages/core/dist/index.js" } }
+    {
+      "imports": {
+        "@guideflow/core": "/packages/core/dist/index.js",
+        "@guideflow/core/targeting": "/packages/core/dist/targeting/index.js",
+        "@guideflow/core/navigation": "/packages/core/dist/navigation/index.js"
+      }
+    }
   </script>
 
   <script type="module">
@@ -192,6 +205,22 @@
       window.__gfChecklistView = mountChecklist(controller, { dock: 'bottom-end' })
       window.__gfChecklistReady = true
     })
+
+    // Banners, on demand for the same reason as the checklist: most specs must
+    // not have a docked surface on the page.
+    window.__gfMountBanners = async function (definitions, options) {
+      const [{ createBanners }, { mountBanner }] = await Promise.all([
+        import('/packages/banner/dist/index.js'),
+        import('/packages/banner/dist/widget/index.js'),
+      ])
+      window.__gfBannerEvents = []
+      const controller = createBanners(gf, definitions, {
+        onEvent: function (e) { window.__gfBannerEvents.push(e) },
+      })
+      window.__gfBanners = controller
+      window.__gfBannerView = mountBanner(controller, options)
+      return true
+    }
 
     // Targeting is NOT installed here. `install()` auto-starts eligible flows,
     // which would fire in the middle of every other spec. A test opts in, and

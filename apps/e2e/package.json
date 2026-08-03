@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",
+    "@guideflow/banner": "workspace:*",
     "@guideflow/checklist": "workspace:*",
     "@guideflow/core": "workspace:*",
     "@guideflow/devtools": "workspace:*",

@@ -69,8 +69,10 @@ createTargeting(gf).install()
 
 ## Honest limits
 
-- **The overlay blocks the page.** This is a modal. There is no docked, non-blocking banner
-  variant — that is tracked as a separate surface and is not built yet.
+- **The overlay blocks the page.** This is a modal. For the docked, non-blocking variant, see
+  [Banners](/guide/banners) — a bar that does not dim the page, does not trap focus, waits politely
+  while a tour is running, and keeps its dismissal out of the tour funnel. It closes every limit
+  below; use the modal only when the user genuinely must read it before continuing.
 - **Only one can be up at a time.** `gf.start()` ends any running tour first, and starting an
   announcement over a live tour emits `tour:abandon`, which analytics records as the user giving
   up. Guard on `gf.isActive`.
@@ -84,6 +86,7 @@ createTargeting(gf).install()
 
 ## Related
 
+- [Banners](/guide/banners) — the docked, non-blocking announcement bar.
 - [Checklist](/guide/checklist) — the persistent, non-blocking surface.
 - [Targeting](/guide/targeting) — who sees it and when.
 - [Accessibility](/guide/accessibility) — what is verified, and by what.

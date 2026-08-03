@@ -6221,6 +6221,51 @@
       "impact": "tour:dismiss was added to core TourEvents in Phase 6 and reached neither the bridge relay nor the panel filter chips, so a dismissal was invisible in DevTools — the event you most want when asking why a funnel drops. apps/demo was missing seven.",
       "foundIn": "Phase 7.10 tail",
       "fix": "Object.keys({...} satisfies Record<keyof TourEvents, true>) at all three sites; drift now fails type-check in both directions."
+    },
+    {
+      "id": "checklist-removestyles-strips-second-mount",
+      "area": "checklist",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "mountChecklist().destroy() removed the shared stylesheet out from under a second mount",
+      "file": "packages/checklist/src/widget/index.ts",
+      "line": 203,
+      "evidence": "removeStyles(CHECKLIST_STYLE_ID) called unconditionally in destroy()",
+      "impact": "injectStyles de-dupes by id, so a second mountChecklist injects nothing. The FIRST teardown then removed the only style tag, leaving every surviving mount unstyled with no error and no warning. Two mounts is not exotic: two lists on one page, or a React StrictMode double-mount. The package's own test mounted twice and never asserted the survivor kept its styles.",
+      "foundIn": "Phase 7.8b design panel",
+      "fix": "Both @guideflow/checklist and @guideflow/banner refcount mounts and only call removeStyles when the count reaches zero. Pinned by an assertion added to the existing double-mount test."
+    },
+    {
+      "id": "e2e-importmap-missing-core-subpaths",
+      "area": "testing",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "The e2e fixture's import map covered @guideflow/core but none of its subpaths",
+      "file": "apps/e2e/fixtures/index.html",
+      "line": 84,
+      "evidence": "{ \"imports\": { \"@guideflow/core\": \"/packages/core/dist/index.js\" } }",
+      "impact": "The fixture loads dist as raw ES modules with no bundler, so every bare specifier must be mapped. A map entry for the root package does not cover its subpaths, so the first package to import @guideflow/core/targeting failed with a hard module-resolution error at load — before any assertion could run.",
+      "foundIn": "Phase 7.8b",
+      "fix": "targeting and navigation subpaths added to the import map, with a comment saying why root coverage is not enough."
+    },
+    {
+      "id": "banner-fixed-bar-covers-page-content",
+      "area": "banner",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "A position:fixed top banner covered the page content underneath it",
+      "file": "packages/banner/src/widget/styles.ts",
+      "line": 20,
+      "evidence": "position: fixed; inset-inline: 0 on .gf-banner",
+      "impact": "MEASURED: an e2e spec could not click a button the bar was sitting on top of. On a small viewport it would cover a fixed app header including its own back button. Shipped first as a documented limitation, which two design judges flagged as insufficient.",
+      "foundIn": "Phase 7.8b e2e",
+      "fix": "dock:'top' is position:sticky, so it participates in flow, reserves its own height and then sticks on scroll — needing nothing from the host, unlike publishing a measured height to an element the library does not own. dock:'bottom' stays fixed."
     }
   ]
 }

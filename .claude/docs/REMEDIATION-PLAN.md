@@ -10,8 +10,8 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **194 / 375 findings resolved** — Phases 0–6 complete and Phase 7 through 7.10d, on
-branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1, 113 P2, 42 P3.
+**Progress:** **197 / 378 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.10d plus
+7.8b, on branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**, 26 P1, 113 P2, 42 P3.
 
 The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
@@ -567,12 +567,32 @@ the budget could not absorb it**, so the packaging change had to come first.
       dialog semantics, and `PRODUCT-ROADMAP.md` corrected — it works, it is accessible, and calling
       it a hand-rolled workaround while shipping a docs page for it was working agreement 6 violated
       in the opposite direction from usual.
-- [ ] **7.8b Docked banners** — deferred deliberately, not dropped. The checklist proves the docked
-      surface pattern (z-order below the overlay, inert during a tour, its own live region, no
-      focus trap); a banner is that pattern minus the list. Building both at once would have meant
-      guessing the shared abstraction before either had a consumer.
-- [ ] **7.8c Surveys / NPS** — deferred until after 7.10. A survey without somewhere to send the
-      answers is a form that discards them, and the backend is where they would live.
+- [x] **7.8b Docked banners** — `@guideflow/banner`, the tenth package. Closes every one of the four
+      limits `apps/docs/guide/announcements.md` has recorded against the `target: null` modal since
+      Phase 7.8, and that page now points at it instead of saying the variant is not built.
+      **One shows at a time, derived rather than pushed** — highest-priority eligible undismissed,
+      ties keeping registration order, the rule targeting already uses. **Targeting is core's**:
+      `matchUrl` / `matchAudience` / `matchSchedule` imported, never reimplemented, so a throwing
+      audience predicate still means "not eligible" rather than a crash. `evaluate()` reports
+      `blockedBy` in core's own `BlockReason` vocabulary. **Dismissal is permanent unless the author
+      declares a `version`** — ADR-015's rule, with an opt-out that is a declaration rather than a
+      content hash. A landmark with a *separate* live region, never `role="alert"`.
+      **The shared abstraction was counted, not assumed.** Three designers independently measured
+      81/91/115 genuinely generic lines out of the checklist widget's 816, ~88% in one file — so
+      `a11y.ts` is copied, and `@guideflow/dock` was rejected. See **ADR-017**.
+      Two defects found on the way and fixed: `@guideflow/checklist`'s `destroy()` called
+      `removeStyles` unconditionally, so with two mounts the first teardown stripped the stylesheet
+      from the survivor, silently — its own test mounted twice and never checked; and the e2e
+      fixture's import map covered `@guideflow/core` but none of its subpaths, which is a hard
+      module-resolution error the moment any package imports one.
+      **Layout reservation was solved rather than deferred, by the e2e suite**: a spec could not
+      click a button the `position: fixed` bar sat on top of, so `dock: 'top'` became
+      `position: sticky` — it reserves its own height and needs nothing from the host.
+      62 unit tests, 8 e2e specs in real Chromium.
+- [ ] **7.8c Surveys / NPS** — the premise moved. It was deferred "until after 7.10, because the
+      backend is where the answers would live", and 7.10 decided there is no backend: analytics is
+      host-wired, so a survey's answers go wherever the host's collector sends them. That makes it
+      buildable now, and `@guideflow/banner`'s controller shape is the template.
 - [x] **Devtools event-list rot** (standalone, no phase) — converted to
       `Object.keys({…} satisfies Record<keyof TourEvents, true>)` at all three sites: the bridge
       relay, the panel's filter chips, and `apps/demo`'s live log. Both drift directions were

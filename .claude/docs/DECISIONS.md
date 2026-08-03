@@ -775,3 +775,133 @@ if something else needs that seam too.
 - happy-dom's `pushState` does not move `window.location.href`, so the unit test
   uses a hash route change — a real SPA navigation the old popstate listener also
   missed. The pushState path is only real in a real browser.
+
+---
+
+## ADR-017 — Banners are a tenth package, one slot deep, and dismissal is forever unless you say otherwise
+2026-08-02 · Status: Accepted · No core budget change (one CSS token)
+
+**Context.** 7.8b was deferred from Phase 7.8 with a stated reason: "the
+checklist proves the docked surface pattern; a banner is that pattern minus the
+list. Building both at once would have meant guessing the shared abstraction
+before either had a consumer." The checklist is now that consumer, so the
+abstraction is observable rather than hypothetical.
+
+Four independent designs were produced and three judges ranked them. They
+converged, unprompted, on every structural question. What follows records the
+convergence and the three places the judges overruled the winning design.
+
+**Decision 1: a package, and NOT a shared `@guideflow/dock`.** The reusable
+surface was *counted*, not assumed. `packages/checklist/src/widget/` is 816
+lines; three designers independently measured 81, 91 and 115 genuinely generic
+lines, ~88% of them in one file (`a11y.ts` — `createLiveRegion`,
+`setTourActive`, `restoreFocus`). A package whose entire reason to exist is
+three functions costs a manifest, a tsconfig, a tsup config, a README, a docs
+page and a slot in the fixed version group. It would also pull those
+well-covered lines out of the checklist's coverage denominator, which is a
+ratchet set just under a measured number. So `a11y.ts` is **copied**, with the
+attribution header `packages/checklist/src/identity.ts` already set as
+precedent.
+
+Not a `@guideflow/core/banner` subpath either: ADR-011 Decision 2 applies
+verbatim. `splitting: false` inlines anything a subpath imports as a value, and
+a banner needs `injectStyles`, which closes over a module-level de-dupe `Set`.
+Two copies means style de-duplication silently stops working — and a stateful UI
+surface is exactly what ADR-011 said could not be a subpath.
+
+**Decision 2: one slot, derived, with a queue behind it.** `state.current` is
+one `BannerView | null` plus a `queued` count. The visible banner is the
+highest-priority eligible undismissed one, recomputed on every input change —
+the checklist's projection discipline, not an imperative queue a caller mutates.
+Ties keep registration order, the same rule `createTargeting().evaluate()` uses,
+so `priority` means one thing across the library.
+
+Nested rather than flattened onto the state on purpose: under
+`exactOptionalPropertyTypes`, a flat `id: string | null` beside
+`title: string | undefined` narrows nothing, and every host render site would
+need `?? ''`.
+
+**Decision 3: reuse the rules, not the engine.** `matchUrl`, `matchAudience` and
+`matchSchedule` are already exported from `@guideflow/core/targeting` and take
+plain arguments. They also carry behaviour a fresh copy would lose — a throwing
+audience predicate means "not eligible" rather than a crash, an unparseable date
+bound is ignored rather than blocking forever. `evaluateFlow` itself is not
+reusable: it takes a `FlowDefinition` (which needs `initial` and `states`), its
+first act is a short-circuit on a `startTrigger` a banner does not have, and its
+`EvaluationEnv` demands `completed` and `caps`. Constructing a fake flow to
+satisfy that type is the kind of thing that reads fine and rots.
+
+`evaluate()` returns core's own `BlockReason` vocabulary, so "why isn't my
+banner showing" has the same answer shape as "why didn't my tour start". This
+surface has four silent failure modes — not hydrated, no identity, a guard
+rejected it, a stored dismissal — and without it they are indistinguishable from
+"nothing to show".
+
+**Decision 4: dismissal is permanent unless the author declares a `version`.**
+This follows ADR-015 by default and lets an author opt out declaratively.
+Omitting `version` means the dismissal suppresses every revision, forever: *do
+not put this in front of me* is about interruption, and editing the copy does
+not answer it. Setting one and changing it re-shows the banner — the author
+asserting the content is genuinely new, which only they can know, because
+`flowFingerprint` deliberately ignores content.
+
+An auto-derived content hash was rejected: it would make every dismissal carry a
+version, so no stored record could express "forever", and a typo fix would
+re-interrupt everyone.
+
+**Decision 5: a landmark with a separate live region.** `role="region"` with an
+accessible name on the surface, and announcements through a *different*,
+visually-hidden `role="status"` element. `role="status"` on the surface itself
+would re-announce the entire bar on every mutation, including the queue
+advancing after a dismissal. `role="alert"` is not offered at any tone: it is
+assertive and would cut a running tour's step announcement in half — which is
+also why `BannerTone` has no `'error'` member, since an error tone is what makes
+`role="alert"` look like the obvious next commit.
+
+**Where the judges overruled the winning design.**
+1. **`--gf-z-banner: 99995`, not 99999.** The winner reused the checklist's
+   value, so two independently-mounted fixed surfaces would tie and paint by DOM
+   order — while its own stated reason for minting a separate token was that a
+   host lowering one must not lower the other. 99995 sits below the
+   hint/hotspot band (99996–99998) and below the checklist, because a banner
+   must never cover a control the user needs.
+2. **`urlPattern` ships in v1.** The winner cut it. All three judges called that
+   a capability regression against the surface it replaces: the `target: null`
+   modal announcement already gets url scoping through `createTargeting`.
+3. **`dock`, not `placement`.** `placement` is already `PopoverPlacement` on
+   `Step`, where it means "where relative to a target". `dock` is the vocabulary
+   of the only other docked surface in the library.
+
+**Consequences.**
+- **Core gains one CSS custom property and nothing else.** Every `size-limit`
+  entry is a `./dist/*.js` path, so a token in `tokens.css` is genuinely free.
+  Core stays 15.2 kB / 15.5 kB.
+- Like `@guideflow/checklist`, the package declares **no size budget** in v1.
+  This is opt-in weight a consumer chooses to install; a CI gate without an
+  agreed number would be theatre.
+- **A live defect was found in the code being copied and fixed in the same
+  change.** `injectStyles` de-dupes by id, so a second `mountChecklist` injects
+  nothing — and `destroy()` called `removeStyles` unconditionally, stripping the
+  stylesheet out from under every surviving mount, silently. The checklist's own
+  test mounted twice and never checked. Both packages now refcount.
+- **Layout reservation was solved, not deferred — by the e2e suite.** The bar
+  shipped `position: fixed` with the limitation documented ("on a small viewport
+  a top bar can cover a fixed app header"), which two judges flagged. Then an
+  e2e spec could not click a button the bar was sitting on top of, which is the
+  same defect with a repro. `dock: 'top'` is now `position: sticky`: it
+  participates in flow, so it reserves its own height and pushes the page down,
+  then sticks as the user scrolls. That needs nothing from the host — unlike
+  publishing a measured height as a custom property, which means writing to an
+  element the library does not own and which a host assigning `cssText`
+  wholesale silently clobbers. `dock: 'bottom'` stays fixed: that is the
+  cookie-notice shape, and reserving space at the end of a short page would
+  leave a gap rather than pin the bar where the reader expects it.
+- **Deliberately not in v1**, each because it drags in more than it looks like:
+  auto-dismiss timers (WCAG 2.2.1 needs pause, stop and extend) and with them
+  corner toasts (`mountChecklist`'s default dock is `bottom-end`, and neither
+  package can detect the other); stacking; and mid-session schedule boundaries.
+- **The third live region is real and unheard.** The renderer has one, the
+  checklist has one, this adds a third, and `REMEDIATION-PLAN.md` records that no
+  NVDA or VoiceOver session has ever been run. The structure is right by
+  assertion and by axe. How the three sound together is unknown, and the docs
+  page says so rather than claiming behaviour nobody has verified.

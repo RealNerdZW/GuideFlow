@@ -36,6 +36,8 @@ packages/
   analytics/    @guideflow/analytics  AnalyticsCollector, 5 transports, ExperimentEngine
   checklist/    @guideflow/checklist   createChecklist + docked mountChecklist widget. A projection of
                                       ProgressStore. Depends on core; core never imports it.
+  banner/       @guideflow/banner      createBanners + docked mountBanner widget. One non-blocking
+                                      announcement at a time, targeted with core's own rule matchers.
   cli/          @guideflow/cli        init / export / validate
   devtools/     @guideflow/devtools   MV3 browser extension (private: not published). recorder.html is the
                                       authoring surface; the panel inspects. Tested in real Chromium by
@@ -86,19 +88,20 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10d, 2026-08-02)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.10d + 7.8b, 2026-08-02)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1082 unit tests pass**, 1 skipped
-(core 497, ai 153, react 114, analytics 98, checklist 73, vue 47, svelte 34, cli 33, devtools 33).
+Build, type-check, lint and unit tests are **all green**: **1144 unit tests pass**, 1 skipped
+(core 497, ai 153, react 114, analytics 98, checklist 73, banner 62, vue 47, svelte 34, cli 33,
+devtools 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.2 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./selector` **1.76 kB / 2.5 kB**,
 `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 327 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 359 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -408,6 +411,22 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **De-emphasis goes through `--gf-muted-opacity`, not a literal.** `#111827` at `opacity: 0.5` over
   white is 3.4:1 and fails WCAG AA; the token is 0.72 (6.6:1) and the high-contrast theme resets it
   to 1. Same for `--gf-accent-color`: any override must clear 4.5:1 against `--gf-accent-fg`.
+- **`injectStyles` de-dupes by id, so `removeStyles` on teardown is a footgun.** A second mount of
+  the same widget injects nothing; an unconditional `removeStyles(id)` in the first `destroy()` then
+  strips the stylesheet from every survivor, silently. `@guideflow/checklist` shipped that bug and
+  its own test mounted twice without checking. Both docked-surface packages now refcount mounts.
+- **A backtick inside a CSS template literal terminates the string, and the error points elsewhere.**
+  Documented since Phase 6, and still walked into while writing `packages/banner/src/widget/styles.ts`
+  — whose own header warns about it. esbuild reported `Expected ";" but found "container"` twenty
+  lines away from the backtick.
+- **`apps/e2e/fixtures/index.html` loads `dist` as raw ES modules, so every bare specifier needs an
+  import-map entry — INCLUDING subpaths.** A map entry for `@guideflow/core` does not cover
+  `@guideflow/core/targeting`. The failure is a hard module-resolution error at load, before any
+  assertion runs.
+- **A `position: fixed` docked bar covers the page.** `dock: 'top'` in `@guideflow/banner` is
+  `position: sticky` precisely so it reserves its own height and pushes content down instead. The
+  alternative — publishing a measured height as a custom property — means writing to an element the
+  library does not own. An e2e spec that could not click a covered button is what found this.
 - **`ProgressStore.setRecord` suffixes `completed` and `caps` are taken.** `setRecord(userId,
   'completed', …)` overwrites core's completed-flows array byte for byte — `getRecord` and
   `getCompletedFlows` read the identical `{ value, expiresAt }` wrapper — and `@guideflow/ai` reads

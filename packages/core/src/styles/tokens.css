@@ -69,4 +69,11 @@
      --gf-z-overlay: a running tour must dim and cover the checklist.
      Read by @guideflow/checklist as var(--gf-z-checklist, 99999). */
   --gf-z-checklist: 99999;
+
+  /* BELOW the hint/hotspot band and below the checklist, deliberately: a
+     docked banner must never cover a control the user needs — the checklist
+     launcher, or an open hotspot. Also far below --gf-z-overlay, so a running
+     tour dims and covers it like everything else.
+     Read by @guideflow/banner as var(--gf-z-banner, 99995). */
+  --gf-z-banner: 99995;
 }

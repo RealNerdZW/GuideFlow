@@ -37,6 +37,17 @@ declare global {
     /** The mounted widget, so a spec can tear it down. */
     __gfChecklistView?: { destroy(): void }
     /**
+     * Mount `@guideflow/banner` on demand, for the same reason as the
+     * checklist: most specs must not have a docked surface on the page.
+     */
+    __gfMountBanners: (definitions: unknown[], options?: unknown) => Promise<boolean>
+    /** The banner controller, once `__gfMountBanners` has run. */
+    __gfBanners?: { destroy(): void }
+    /** The mounted bar, so a spec can tear it down. */
+    __gfBannerView?: { destroy(): void }
+    /** Every `BannerEvent`, in order — the analytics seam, observed. */
+    __gfBannerEvents?: Array<{ type: string; bannerId: string }>
+    /**
      * Install `createTargeting(gf)` on demand.
      *
      * On demand rather than at load, because `install()` auto-starts eligible

@@ -90,8 +90,16 @@ describe('mountChecklist', () => {
     await flush()
     expect(document.head.querySelectorAll(`style[data-gf="${CHECKLIST_STYLE_ID}"]`)).toHaveLength(1)
 
+    // And the survivor keeps them. `injectStyles` de-dupes by id, so the second
+    // mount injected nothing — and `destroy()` used to call `removeStyles`
+    // unconditionally, stripping the stylesheet out from under the first mount.
+    // Silently: no error, just an unstyled widget. This test mounted twice all
+    // along and never checked, which is how it survived.
     second.destroy()
+    expect(document.head.querySelectorAll(`style[data-gf="${CHECKLIST_STYLE_ID}"]`)).toHaveLength(1)
+
     view.destroy()
+    expect(document.head.querySelector(`style[data-gf="${CHECKLIST_STYLE_ID}"]`)).toBeNull()
     controller.destroy()
   })
 
