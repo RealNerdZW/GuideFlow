@@ -6356,6 +6356,21 @@
       "impact": "Both are polite so they queue rather than overlap — the user hears both back to back immediately after the tour closes. Two may be fine; three is possible because the checklist holds one too. There is no cross-package coordination and adding one means one package knowing about another, which every ADR here has refused.",
       "foundIn": "Phase 7.12 announcement audit",
       "fix": "NOT FIXED. The e2e spec asserts a ceiling of two so the number cannot grow silently. Whether two is acceptable needs a human with a screen reader — see SCREEN-READER-PASS.md section C."
+    },
+    {
+      "id": "extension-icons-not-square",
+      "area": "devtools",
+      "severity": "P2",
+      "kind": "bug",
+      "verdict": "CONFIRMED",
+      "status": "resolved",
+      "title": "None of the three extension icons was square",
+      "file": "packages/devtools/assets/icon-128.png",
+      "line": 1,
+      "evidence": "PNG IHDR: icon-16 is 15x16, icon-48 is 46x48, icon-128 is 122x128",
+      "impact": "Chrome renders a non-square icon squashed, and the Chrome Web Store requires an exact 128x128 for the listing. A blocker for 7.9c that nothing had ever measured — the files were named for the sizes they were not.",
+      "foundIn": "Phase 7.9c",
+      "fix": "Regenerated centred on square canvases so the artwork is padded rather than stretched; also bit depth 8 rather than 16, cutting the 128px icon from 17.7 kB to 8.1 kB. store-readiness.test.ts now asserts every icon matches its manifest key exactly."
     }
   ]
 }

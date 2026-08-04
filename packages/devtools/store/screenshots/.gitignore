@@ -1,0 +1,9 @@
+# Store screenshots are NOT committed.
+#
+# Binary marketing assets in a source repository rot silently: nobody notices
+# when the UI changes and the pictures stop matching what installs, and the
+# store keeps the canonical copy anyway. SUBMITTING.md says how to retake them
+# against the real extension in about twenty minutes.
+*.png
+*.jpg
+!.gitignore

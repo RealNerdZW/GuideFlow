@@ -30,5 +30,12 @@
   },
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
-  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues"
+  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
+  "files": [
+    "dist",
+    "src",
+    "manifest.json",
+    "store",
+    "README.md"
+  ]
 }

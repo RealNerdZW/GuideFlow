@@ -10,9 +10,9 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **202 / 384 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.11 plus
-the announcement audit, on branch `fix/phase-0-1-engine-correctness`. Remaining open: **0 P0**,
-26 P1, 114 P2, 42 P3.
+**Progress:** **203 / 385 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.11 plus
+the announcement audit and the store pack, on branch `fix/phase-0-1-engine-correctness`.
+Remaining open: **0 P0**, 26 P1, 114 P2, 42 P3.
 
 The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
@@ -667,8 +667,25 @@ the budget could not absorb it**, so the packaging change had to come first.
       withhold the content script), the sticky bridge-injection failure, context menus that
       stopped registering after an update, and an active-tour tracker reading fields
       `tour:start` does not carry.
-- [ ] **7.9c Chrome Web Store listing** — a developer account, a fee, a privacy policy and a review.
-      Not engineering; tracked so it is not mistaken for done.
+- [ ] **7.9c Chrome Web Store listing** — **still needs a human.** A Google developer account, a
+      US$5 fee and a manual review cannot be done from here, and no part of the repository claims
+      otherwise.
+      What IS done is everything a person needs in front of them, in `packages/devtools/store/`:
+      `LISTING.md` (name, summary, detailed description, single-purpose statement, and a written
+      justification for every permission including the broad-site-access one reviewers scrutinise),
+      `PRIVACY.md`, and `SUBMITTING.md` — a runbook including what to do when the reviewer pushes
+      back on `<all_urls>`, with the `optional_host_permissions` option annotated with why 7.9b
+      removed it.
+      **A real blocker was found and fixed: none of the three icons was square.** 15×16, 46×48 and
+      122×128 — Chrome renders those squashed and the store requires an exact 128×128. Nothing had
+      ever measured them. Regenerated centred on square canvases, so the artwork is padded rather
+      than stretched, and a third the size at bit depth 8.
+      Two guards keep the mechanical half from rotting: `store-readiness.test.ts` (MV3, description
+      length, CSP with no remote code, no `host_permissions`, and every icon exactly its declared
+      size) and `no-network.test.ts`, which fails the build if `fetch`, `XMLHttpRequest`,
+      `WebSocket`, `EventSource`, `sendBeacon` or a remote `import()` appears anywhere in the
+      extension source — because "nothing leaves your machine" is a sentence in a published privacy
+      policy, and a stale privacy policy is worse than a missing feature.
 - [x] **7.10 Flows are static assets** — `no-backend-cms-or-self-hosting-story`, closed as the
       audit's option (a) plus the one engine fix that makes the replacement honest. See ADR-014.
       **No backend, no server package, no `loadFlows()`** — a `.flow.json` is a static asset, and

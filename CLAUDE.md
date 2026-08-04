@@ -97,8 +97,8 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
 Build, type-check, lint and unit tests are **all green**: **1260 unit tests pass**, 1 skipped
-(core 497, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, vue 47, mcp 37,
-svelte 34, cli 33, devtools 33).
+(core 497, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, devtools 54,
+vue 47, mcp 37, svelte 34, cli 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.2 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./selector` **1.76 kB / 2.5 kB**,
 `./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
@@ -431,6 +431,14 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
 - **`page.accessibility` was removed from Playwright.** Use `locator.ariaSnapshot()`, which returns
   the ARIA tree as YAML and works on all three engines. It is also the only tool here that shows
   what an AT actually derives — the survey's duplicate-value defect was invisible in the DOM.
+- **An icon named `icon-128.png` is not necessarily 128×128.** All three extension icons were a
+  few pixels narrow (15×16, 46×48, 122×128) from the day they were added, and nothing measured
+  them until the Chrome Web Store pack needed an exact 128×128. `store-readiness.test.ts` now reads
+  the PNG IHDR and asserts each one matches its manifest key.
+- **`packages/devtools` makes no network calls, and `no-network.test.ts` is what keeps that true.**
+  It is not a style rule: "nothing leaves your machine" is a sentence in a published privacy
+  policy, so a `fetch` added later would make that policy false. If the extension ever genuinely
+  needs the network, change `store/PRIVACY.md` and the store's data disclosure in the same commit.
 - **Anything an MCP server writes to stdout is framed as a JSON-RPC message.** One `console.log`
   corrupts the stream and the client appears to hang with no error anywhere. `packages/mcp` writes
   its startup banner to stderr, and the smoke test asserts every stdout line parses as JSON — which
