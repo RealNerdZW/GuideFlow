@@ -181,6 +181,81 @@ await targeting.send('first-invoice-created')
 
 A flow with no `targeting` block is `'manual'`, so **nothing auto-starts unless you ask for it**.
 
+## Deep links — `?gf_tour=`
+
+A link that starts a named tour in the application the recipient already has. A support agent pastes
+it into a reply; the customer opens it and lands in their own app with the guide running.
+
+```
+https://app.example.com/billing?gf_tour=add-payment-method
+https://app.example.com/billing?gf_tour=add-payment-method&gf_tour_step=enter-card
+```
+
+**Opt in per flow.** A URL is attacker-controlled and the recipient is signed in, so nothing is
+linkable until you say so:
+
+```ts
+gf.createFlow({
+  id: 'add-payment-method',
+  targeting: { deepLink: true },
+  // …
+})
+```
+
+`createTargeting(gf).install()` handles the rest, before its `load` trigger — someone clicked the
+link on purpose, so it beats a tour that would have auto-started anyway. Without the targeting
+engine, call it yourself:
+
+```ts
+import { startFromUrl } from '@guideflow/core/targeting'
+
+await startFromUrl(gf)
+```
+
+### What a link does and does not override
+
+| | Overridden by a link? | Why |
+|---|---|---|
+| `frequency` caps | ✅ yes | *How often* we would have pushed it. A human sent it and a human clicked it |
+| `urlPattern` | ✅ yes | *Where* we would have pushed it |
+| Already completed | ✅ yes | See below |
+| Already dismissed | ✅ yes | See below |
+| `audience` | ❌ **no** | *Who the tour is for.* `{ where: { plan: 'enterprise' } }` means "not this user" |
+| `schedule` | ❌ **no** | Same — a tour that has ended has ended |
+
+::: tip Replaying does not cost the user anything
+`start()` normally refuses a tour the user completed or dismissed, silently — no render, no event —
+which would make a support link do nothing for exactly the people support sends it to.
+
+A deep link uses `gf.start(flow, undefined, { force: true })`, which skips those two checks and
+**writes nothing**. It deliberately does *not* clear the completion record, because
+[`@guideflow/checklist`](./checklist) projects completed flows: clearing one would visibly un-tick
+the user's checklist. Replaying a tour must not cost someone progress they earned.
+
+`force` is public, so a "Show me this again" button in your own UI can use it too.
+:::
+
+### The parameters are removed once the tour starts
+
+Via `replaceState`, after the start resolves, preserving `history.state` and every other query
+parameter — your UTM tags and your app's own state survive. Pass `{ strip: false }` to
+`startFromUrl` if you would rather keep them.
+
+Leaving them would break more than tidiness: `urlPattern` matching is anchored, so a full-href
+pattern can never match a URL still carrying `?gf_tour=`, and every such rule would go quietly dead
+for the rest of the session.
+
+### Notes
+
+- **Register your flows first.** If they arrive from a `fetch` (see [Hosting flows](./hosting-flows)),
+  await it before installing targeting, or the link matches nothing.
+- A stale `gf_tour_step` — a step that has since been renamed — opens the tour at the beginning
+  rather than doing nothing.
+- A deep-linked start still counts toward your global frequency caps, because the user really did
+  see a tour.
+- Only mark flows you are content for **any** user to start by link. A tour is authoritative-looking
+  copy positioned over your real controls.
+
 ## Finding out why a tour did not show
 
 Every rule compiles to the same shape, so an evaluation can name the guard that rejected:

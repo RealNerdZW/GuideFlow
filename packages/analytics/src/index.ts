@@ -58,6 +58,9 @@ export { SegmentTransport } from './transports/segment.js';
 export { WebhookTransport } from './transports/webhook.js';
 export type { WebhookTransportOptions } from './transports/webhook.js';
 
+export { computeFunnel } from './funnel.js';
+export type { Funnel, FunnelStep, ComputeFunnelOptions } from './funnel.js';
+
 export { ExperimentEngine } from './experiments.js';
 export { startVariant, EXPERIMENT_EXPOSED_EVENT } from './start-variant.js';
 export type { VariantFlow, StartVariantOptions } from './start-variant.js';

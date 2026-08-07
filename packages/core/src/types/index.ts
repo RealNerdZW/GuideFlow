@@ -350,6 +350,47 @@ export interface FlowTargeting<TContext = GuidanceContext> {
   selector?: string
   /** For `startTrigger: 'event'` — the name passed to `targeting.send(name)`. */
   event?: string
+  /**
+   * Allow this flow to be started by a `?gf_tour=<id>` link.
+   *
+   * **Opt-in, and orthogonal to `startTrigger`** — a flow can be both
+   * `startTrigger: 'load'` and deep-linkable. Read by
+   * `createTargeting().install()`; inert without it, like every other field
+   * here.
+   *
+   * Opt-in rather than automatic because a URL is attacker-controlled and the
+   * recipient is signed in. It does not let anyone choose what a tour *says* —
+   * the copy is yours — but it does let them choose *which* of your tours a
+   * user sees, and a tour is an overlay that points at real controls and tells
+   * people to use them. Mark the ones you would put in a support reply.
+   *
+   * A deep link is an explicit request, so it **clears the completion and
+   * dismissal records** for that flow before starting: `start()` gates on both,
+   * silently, and a support link that does nothing for exactly the people
+   * support sends it to is worse than no feature.
+   */
+  deepLink?: boolean
+}
+
+/** Per-call options for `gf.start()`. */
+export interface StartOptions {
+  /**
+   * Start even if this user dismissed or already completed the flow.
+   *
+   * Both gates exist to decide whether to **interrupt** someone unprompted.
+   * When the user asked for the tour — a `?gf_tour=` link they clicked, a
+   * "Show me again" button in your own UI — that decision has already been
+   * made, and honouring a stale record instead produces a tour that silently
+   * does not start: `start()` returns with no render and no event, which is
+   * unobservable from the outside and reads as "the product is broken".
+   *
+   * **It writes nothing.** The obvious alternative — clearing the records first
+   * with `progress.clearCompleted()` — is destructive in a way nobody would
+   * predict: `@guideflow/checklist` projects `getCompletedFlows()`, so clearing
+   * a completion visibly un-ticks the user's checklist, and `@guideflow/ai`
+   * reads the same key. A replay must not cost the user progress they earned.
+   */
+  force?: boolean
 }
 
 // ── Spotlight ────────────────────────────────────────────────────────────────

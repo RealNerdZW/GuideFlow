@@ -98,20 +98,20 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1 + 8.2, 2026-08-07)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1/8.2/8.5/8.6, 2026-08-08)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1310 unit tests pass**, 1 skipped
-(core 526, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, devtools 54,
+Build, type-check, lint and unit tests are **all green**: **1348 unit tests pass**, 1 skipped
+(core 544, ai 153, analytics 118, react 114, survey 79, checklist 73, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
-**Seven** bundles, each gated independently: `@guideflow/core` **15.29 kB / 15.5 kB**, `./authoring`
-**5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./navigation` **2.19 kB / 2.5 kB**,
+**Seven** bundles, each gated independently: `@guideflow/core` **15.3 kB / 15.5 kB**, `./authoring`
+**5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
 `./selector` **1.76 kB / 2.5 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 455 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 487 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -154,7 +154,9 @@ default" marketing claim until someone has run it.
 > and 8.4 (content i18n) both want core bytes, so that conversation is next, not hypothetical.
 >
 > **ADR-020 did the same for the *navigation* subpath, 2 → 2.5 kB**, to land `advanceOn`: measured
-> 2.19 kB, core entry unchanged. Two subpath raises now follow this shape; it is the one to copy.
+> 2.19 kB, core entry unchanged. **ADR-021 took *targeting* 2.75 → 3 kB** for the deep-link start,
+> measured 2.83 kB — the third raise on that one bundle, which is worth saying out loud. Three
+> subpath raises now follow this shape; it is the one to copy.
 >
 > **ADR-016 raised the *targeting subpath* to 2.75 kB, not the core entry.** That is the pattern to
 > copy: `install()` needed real route handling, `watchHistory` cost 380 B, and the cost landed on
@@ -593,6 +595,20 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   `advanceOn` does, and `advance-on.test.ts` pins it by counting the listener rather than the
   behaviour, because a leaked listener still bails on `!isActive` and looks fine.
   Related: on those same three methods `step:exit`'s `stepId` names the step being **entered**.
+- **A deep link must never get past a gate by DELETING the record behind it.** `start()` refuses a
+  completed or dismissed flow silently, so `?gf_tour=` has to step over both — but
+  `progress.clearCompleted()` would also un-tick `@guideflow/checklist`, which projects
+  `getCompletedFlows()`, and perturb `@guideflow/ai`, which reads the same key. A URL destroying
+  progress the user earned, unrecoverably (there is no public read of the raw `flowId@version`
+  entries) is a much worse bug than the one being fixed. `start(flow, ctx, { force: true })` skips
+  the gates and writes nothing. Same rule anywhere else: prefer a read-time override to a write.
+- **A link overrides *delivery* policy, never *eligibility* policy.** `frequency` and `urlPattern`
+  describe how often and where we would have **pushed** a tour, and a human sent the link. `audience`
+  and `schedule` describe who it is **for** — `{ where: { plan: 'enterprise' } }` means "not this
+  user", and a URL does not overrule it. See ADR-021.
+- **`history.replaceState` does not move `location.href` in happy-dom either**, not just
+  `pushState` — measured. Assigning `window.location.href` does. So anything that *writes* the
+  address bar can only be asserted on the call in a unit test; `apps/e2e` is where the URL is real.
 - **`@guideflow/cli` no longer imports `vite` or `ora`.** `studio.ts` imported `vite` at module
   scope, so every spec that re-imported the entry point paid for it; `push.ts` pulled in `ora`. Both
   commands are deleted (7.9a, 7.10) and so are the dependencies. The CLI is `init`, `export`,

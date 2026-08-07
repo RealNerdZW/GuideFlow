@@ -257,6 +257,12 @@
       return true
     }
 
+    // Deep-link flows are registered up front — a `?gf_tour=` link that arrives
+    // before its flow exists matches nothing, which is the ordering trap the
+    // docs warn about. Starting them still requires installing targeting.
+    gf.createFlow(flows.deepLinked)
+    gf.createFlow(flows.notLinked)
+
     // Signals to the specs that wiring is complete.
     window.__gfReady = true
   </script>

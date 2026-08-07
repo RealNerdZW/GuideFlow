@@ -33,10 +33,13 @@ import { watchHistory } from '../navigation/history.js'
 import type { FlowDefinition, GuidanceContext, StartTrigger } from '../types/index.js'
 
 import { loadCaps, recordShow, saveCaps } from './caps.js'
+import { startFromUrl } from './deep-link.js'
 import { emptyCaps, evaluateFlow, type CapRecord, type FlowEvaluation } from './rules.js'
 
 export { matchUrl, matchAudience, matchSchedule, sessionCount, evaluateFlow, emptyCaps } from './rules.js'
 export type { BlockReason, CapRecord, FlowEvaluation, EvaluationEnv } from './rules.js'
+export { startFromUrl } from './deep-link.js'
+export type { DeepLinkHost, DeepLinkOptions } from './deep-link.js'
 
 const isBrowser = (): boolean => typeof window !== 'undefined' && typeof document !== 'undefined'
 
@@ -252,8 +255,19 @@ export function createTargeting<TContext extends GuidanceContext = GuidanceConte
     // but NOT a second patch: `watchHistory` keeps its refcount on
     // `Symbol.for('guideflow.navigation')` precisely so duplicate module copies
     // share one wrapper and one teardown.
-    void autoStart('load')
-    cleanups.push(watchHistory(() => { void autoStart('load') }))
+    // A `?gf_tour=` link first, and it wins over `load`. Someone clicked it on
+    // purpose; a tour that would have auto-started anyway can wait for the next
+    // page. `startFromUrl` resolves to null unless the id names a registered
+    // flow that opted in with `targeting.deepLink`.
+    const deepLink = (): void => {
+      void startFromUrl(gf).then((started) => { if (!started) void autoStart('load') })
+    }
+
+    deepLink()
+    // Re-checked on route change, because an SPA can navigate *to* a deep link
+    // internally. Stripping the parameter makes the re-check a cheap miss
+    // rather than a loop.
+    cleanups.push(watchHistory(deepLink))
 
     // `selector` — watch for the element appearing. Same primitive as
     // `waitForTarget` in @guideflow/core/navigation; duplicated rather than

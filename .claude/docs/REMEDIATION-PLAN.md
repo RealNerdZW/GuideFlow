@@ -856,14 +856,41 @@ transfers to an embedded tour library.
       abandons the tour); `hideStep` restores focus unconditionally (so finishing a tour by acting
       rips focus out of whatever the app just opened); and completion is announced by nothing at all.
       All four are invisible to `pnpm test` — happy-dom returns `[]` from `_focusables`.
-- [ ] **8.5 `?gf_tour=` deep-link start** — the only survivor of the teardown's distribution layer,
+- [x] **8.5 `?gf_tour=` deep-link start** — the only survivor of the teardown's distribution layer,
       and the answer to §6.4 "reply to the ticket with a clickable walkthrough". `StartTrigger` has
       no URL form and `URLSearchParams` appears nowhere in `packages/core/src`. Lands on the
       targeting subpath (ADR-016's pattern). **Trap:** `start()` checks `isCompleted` before the
       version gate ([index.ts:390](../../packages/core/src/index.ts#L390) vs `:399`), so a replay
-      link silently no-ops without `clearCompleted` first.
-- [ ] **8.6 `computeFunnel(events)`** — a pure function in `@guideflow/analytics`. The collector
-      already emits everything drop-off analysis needs and leaves the arithmetic to the host.
+      link silently no-ops.
+      **Done, and the adversarial pass changed the design.** The obvious fix — `clearCompleted`
+      first — is destructive in a way nobody would predict: `@guideflow/checklist` projects
+      `getCompletedFlows()`, so clearing a completion **visibly un-ticks the user's checklist**, and
+      `@guideflow/ai` reads the same key. An attacker-supplied URL would silently destroy progress
+      the user earned, unrecoverably. Instead `start()` gained a public
+      `{ force: true }` that skips both gates and **writes nothing** — which a "Show me again"
+      button in the host's own UI wants too.
+      Second finding, equally sharp: **a link may override *delivery* policy but never *eligibility*
+      policy.** `frequency` and `urlPattern` are how often and where we would have *pushed* it, and
+      a human sent the link; `audience` and `schedule` say who the tour is *for*, and a URL does not
+      overrule them. Opt-in per flow via `targeting.deepLink` — types are erased, so zero core bytes.
+      Parameters stripped **after** the start resolves: before it, `replaceState` (patched by
+      `watchHistory`) fires a route change while nothing is running and lets `autoStart('load')` win
+      the race; never, and `matchUrl`'s anchored patterns silently kill every full-href rule for the
+      session. 18 unit tests + 8 e2e. Targeting 2.75 → **3 kB**, measured 2.83 kB — **ADR-021**;
+      core entry 15.3 kB, moved only by `force`.
+- [x] **8.6 `computeFunnel(events)`** — done. A pure function in `@guideflow/analytics`: the
+      collector already emits everything drop-off analysis needs and leaves the arithmetic to the
+      host, which is right for a library with no backend but meant everyone wrote the same
+      reduction. Counts `unfinished` apart from `abandoned` (a closed tab is not a user giving up),
+      sorts by timestamp first so a merged multi-transport stream is not mis-attributed, and reports
+      **median** dwell so one idle tab cannot move it. 17 tests.
+      **Found on the way: the three `step.*` events shipped `flow_id: undefined`** — the engine puts
+      only a `stepId` on them — so a step id, unique only *within* a flow, arrived unattributed and
+      every dashboard had to infer the flow from surrounding `tour.started` events and hope the
+      stream was ordered. `apps/docs/guide/analytics.md` documented that as a limitation. The
+      collector tracks the running flow now; a step with no tour open still reports `undefined`
+      rather than a guess. `computeFunnel` also falls back to a positional walk, so streams recorded
+      before the fix still reduce.
 - [ ] **8.3 + 8.4 + 8.9 Content variables, localisation and chapters** — the differentiating pair,
       shipped together because they share one resolution pipeline
       (`raw → locale catalogue → {{token}} interpolation → renderer`). `Step.content`'s function

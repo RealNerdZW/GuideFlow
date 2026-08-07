@@ -1160,3 +1160,68 @@ one that turns "read this" into "do this".
   `next()` on ArrowRight/ArrowDown for a non-editable target. Use `when` to exclude the arrows.
 - Synthetic events are deliberately **not** rejected. An `isTrusted` check would block the
   app-dispatched `CustomEvent` form, which is the accessible integration above.
+
+---
+
+## ADR-021 — A deep link overrides delivery policy, never eligibility policy
+
+**Status.** Accepted (Phase 8.5).
+
+**Context.** `?gf_tour=<id>` starts a named tour in the application the recipient already has. It is
+the only part of the competitor teardown's whole distribution layer that transfers, and it is cheap
+precisely because our audience is already inside the product: a support agent pastes a link, the
+customer opens it, the guide runs. No clone, no hosting, no share page — and it makes the Zendesk /
+Intercom / GitBook row real without writing a single integration, because they all accept a URL.
+
+Three decisions had real alternatives.
+
+**Decision 1 — opt-in per flow, `targeting.deepLink`.** A URL is attacker-controlled and the
+recipient is signed in. The bounded exposure is *choice*: which of the host's own flows runs, on
+which route, at what moment. That is not nothing — a tour is authoritative-looking copy positioned
+over real controls, and with `clickThrough` and now `advanceOn` it can invite a click on one. The
+attacker cannot author content; they can only pick. Opting in per flow is what turns "any tour" into
+"the ones you would put in a support reply". Types are erased, so it costs core zero.
+
+**Decision 2 — `start(flow, ctx, { force: true })`, NOT `progress.clearCompleted()`.** This is the
+one the adversarial pass changed. `start()` gates on dismissal and completion, in that order, each
+returning with no render and no event — so a link sent to someone who already finished the tour does
+nothing, unobservably, which is the feature dying on its first support ticket. The obvious fix is to
+clear the record first.
+
+**That fix is destructive in a way nobody would predict.** `@guideflow/checklist` projects
+`getCompletedFlows()`, so clearing a completion **visibly un-ticks the user's checklist**, and
+`@guideflow/ai` reads the same key. An attacker-controlled URL would silently destroy progress the
+user earned, and `ProgressStore` exposes no raw read of the `flowId@version` entries, so it is not
+even restorable. `force` skips the gates for one call and **writes nothing**. It also generalises:
+a "Show me this again" button in the host's own UI wants exactly the same thing.
+
+**Decision 3 — a link overrides *delivery* policy, never *eligibility* policy.** `frequency` and
+`urlPattern` describe how often and where we would have **pushed** a tour; a human sent the link and
+a human clicked it, so both are overridden on purpose. `audience` and `schedule` describe who the
+tour is **for** — an author who wrote `audience: { where: { plan: 'enterprise' } }` meant "not this
+user", and a URL does not get to overrule them. Two calls to rules already in the bundle.
+
+**Consequences.**
+
+- **Targeting subpath 2.75 → 3 kB**, measured **2.83 kB**. Third raise on that bundle (2 → 2.5 →
+  2.75 → 3) which is worth saying out loud; the pattern is still ADR-016's — the cost lands on an
+  opt-in subpath and the core entry is untouched, measured at 15.3 kB against 15.5 kB. Only `force`
+  touched the entry, for ~10 B.
+- **The parameters are stripped, after the start resolves.** Not before: `replaceState` is patched
+  by `watchHistory` whenever targeting is installed, so stripping first fires a route change while
+  no tour is running and lets `autoStart('load')` win the race with a different tour. And not
+  never: `matchUrl` anchors its patterns, so a full-href `urlPattern` can never match a URL still
+  carrying `?gf_tour=`, and every such rule would stay silently dead for the rest of the session.
+- **The step parameter is `<param>_step`**, derived rather than separately configurable — one knob,
+  nothing to keep in sync. A step id naming nothing is a `goTo` no-op, so a link that outlived an
+  edit opens the tour at the beginning rather than doing nothing.
+- **Refused by construction, and it must stay that way:** no flow definition, JSON or fetch URL from
+  the query; no `target`/`selector` (a link that aims the spotlight at the app's real password field
+  is a phishing surface on the real origin); no `userId` or context override (progress keys are
+  namespaced by user, so that would read and clear someone else's records).
+- Targeting's `tour:start` listener records a show for *any* start, so a deep link consumes a global
+  frequency-cap slot and can suppress a later legitimate `autoStart`. Documented, not fixed —
+  counting a tour the user actually saw is correct.
+- **happy-dom cannot observe the strip.** `history.replaceState` does not move `location.href` there
+  — measured, and the same limitation CLAUDE.md already records for `pushState`. The unit tests spy
+  on the call; `apps/e2e` checks the address bar for real.

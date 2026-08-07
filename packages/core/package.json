@@ -164,7 +164,7 @@
     {
       "name": "targeting subpath",
       "path": "./dist/targeting/index.js",
-      "limit": "2.75 kB",
+      "limit": "3 kB",
       "gzip": true
     },
     {

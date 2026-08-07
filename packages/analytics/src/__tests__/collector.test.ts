@@ -237,3 +237,58 @@ describe('track()', () => {
     expect(t.events[0]?.properties['user_id']).toBe('u42');
   });
 });
+
+describe('step events name their flow', () => {
+  // The engine puts only a `stepId` on `step:enter` / `step:exit` / `step:skip`,
+  // so every step event used to ship `flow_id: undefined`. A step id is only
+  // unique *within* a flow, so a downstream funnel or dashboard had to infer
+  // the flow from surrounding `tour.started` events and hope the stream was in
+  // order — which a merged multi-transport export is not.
+  let collector: AnalyticsCollector
+  let transport: ReturnType<typeof createMockTransport>
+  let gf: ReturnType<typeof createMockGuideFlow>
+
+  beforeEach(() => {
+    transport = createMockTransport()
+    collector = new AnalyticsCollector()
+    collector.addTransport(transport)
+    gf = createMockGuideFlow()
+    collector.attach(asInstance(gf))
+  })
+
+  afterEach(() => { collector.detach() })
+
+  const flowOf = (name: string): unknown =>
+    transport.events.find((e) => e.event === name)?.properties['flow_id']
+
+  it('stamps the running flow onto viewed, exited and skipped', () => {
+    gf.emit('tour:start', { flowId: 'onboarding' })
+    gf.emit('step:enter', { stepId: 's1', stepIndex: 0, target: null })
+    gf.emit('step:exit', { stepId: 's1', stepIndex: 0 })
+    gf.emit('step:skip', { stepId: 's1' })
+
+    expect(flowOf('guideflow.step.viewed')).toBe('onboarding')
+    expect(flowOf('guideflow.step.exited')).toBe('onboarding')
+    expect(flowOf('guideflow.step.skipped')).toBe('onboarding')
+  })
+
+  it('does not leak the previous flow onto the next one', () => {
+    gf.emit('tour:start', { flowId: 'first' })
+    gf.emit('step:enter', { stepId: 'a', stepIndex: 0, target: null })
+    gf.emit('tour:complete', { flowId: 'first' })
+
+    gf.emit('tour:start', { flowId: 'second' })
+    gf.emit('step:enter', { stepId: 'b', stepIndex: 0, target: null })
+
+    const viewed = transport.events.filter((e) => e.event === 'guideflow.step.viewed')
+    expect(viewed.map((e) => e.properties['flow_id'])).toEqual(['first', 'second'])
+  })
+
+  it('leaves flow_id undefined for a step with no tour open', () => {
+    // Rather than guessing. An orphan step event is a real thing — a detach
+    // mid-tour, or a host emitting on the instance directly — and inventing an
+    // attribution for it would be worse than admitting we do not know.
+    gf.emit('step:enter', { stepId: 'orphan', stepIndex: 0, target: null })
+    expect(flowOf('guideflow.step.viewed')).toBeUndefined()
+  })
+})

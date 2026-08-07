@@ -37,8 +37,8 @@ describe('e2e fixture flows', () => {
   it('defines the flows the specs reference', () => {
     expect(Object.keys(flows).sort()).toEqual(
       [
-        'advance', 'basic', 'blocking', 'clickThrough', 'final', 'missingTarget',
-        'multistate', 'persisted', 'routed', 'scroll',
+        'advance', 'basic', 'blocking', 'clickThrough', 'deepLinked', 'final',
+        'missingTarget', 'multistate', 'notLinked', 'persisted', 'routed', 'scroll',
       ],
     )
   })

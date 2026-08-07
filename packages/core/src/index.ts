@@ -35,6 +35,7 @@ import type {
   TourEvents,
   FlowSnapshot,
   RendererContract,
+  StartOptions,
   Step,
   StepContent,
 } from './types/index.js'
@@ -75,6 +76,7 @@ export type {
   ResolveTargetResult,
   PopoverPlacement,
   SpotlightOptions,
+  StartOptions,
   HotspotOptions,
   HintStep,
   TourEvents,
@@ -120,7 +122,11 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   /** Create a flow definition — alias for createMachine */
   createFlow(definition: FlowDefinition<TContext>): FlowDefinition<TContext>
   /** Start a named or inline flow */
-  start(flow: FlowDefinition<TContext> | string, context?: TContext): Promise<void>
+  start(
+    flow: FlowDefinition<TContext> | string,
+    context?: TContext,
+    options?: StartOptions,
+  ): Promise<void>
   /** Stop the current tour */
   stop(): void
   /** Go to next step */
@@ -389,7 +395,11 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       return definition
     },
 
-    async start(flowOrId: FlowDefinition<TContext> | string, ctx?: TContext): Promise<void> {
+    async start(
+      flowOrId: FlowDefinition<TContext> | string,
+      ctx?: TContext,
+      options?: StartOptions,
+    ): Promise<void> {
       const flow =
         typeof flowOrId === 'string'
           ? _registeredFlows.get(flowOrId) ?? null
@@ -409,10 +419,18 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         // Suppress flows the user has dismissed or already finished. The
         // completed check was missing entirely, so `markCompleted` was
         // write-only and every tour replayed on every visit.
-        if (await progress.isDismissed(userId, flow.id)) return
-        // Version-scoped: finishing v1 must not suppress v2. A record written
-        // without a version still suppresses every version — see isCompleted.
-        if (await progress.isCompleted(userId, flow.id, flow.version)) return
+        // `force` skips both, and writes nothing. It exists because the two
+        // alternatives are worse: leaving them is a tour that silently does not
+        // start (no render, no event — see `StartOptions`), and clearing the
+        // records first is destructive in a way nobody would predict, because
+        // `@guideflow/checklist` projects `getCompletedFlows()` and would
+        // visibly un-tick.
+        if (options?.force !== true) {
+          if (await progress.isDismissed(userId, flow.id)) return
+          // Version-scoped: finishing v1 must not suppress v2. A record written
+          // without a version still suppresses every version — see isCompleted.
+          if (await progress.isCompleted(userId, flow.id, flow.version)) return
+        }
 
         const snapshot = await progress.loadSnapshot(userId, flow.id)
         if (snapshot && !snapshot.completed) {

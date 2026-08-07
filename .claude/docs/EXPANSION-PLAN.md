@@ -342,6 +342,10 @@ adapters too.
 
 ### 8.5 `?gf_tour=` — a link that starts a named tour
 
+> **Shipped.** See ADR-021. Two things the design panel changed: `start(flow, ctx, { force: true })`
+> rather than clearing the completion record, which would un-tick `@guideflow/checklist`; and
+> `audience`/`schedule` are *not* overridden — a link overrides delivery policy, not eligibility.
+
 The only survivor of the teardown's entire distribution layer, and the cheapest possible answer to
 all of Stage 4: **the distribution problem disappears when the audience is already inside the
 product.** A support agent pastes a link; the customer lands in their own app with the guide
@@ -362,6 +366,9 @@ tour returns silently — no render, no event. It needs `progress.clearCompleted
 first, which is exactly what 7.10b added.
 
 ### 8.6 `computeFunnel(events)` in `@guideflow/analytics`
+
+> **Shipped**, plus a defect it surfaced: the three `step.*` events carried no `flow_id`, so a
+> step id — unique only within a flow — arrived unattributed. Fixed in the collector.
 
 The collector emits everything §4.5's drop-off analysis needs and leaves the arithmetic to the host.
 A **pure function** — events in, per-step reached/completed/dropped out — turns a raw stream into
@@ -516,10 +523,10 @@ The instruction was to upgrade without regressing. The specific hazards:
 - [ ] `{{token}}` resolves from `GuidanceContext`, with fallbacks, escaped in every path, never into `content.html`
 - [ ] A locale catalogue is registrable, partial, and falls through per key
 - [ ] The stale React `GuidePopover` i18n warning is gone from `CLAUDE.md` and `apps/docs`
-- [ ] A link starts a named tour in the recipient's own app, including for a user who already finished it
+- [x] A link starts a named tour in the recipient's own app, including for a user who already finished it
 - [ ] `no-checklists-surveys-banners-resource-centre` fully closed — all four surfaces shipped
 - [ ] Four docked surfaces coexist on one page with a clean announcement audit
-- [ ] `computeFunnel` turns collector events into per-step drop-off
+- [x] `computeFunnel` turns collector events into per-step drop-off
 - [ ] Build, type-check, lint, unit and e2e all green; `core` inside its stated budget
 
 **Declined, not deferred:** capture of any kind, hosting, public link infrastructure, a sandbox, a

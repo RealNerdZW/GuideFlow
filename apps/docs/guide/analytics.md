@@ -43,9 +43,12 @@ These six, and only these six. The name comes straight from `collector.ts`.
 There is no `guideflow.tour.skipped`, no `guideflow.step.completed` and no
 `guideflow.step.abandoned`. If you built a dashboard against those names it received nothing.
 
-`flow_id` is present on the three `tour.*` events. The `step.*` events carry `step_id` but **not**
-`flow_id` — the collector does not track the active flow across step events. Join on `user_id` and
-time, or put the flow id in `globalProperties` yourself.
+`flow_id` is on **all six**. It used to be missing from the three `step.*` events — the engine puts
+only a `stepId` on them — which meant a step id, unique only *within* a flow, arrived unattributed
+and every dashboard had to infer the flow from surrounding `tour.started` events and hope the stream
+was in order. The collector tracks the running flow now.
+
+A step event emitted with no tour open still carries `flow_id: undefined`, rather than a guess.
 
 ## Event shape
 
@@ -76,6 +79,59 @@ A typical `properties` bag:
 
 `url` and `referrer` are scrubbed before they leave — by default the query string and fragment are
 stripped. See [Privacy](./privacy).
+
+## Funnels and drop-off
+
+The collector emits the events and leaves the arithmetic to you — a library has no business running
+a dashboard. But the one number everyone actually asks for, *where do people give up*, is the same
+reduction every time, so it ships:
+
+```ts
+import { computeFunnel } from '@guideflow/analytics'
+
+const [funnel] = computeFunnel(events)
+
+funnel.completionRate                              // 0–1
+funnel.steps.filter((s) => s.dropOffRate > 0.3)    // where the tour loses people
+```
+
+```ts
+interface Funnel {
+  flowId: string
+  started: number
+  completed: number
+  abandoned: number
+  unfinished: number      // started, never ended — see below
+  completionRate: number
+  steps: FunnelStep[]     // first-seen order
+}
+
+interface FunnelStep {
+  stepId: string
+  reached: number
+  droppedOff: number      // runs whose LAST step was this one, without completing
+  dropOffRate: number     // droppedOff / reached
+  skipped: number         // explicit `step:skip`, a subset of droppedOff
+  medianDwellMs?: number  // absent when nothing recorded one
+}
+```
+
+It is a pure function — no storage, no network, no backend. Pass it whatever event array you have:
+a session buffer, a day of one browser's events, or an export from your warehouse.
+
+Three things worth knowing:
+
+- **`unfinished` is not `abandoned`.** A run that started and emitted no ending means the tab closed
+  or the export was cut, not that the user gave up. Only the second is worth acting on. The step
+  they were last on still counts as a drop-off, because that is where the funnel lost them.
+- **It sorts by `timestamp` first.** A stream merged from several transports arrives in whatever
+  order the merge produced, and walking that unsorted attributes steps to the wrong run.
+- **It reduces the events you give it and nothing more.** Aggregating across users and sessions is
+  your warehouse's job — there is no server here to do it for you. See
+  [Hosting flows](./hosting-flows) for the same principle applied to delivery.
+
+`medianDwellMs` is a median rather than a mean on purpose: one user who left a tab open over lunch
+would drag a mean into uselessness.
 
 ## Privacy
 

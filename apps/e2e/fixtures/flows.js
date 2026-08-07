@@ -233,8 +233,38 @@ export const advance = {
   },
 }
 
+/**
+ * Opted in to `?gf_tour=`. The stripping half of that feature can only be
+ * observed here: happy-dom's `history.replaceState` does not move
+ * `location.href` at all, so a unit test can assert the call and not the result.
+ * @type {FlowDefinition}
+ */
+export const deepLinked = {
+  id: 'fixture-deeplink',
+  initial: 'main',
+  states: {
+    main: {
+      steps: [
+        { id: 'dl1', target: '#step-one', content: { title: 'Linked one' } },
+        { id: 'dl2', target: '#step-two', content: { title: 'Linked two' } },
+      ],
+      final: true,
+    },
+  },
+  targeting: { deepLink: true },
+}
+
+/** Registered, never marked linkable — a crafted link must not reach it. @type {FlowDefinition} */
+export const notLinked = {
+  id: 'fixture-not-linked',
+  initial: 'main',
+  states: {
+    main: { steps: [{ id: 'nl1', target: '#step-one', content: { title: 'Private' } }], final: true },
+  },
+}
+
 /** @type {Record<string, FlowDefinition>} */
 export const flows = {
   basic, final, scroll, persisted, multistate, clickThrough, blocking, routed, missingTarget,
-  advance,
+  advance, deepLinked, notLinked,
 }
