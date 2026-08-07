@@ -786,6 +786,75 @@ the budget could not absorb it**, so the packaging change had to come first.
       three surfaces landing in different corners and a dismissal surviving a reload.
       `pnpm --filter @guideflow/demo smoke`.
 
+---
+
+## Phase 8 — Expansion
+
+**The full reasoning, the triage of all ~60 capabilities, the budget analysis and the regression
+rules are in [`EXPANSION-PLAN.md`](./EXPANSION-PLAN.md). Read it before starting any item below.**
+This is the checklist; that is the plan.
+
+Source: [`COMPETITOR-TEARDOWN.md`](./COMPETITOR-TEARDOWN.md), a teardown of **guideflow.com** — a
+hosted demo-automation SaaS that shares this project's name and is a **different product**. Most of
+it is declined for reasons recorded in `EXPANSION-PLAN.md` §3.4. What follows is the part that
+transfers to an embedded tour library.
+
+> **Ordering note.** `EXPANSION-PLAN.md` §2 argues this whole phase is worth less to adoption than
+> finishing 7.9c and running the screen-reader pass. 8.2 is forty bytes and belongs *with* 7.9c.
+> The rest should not jump that queue.
+
+- [ ] **8.2 Opt-in `window.__guideflow`** — ship with 7.9c. The devtools extension detects tours
+      through that global and **no package in `packages/*` ever sets it** — only `apps/demo` and the
+      e2e fixture. So the one feature `PRODUCT-ROADMAP.md` §2 calls unique reaches zero real
+      applications. `createGuideFlow({ exposeGlobal: true })`, ~40 B. **Opt-in, never default** — the
+      global lets any script on the page drive the tour.
+- [ ] **8.1 `advanceOn`** — the highest-leverage item in the teardown. ADR-004 spent ~1.3 kB so
+      `clickThrough` carves a real `clip-path` hole and the user can click the spotlit control; the
+      engine attaches exactly one listener, `document` `keydown` at
+      [tour.ts:655](../../packages/core/src/engine/tour.ts#L655), and nothing on the target — so the
+      tour just sits there. Shepherd and driver.js both ship this. **Helper on
+      `@guideflow/core/navigation` first (zero core bytes)**; a declarative `Step.advanceOn` only if
+      usage earns the bytes. Verify in `apps/e2e` — happy-dom has no `clip-path` hit-testing.
+- [ ] **8.5 `?gf_tour=` deep-link start** — the only survivor of the teardown's distribution layer,
+      and the answer to §6.4 "reply to the ticket with a clickable walkthrough". `StartTrigger` has
+      no URL form and `URLSearchParams` appears nowhere in `packages/core/src`. Lands on the
+      targeting subpath (ADR-016's pattern). **Trap:** `start()` checks `isCompleted` before the
+      version gate ([index.ts:390](../../packages/core/src/index.ts#L390) vs `:399`), so a replay
+      link silently no-ops without `clearCompleted` first.
+- [ ] **8.6 `computeFunnel(events)`** — a pure function in `@guideflow/analytics`. The collector
+      already emits everything drop-off analysis needs and leaves the arithmetic to the host.
+- [ ] **8.3 + 8.4 + 8.9 Content variables, localisation and chapters** — the differentiating pair,
+      shipped together because they share one resolution pipeline
+      (`raw → locale catalogue → {{token}} interpolation → renderer`). `Step.content`'s function
+      form covers both today and **does not serialise**, so every `.flow.json` the recorder, MCP and
+      `export` produce is frozen in one language with no personalisation. Localisation is a side
+      catalogue on `I18nRegistry`, **not** a change to `StepContent`. Chapters are a `label` on
+      `StateNode` and must not ship before localisation. **Interpolate into text only, never
+      `content.html`.** Delete the stale React `GuidePopover` i18n warning from `CLAUDE.md` §5.5 and
+      `apps/docs/guide/i18n.md` in the same change — it is fixed in code.
+- [ ] **8.7 `@guideflow/resource-centre`** — closes the last quarter of
+      `no-checklists-surveys-banners-resource-centre`, and the only structural reason a user cannot
+      restart a tour they finished. Same dock contract as the other three:
+      **`dock-drift.test.ts` grows to four implementations**, refcounted styles, a fresh
+      `setRecord` suffix, scaffolded at the group's current version, mounted in `apps/demo`.
+      `bottom-end` is already the default for both checklist and survey.
+- [ ] **8.10 `extract_strings` / `translate_flow` MCP tools** — ADR-019's inversion applied to 8.4's
+      catalogue. Read-only, key-free, the client is the model.
+- [ ] **8.8 Recorder: insert / reorder / re-record one step** — the only capture behaviour in the
+      teardown that does not need a clone. Recorder UI only, no library bytes.
+- [ ] **8.11 GA4 + Heap transports** — four of six already ship. Do it when someone asks.
+- [ ] **8.12 Documentation recipes** — interactive changelog, help-centre guides, ABM
+      personalisation, survey answer routing, cross-frame remote control. No new code; goes last so
+      it documents what actually shipped.
+
+> **The budget conversation, once.** Core is at **15.2 / 15.5 kB — 300 B of headroom** after six
+> raises. `exposeGlobal` (~40 B), variables (~150–250 B), content i18n (~150–200 B) and a
+> declarative `Step.advanceOn` (~200–300 B) **do not all fit**. CLAUDE.md: *"the next addition
+> should look for a real saving before asking for a seventh."* Find the saving, then take **at most
+> one** raise for the whole phase, in the changeset that needs it, with a measurement and an ADR.
+> Do not dodge the gate with a `createGuideFlow({ interpolate })` seam — ADR-009's opt-in was right
+> for a 640 B sanitiser most consumers never use and would be wrong here.
+
 ## Suggested first week
 
 If you only have five days, this is the highest-value slice — it turns "the README is wrong" into "the

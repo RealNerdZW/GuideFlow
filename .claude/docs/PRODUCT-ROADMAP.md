@@ -73,8 +73,12 @@ Phase 7.10 (ADR-014) — and hosted flow storage was answered without a backend:
 static asset you serve from your own CDN (`apps/docs/guide/hosting-flows.md`).
 
 What genuinely remains from that list is the *workflow*, not the delivery: a no-code editor with
-review and rollback, server-side audience selection, surveys/NPS, a resource centre, and a
-dashboard. Targeting, scheduling, frequency capping and checklists have since shipped.
+review and rollback, server-side audience selection, a resource centre, and a dashboard. Targeting,
+scheduling, frequency capping, checklists, banners and surveys/NPS have since shipped.
+
+Of those four, only the resource centre and the editor are buildable without a backend — the
+resource centre is `EXPANSION-PLAN.md` §8.7, and the editor is the recorder (Phase D) once it can
+be installed.
 
 ---
 
@@ -181,6 +185,37 @@ Do this **after** Phase A, and only with the security model fixed.
 5. **Ship a GuideFlow MCP server** (`list_flows`, `author_flow`, `validate_flow`, `simulate`). It makes
    tour authoring agentic in any MCP client, keeps keys server-side, and shares an engine with
    `validate` and the studio. See `MCP-AND-SKILLS.md` §3.
+
+---
+
+### Phase G — Expansion (Phase 8 in the remediation queue)
+
+See **[`EXPANSION-PLAN.md`](./EXPANSION-PLAN.md)**, which grades
+[`COMPETITOR-TEARDOWN.md`](./COMPETITOR-TEARDOWN.md) — a teardown of **guideflow.com**, a hosted
+demo-automation SaaS that shares this project's name and is a different product.
+
+Three things from it are worth stating here because they change §2 and §5:
+
+1. **`clickThrough` is a half-feature.** ADR-004 spent ~1.3 kB carving a `clip-path` hole so the
+   user can genuinely click the highlighted control, and the engine has no way to notice that they
+   did — its only listener is `document` `keydown`. **`advanceOn` is the highest-leverage single
+   item now on the roadmap**, and it is table stakes against Shepherd and driver.js.
+2. **A `.flow.json` can carry neither variables nor translations.** `Step.content`'s function form
+   covers both for code-authored flows and does not serialise, so the entire ADR-014 static-asset
+   authoring path — recorder, MCP, `export` — emits tours whose copy is frozen in one language at
+   author time. Nothing in the OSS tier has this; the commercial tier sells it.
+3. **The binding constraint is distribution, not capability.** No open P0s, twelve packages, 1260
+   unit and 391 e2e tests. What blocks adoption is that the devtools extension is unlistable
+   (7.9c), the library never sets `window.__guideflow` so the extension detects almost no real
+   application, no manual screen-reader pass has run, and this document's own §1 recommendation to
+   stop leading with "AI-Powered Product Tours" is unactioned.
+
+**Not adopted, with reasoning in `EXPANSION-PLAN.md` §3.4:** capture of any kind, hosting, sandboxes,
+clones, SSO, collaborative editing, AI voice/avatars, visitor enrichment, lead scoring, SOC 2. Those
+require a backend and a company; §4 below already says so.
+
+`EXPANSION-PLAN.md` §8 also records a name-collision risk that is the owner's decision, not an
+engineering one.
 
 ---
 

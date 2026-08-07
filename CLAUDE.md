@@ -6,6 +6,12 @@ Operating manual for Claude Code in this repository. Read this before touching a
 > [`AUDIT.md`](.claude/docs/AUDIT.md) (what is broken) and
 > [`REMEDIATION-PLAN.md`](.claude/docs/REMEDIATION-PLAN.md) (the ordered work queue).
 > [`.claude/README.md`](.claude/README.md) indexes everything.
+>
+> **`COMPETITOR-TEARDOWN.md` is not a plan for this repository.** It describes **guideflow.com**, a
+> hosted demo-automation SaaS that captures a *clone* of an app for *prospects who do not have it*.
+> This is an embedded library that guides an app's *own signed-in users*. Same name, different
+> product. [`EXPANSION-PLAN.md`](.claude/docs/EXPANSION-PLAN.md) grades it and is Phase 8; read that
+> first, and never implement the teardown literally — it needs a backend, against ADR-014.
 
 ---
 
@@ -283,9 +289,15 @@ into the renderer via `renderer.setI18n(i18n)`. `DefaultRenderer` uses `this._i1
 so the module-level singleton is only a fallback.
 
 If you write a custom `RendererContract`, implement the optional `setI18n(registry)` hook or your
-strings will not respond to `gf.i18n.use(locale)`. Note that `@guideflow/react`'s `GuidePopover`
-still reads the `defaultI18n` singleton directly — that is AUDIT
-`react-guidepopover-ignores-instance-i18n`, scheduled for Phase 5.
+strings will not respond to `gf.i18n.use(locale)`.
+
+**Correction.** This section used to say `@guideflow/react`'s `GuidePopover` still reads the
+`defaultI18n` singleton. **It does not** — it reads `gf.i18n`, the instance registry, at
+[GuidePopover.tsx:206](packages/react/src/components/GuidePopover.tsx#L206). AUDIT
+`react-guidepopover-ignores-instance-i18n` is fixed; the warning outlived the fix here and in
+`apps/docs/guide/i18n.md`, which still carries a `::: warning React GuidePopover` block that is now
+wrong. `I18nRegistry` covers **eleven chrome strings only** — `Locale` is a closed interface and it
+does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
 
 ---
 
@@ -545,6 +557,25 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
   component instance, so a composable called from a bare `effectScope()` (a Pinia store, a shared
   composable) registers no teardown at all and leaks every listener. `onScopeDispose` covers the
   component case too, because `setup()` runs inside its own effect scope.
+- **`clickThrough` lets the user click the button, and the tour does not notice.** The engine
+  attaches exactly one listener — `document.addEventListener('keydown', …)` at
+  [tour.ts:655](packages/core/src/engine/tour.ts#L655) — and nothing on the target. The spotlight's
+  only others are a backdrop-dismiss click and scroll/resize. So ADR-004's 1.3 kB `clip-path` hole
+  is half a feature: the user acts, the app responds, and the step waits for **Next**. There is no
+  `advanceOn` anywhere in the repo. That is `EXPANSION-PLAN.md` §8.1, not an oversight to fix
+  casually — it is core bytes against 300 B of headroom.
+- **A `.flow.json` can carry neither variables nor translations, and that is structural.**
+  `Step.content` accepts `() => MaybePromise<StepContent>`, so a *code-authored* flow personalises
+  and localises freely — and a function does not serialise. Every flow file the recorder, the MCP
+  server and `guideflow export` produce therefore has copy frozen in one language at author time.
+  Before "fixing" this by making `content` a function somewhere, note that the whole ADR-014
+  delivery model is a static JSON asset. See `EXPANSION-PLAN.md` §§8.3–8.4.
+- **The library never sets `window.__guideflow`, so the devtools extension detects almost nothing.**
+  Documented above as the explanation for every "the extension doesn't detect my app" report — the
+  consequence is that the feature `PRODUCT-ROADMAP.md` §2 calls unique reaches zero real
+  applications. Only `apps/demo/src/main.tsx` and the e2e fixture assign it. Forty bytes behind an
+  opt-in flag fixes it (`EXPANSION-PLAN.md` §8.2); it must stay opt-in, because the global lets any
+  script on the page drive the tour.
 - **`@guideflow/cli` no longer imports `vite` or `ora`.** `studio.ts` imported `vite` at module
   scope, so every spec that re-imported the entry point paid for it; `push.ts` pulled in `ora`. Both
   commands are deleted (7.9a, 7.10) and so are the dependencies. The CLI is `init`, `export`,
