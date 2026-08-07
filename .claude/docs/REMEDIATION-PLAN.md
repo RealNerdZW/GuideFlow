@@ -776,9 +776,15 @@ the budget could not absorb it**, so the packaging change had to come first.
       package that imports them was added to the demo. And both surfaces persist their dismissal
       to `ProgressStore`, so a demo that showed them once and never again is useless: the section
       has explicit reset buttons, and the survey cooldown is 60s rather than 90 days.
-      `apps/demo/smoke.mjs` drives the built demo in real Chromium — six checks including the
-      dismissal surviving a reload and Reset bringing it back. `pnpm --filter @guideflow/demo smoke`.
-      **The checklist is still not mounted in the demo.**
+      The checklist is mounted too, in the third corner, with two of its items naming real demo
+      flow ids so they tick through the projection rather than through a checklist write. The
+      section shows the asymmetry that follows and that nothing else demonstrates:
+      `checklist.reset()` clears the manual ticks and deliberately leaves the flow-backed ones,
+      because only `progress.clearCompleted()` can forget a completed tour — which is what 7.10b
+      added and what the second button calls.
+      `apps/demo/smoke.mjs` drives the built demo in real Chromium — eight checks including all
+      three surfaces landing in different corners and a dismissal surviving a reload.
+      `pnpm --filter @guideflow/demo smoke`.
 
 ## Suggested first week
 

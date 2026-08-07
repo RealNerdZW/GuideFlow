@@ -65,7 +65,7 @@ const check = async (label, fn) => {
 };
 
 let passed = 0;
-const total = 6;
+const total = 8;
 
 if (await check('the banner renders, docked at the top', async () =>
   (await page.locator('.gf-banner').count()) === 1 &&
@@ -85,6 +85,16 @@ if (await check('choosing a score reveals the follow-up', async () => {
   await page.locator('.gf-survey input[value="9"]').check();
   await page.waitForTimeout(150);
   return await page.locator('.gf-survey-followup-input').isVisible();
+})) passed++;
+
+if (await check('the checklist renders, bottom-end, with its four items', async () =>
+  (await page.locator('.gf-checklist').count()) === 1 &&
+  (await page.locator('.gf-checklist').getAttribute('data-gf-dock')) === 'bottom-end')) passed++;
+
+if (await check('all three surfaces are in different corners', async () => {
+  const dock = async (sel) => page.locator(sel).getAttribute('data-gf-dock');
+  const docks = [await dock('.gf-banner'), await dock('.gf-survey'), await dock('.gf-checklist')];
+  return new Set(docks).size === 3;
 })) passed++;
 
 if (await check('dismissing the banner survives a reload, and Reset brings it back', async () => {

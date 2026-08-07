@@ -29,6 +29,8 @@ export default defineConfig({
       { find: '@guideflow/analytics', replacement: path.resolve(__dirname, '../../packages/analytics/src/index.ts') },
       // Anchored regexes rather than bare strings, so the `/widget` subpath
       // cannot be swallowed by the shorter package-name entry.
+      { find: /^@guideflow\/checklist\/widget$/, replacement: path.resolve(__dirname, '../../packages/checklist/src/widget/index.ts') },
+      { find: /^@guideflow\/checklist$/, replacement: path.resolve(__dirname, '../../packages/checklist/src/index.ts') },
       { find: /^@guideflow\/banner\/widget$/, replacement: path.resolve(__dirname, '../../packages/banner/src/widget/index.ts') },
       { find: /^@guideflow\/banner$/, replacement: path.resolve(__dirname, '../../packages/banner/src/index.ts') },
       { find: /^@guideflow\/survey\/widget$/, replacement: path.resolve(__dirname, '../../packages/survey/src/widget/index.ts') },

@@ -14,6 +14,7 @@
     "@guideflow/ai": "workspace:*",
     "@guideflow/analytics": "workspace:*",
     "@guideflow/banner": "workspace:*",
+    "@guideflow/checklist": "workspace:*",
     "@guideflow/core": "workspace:*",
     "@guideflow/react": "workspace:*",
     "@guideflow/survey": "workspace:*",

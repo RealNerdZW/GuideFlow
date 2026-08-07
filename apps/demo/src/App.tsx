@@ -1,5 +1,6 @@
 import type { GuideBrain } from '@guideflow/ai'
 import type { BannerController } from '@guideflow/banner'
+import type { ChecklistController } from '@guideflow/checklist'
 import { ExperimentEngine, type AnalyticsCollector, type AnalyticsEvent } from '@guideflow/analytics'
 import type { FlowDefinition, FlowSnapshot, GuideFlowInstance, HintStep, Step, TourEvents } from '@guideflow/core'
 import { watchAttributeTour } from '@guideflow/core'
@@ -33,6 +34,7 @@ export interface AppProps {
   capturedEvents: AnalyticsEvent[]
   banners: BannerController
   surveys: SurveyController
+  checklist: ChecklistController
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +131,7 @@ export function App({
   capturedEvents,
   banners,
   surveys,
+  checklist,
 }: AppProps): React.JSX.Element {
   const { isActive, currentStepIndex, totalSteps, next, prev, stop } = useTour()
   const { ref: headerRef }   = useTourStep<HTMLHeadingElement>('welcome-header')
@@ -155,6 +158,11 @@ export function App({
     surveys.subscribe,
     surveys.getSnapshot,
     surveys.getServerSnapshot,
+  )
+  const checklistState = useSyncExternalStore(
+    checklist.subscribe,
+    checklist.getSnapshot,
+    checklist.getServerSnapshot,
   )
 
   // ── Programmatic hotspots ───────────────────────────────────────────────
@@ -701,6 +709,7 @@ export function App({
             📣 Docked surfaces
             <span style={badge('purple')}>@guideflow/banner</span>
             <span style={badge('green')}>@guideflow/survey</span>
+            <span style={badge('amber')}>@guideflow/checklist</span>
           </h2>
           <p style={{ margin: '0 0 12px', color: C.muted, fontSize: 13 }}>
             Non-blocking, one at a time, and inert while a tour runs — scroll up to the bar
@@ -721,6 +730,28 @@ export function App({
             {surveyState.current?.score !== null && surveyState.current !== null && (
               <span style={badge('purple')}>score: {surveyState.current.score}</span>
             )}
+            <span style={badge(checklistState.complete ? 'green' : 'blue')}>
+              checklist: {checklistState.doneCount} of {checklistState.totalCount}
+            </span>
+          </div>
+
+          <p style={{ margin: '0 0 8px', color: C.muted, fontSize: 13 }}>
+            The checklist is a <strong>projection</strong>, not a second source of truth. Two of its
+            items name a <code style={S.code}>flowId</code>, so they tick because the tour id is in{' '}
+            <code style={S.code}>progress.getCompletedFlows()</code> — the checklist never writes
+            that array. Run the onboarding tour to the end and watch the first item tick with no
+            checklist write at all.
+          </p>
+          <div style={{ ...S.log, marginBottom: 10 }}>
+            {checklistState.items.map((item) => (
+              <div key={item.id} style={{ color: item.done ? '#86efac' : C.subtle }}>
+                {item.done ? '✓' : '○'} {item.title}
+                {item.source && <span style={{ color: '#93c5fd' }}> {`// via ${item.source}`}</span>}
+                {!item.available && item.blockedBy.length > 0 && (
+                  <span style={{ color: '#fca5a5' }}> {`// blocked by ${item.blockedBy.join(', ')}`}</span>
+                )}
+              </div>
+            ))}
           </div>
 
           <p style={{ margin: '0 0 8px', color: C.muted, fontSize: 12 }}>
@@ -734,7 +765,34 @@ export function App({
             <button style={btn('secondary')} onClick={() => void surveys.reset()}>
               Ask the survey again
             </button>
+            <button style={btn('secondary')} onClick={() => void checklist.reset()}>
+              Clear manual ticks
+            </button>
+            <button
+              style={btn('danger')}
+              onClick={() => {
+                void (async () => {
+                  // `checklist.reset()` above clears only the checklist's OWN
+                  // record — the manual ticks. A flow-backed item stays ticked
+                  // because ProgressStore still says the tour is completed, and
+                  // the only honest way to un-tick it is to forget the
+                  // completion. That is `clearCompleted`, and this is what it
+                  // is for.
+                  await gf.progress.clearCompleted('demo-user', 'demo-onboarding')
+                  await gf.progress.clearCompleted('demo-user', 'demo-fsm-branch')
+                  await checklist.refresh()
+                })()
+              }}
+            >
+              Forget the completed tours
+            </button>
           </div>
+          <p style={{ margin: '0 0 10px', color: C.muted, fontSize: 12 }}>
+            Those last two are deliberately separate. <code style={S.code}>checklist.reset()</code>{' '}
+            clears the manual ticks and leaves the flow-backed ones, because they are not the
+            checklist&apos;s to clear — only{' '}
+            <code style={S.code}>progress.clearCompleted()</code> can forget a completed tour.
+          </p>
 
           <div style={{ ...S.log, marginTop: 8 }}>
             <div style={{ color: '#86efac' }}>
@@ -742,6 +800,7 @@ export function App({
             </div>
             <div>guideflow.banner.show | .action | .dismiss</div>
             <div>guideflow.survey.show | .response | .dismiss</div>
+            <div>guideflow.checklist.item-complete | .item-activate | .complete | .dismiss</div>
             <div style={{ color: C.subtle }}>
               {'// the survey cooldown is 60s here; 90 days is the usual NPS setting'}
             </div>

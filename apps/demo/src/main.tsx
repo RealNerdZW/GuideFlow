@@ -8,6 +8,8 @@ import {
 } from '@guideflow/analytics'
 import { createBanners } from '@guideflow/banner'
 import { mountBanner } from '@guideflow/banner/widget'
+import { createChecklist } from '@guideflow/checklist'
+import { mountChecklist } from '@guideflow/checklist/widget'
 import { createGuideFlow, LocalStorageDriver } from '@guideflow/core'
 import { TourProvider } from '@guideflow/react'
 import { createSurveys } from '@guideflow/survey'
@@ -145,11 +147,46 @@ export const surveys = createSurveys(gf, [
   },
 })
 
-// `bottom-start`: `mountSurvey` defaults to `bottom-end`, which is also
-// `mountChecklist`'s default. Neither package can detect the other, so the
-// corner is the host's problem to allocate — and this is the demo of that.
+// A PROJECTION, not a second source of truth. The two flow-backed items tick
+// because `demo-onboarding` and `demo-fsm-branch` appear in
+// `progress.getCompletedFlows` — the checklist never writes that array, and
+// `complete()` deliberately never calls `markCompleted`, because `gf.start()`
+// gates on `isCompleted` and would then silently suppress the very tour the
+// item launches. See ADR-011.
+export const checklist = createChecklist(gf, {
+  id: 'demo-getting-started',
+  title: 'Getting started',
+  version: 1,
+  items: [
+    {
+      id: 'tour',
+      title: 'Take the product tour',
+      description: 'Five steps through this page',
+      flowId: 'demo-onboarding',
+    },
+    {
+      id: 'branch',
+      title: 'See a branching flow',
+      description: 'The FSM picks a path from context',
+      flowId: 'demo-fsm-branch',
+    },
+    { id: 'invite', title: 'Invite a teammate' },
+    { id: 'billing', title: 'Add billing', requires: ['invite'] },
+  ],
+}, {
+  onEvent: (event) => {
+    console.log('[checklist]', event.type, event)
+    collector.track(`guideflow.checklist.${event.type}`, { ...event })
+  },
+})
+
+// Three corners, allocated by the HOST. `mountSurvey` and `mountChecklist` both
+// default to `bottom-end`; neither package can detect the other, so deciding
+// who gets which corner is the integrator's job — and showing that is part of
+// what a demo is for.
 mountBanner(banners, { dock: 'top' })
 mountSurvey(surveys, { dock: 'bottom-start' })
+mountChecklist(checklist, { dock: 'bottom-end' })
 
 // ---------------------------------------------------------------------------
 // 4. Expose window.__guideflow so @guideflow/devtools extension can detect it.
@@ -170,6 +207,7 @@ createRoot(container).render(
         capturedEvents={capturedEvents}
         banners={banners}
         surveys={surveys}
+        checklist={checklist}
       />
     </TourProvider>
   </React.StrictMode>,

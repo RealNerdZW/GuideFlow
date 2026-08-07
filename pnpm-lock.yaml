@@ -68,6 +68,9 @@ importers:
       '@guideflow/banner':
         specifier: workspace:*
         version: link:../../packages/banner
+      '@guideflow/checklist':
+        specifier: workspace:*
+        version: link:../../packages/checklist
       '@guideflow/core':
         specifier: workspace:*
         version: link:../../packages/core
