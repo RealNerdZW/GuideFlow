@@ -25,6 +25,28 @@ The DevTools extension is currently in development and not yet published to brow
 - Content script injects into inspected pages
 - Background service worker manages state
 
+## Letting it see your app
+
+The panel finds a page through the `window.__guideflow` global, and **the library does not set it
+unless you ask**:
+
+```ts
+const gf = createGuideFlow({
+  exposeGlobal: import.meta.env.DEV,   // or process.env.NODE_ENV !== 'production'
+})
+```
+
+It is opt-in rather than automatic because the global hands *any* script on the page a driveable
+tour instance — an analytics tag, a chat widget or an ad script could start, skip or end a tour and
+read `gf.progress`. Gate it on a development build and the panel works while you are building,
+without shipping the handle to production.
+
+`destroy()` clears the global again, and only if it still points at that instance — so two opted-in
+instances on one page cannot have the second's teardown unregister the first.
+
+Without it the panel says plainly that the page is not running GuideFlow. That message is almost
+always this setting, not a bug.
+
 ## Installing
 
 ::: warning Not on the Chrome Web Store yet

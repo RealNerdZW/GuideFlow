@@ -198,7 +198,43 @@ export const missingTarget = {
   },
 }
 
+/**
+ * Two clickThrough steps on the same control, driven by `advanceOn` rather than
+ * by the Next button. Proves the half of ADR-004 that was missing for five
+ * phases: the user could click the spotlit element and the tour did not notice.
+ *
+ * Only real in a browser — happy-dom has no layout engine and no `clip-path`
+ * hit-testing, so a unit test cannot tell a carved hole from a solid overlay.
+ * @type {FlowDefinition}
+ */
+export const advance = {
+  id: 'fixture-advance',
+  initial: 'main',
+  states: {
+    main: {
+      steps: [
+        {
+          id: 'av1',
+          target: '#clickable-target',
+          placement: 'bottom',
+          clickThrough: true,
+          content: { title: 'Step one', body: 'Click the button to continue.' },
+        },
+        {
+          id: 'av2',
+          target: '#clickable-target',
+          placement: 'bottom',
+          clickThrough: true,
+          content: { title: 'Step two', body: 'Click it again to finish.' },
+        },
+      ],
+      final: true,
+    },
+  },
+}
+
 /** @type {Record<string, FlowDefinition>} */
 export const flows = {
   basic, final, scroll, persisted, multistate, clickThrough, blocking, routed, missingTarget,
+  advance,
 }

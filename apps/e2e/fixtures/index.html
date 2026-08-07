@@ -37,6 +37,7 @@
   <button id="start-persisted-btn" type="button">Start Persisted Tour</button>
   <button id="start-multistate-btn" type="button">Start Multi-State Tour</button>
   <button id="start-clickthrough-btn" type="button">Start Click-Through Tour</button>
+  <button id="start-advance-btn" type="button">Start Advance-On Tour</button>
   <button id="start-blocking-btn" type="button">Start Blocking Tour</button>
   <button id="start-routed-btn" type="button">Start Routed Tour</button>
   <button id="start-missing-target-btn" type="button">Start Missing-Target Tour</button>
@@ -102,7 +103,7 @@
 
   <script type="module">
     import { createGuideFlow } from '/packages/core/dist/index.js'
-    import { createNavigation } from '/packages/core/dist/navigation/index.js'
+    import { createNavigation, advanceOn } from '/packages/core/dist/navigation/index.js'
     import { flows } from './flows.js'
 
     // A pushState router, ~10 lines, standing in for React Router et al.
@@ -128,11 +129,11 @@
       // No `subscribe` and no `navigate`: exercise the built-in history watcher
       // and the passive wait, which is the harder path of the two.
       navigation: createNavigation({ waitForRoute: 8000, waitForTarget: 3000, indicatorDelay: 50 }),
+      // Sets window.__guideflow, which the devtools extension detects and which
+      // most specs in this suite reach through. This used to be a hand-written
+      // assignment below, because the library had no way to do it.
+      exposeGlobal: true,
     })
-
-    // The devtools extension detects tours through this global, and the library
-    // never sets it — every integration must do this itself.
-    window.__guideflow = gf
 
     // Test hooks: record the exact sequence of steps rendered, so specs can
     // assert on what happened rather than only on what is currently visible.
@@ -164,6 +165,7 @@
     wire('start-persisted-btn', flows.persisted)
     wire('start-multistate-btn', flows.multistate)
     wire('start-clickthrough-btn', flows.clickThrough)
+    wire('start-advance-btn', flows.advance)
     wire('start-blocking-btn', flows.blocking)
     wire('start-routed-btn', flows.routed)
     wire('start-missing-target-btn', flows.missingTarget)
@@ -181,6 +183,11 @@
     window.__gfTimeouts = []
     gf.on('step:waiting', function (e) { window.__gfWaiting.push(e.stepId + ':' + e.reason) })
     gf.on('step:timeout', function (e) { window.__gfTimeouts.push(e.stepId + ':' + e.reason) })
+
+    // Advance the tour when the user actually clicks the spotlit control, which
+    // is the half of clickThrough that did not exist until Phase 8.1. Armed for
+    // the whole page load: it only ever attaches for a step named in the map.
+    advanceOn(gf, { av1: 'click', av2: 'click' })
 
     // Proof that a click reached the page rather than the overlay.
     var clicks = 0

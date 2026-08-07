@@ -198,6 +198,9 @@ user-visible change, no silent budget raises.
 
 ### 8.1 `advanceOn` — advance when the user actually does the thing
 
+> **Shipped.** See ADR-020. The helper form was taken; a declarative `Step.advanceOn` was not.
+> The keyboard limitation it surfaced is registered as **8.1b**, not hidden.
+
 **The highest-leverage item in the document, and the repo has already paid for the expensive half.**
 
 ADR-004 / Phase 7.2 spent ~1.3 kB rebuilding the overlay so `clickThrough` carves a real `clip-path`
@@ -235,6 +238,9 @@ leaked across a fast next/prev (the `_renderGeneration` discipline applies); no 
 target is detached. **E2E is mandatory** — `clip-path` hit-testing does not exist in happy-dom.
 
 ### 8.2 Opt-in `window.__guideflow` — let the extension find real applications
+
+> **Shipped.** Cost ~90 B, not the estimated 40 — `configure()` support and the identity-guarded
+> teardown were both needed. Core entry 15.29 / 15.5 kB.
 
 The highest value-per-byte item in the whole document, and it belongs in §2's distribution list.
 
@@ -504,8 +510,8 @@ The instruction was to upgrade without regressing. The specific hazards:
 
 ## 7. Exit criteria
 
-- [ ] A `clickThrough` step advances when the user clicks the highlighted control, proven in e2e
-- [ ] `createGuideFlow({ exposeGlobal: true })` makes the devtools extension detect a real app
+- [x] A `clickThrough` step advances when the user clicks the highlighted control, proven in e2e
+- [x] `createGuideFlow({ exposeGlobal: true })` makes the devtools extension detect a real app
 - [ ] A `.flow.json` with no JavaScript at all renders personalised, translated content
 - [ ] `{{token}}` resolves from `GuidanceContext`, with fallbacks, escaped in every path, never into `content.html`
 - [ ] A locale catalogue is registrable, partial, and falls through per key

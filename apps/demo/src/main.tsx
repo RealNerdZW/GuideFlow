@@ -30,6 +30,18 @@ const gf = createGuideFlow({
   },
   context: { userId: 'demo-user', roles: ['user'], featureFlags: { newUI: true } },
   spotlight: { animated: true, overlayOpacity: 0.55 },
+  // Lets the @guideflow/devtools extension detect this page. This used to be a
+  // hand-written `window.__guideflow = …` down at the bottom of this file, and
+  // that assignment was the ONLY one in the repository — which is why the
+  // extension detected the demo and nothing else. It is a config option now
+  // (Phase 8.2), and off by default: the global hands any script on the page a
+  // driveable tour instance, so a real app should gate it on a dev build.
+  //
+  // Which is why this one does. An example that contradicts its own advice is
+  // worse than no example. The deployed demo is a production build, so the
+  // panel reports it as not running GuideFlow — the documented behaviour, not
+  // a bug.
+  exposeGlobal: import.meta.env.DEV,
 })
 
 // Register French and Spanish i18n locales so the i18n demo section can switch live
@@ -187,12 +199,6 @@ export const checklist = createChecklist(gf, {
 mountBanner(banners, { dock: 'top' })
 mountSurvey(surveys, { dock: 'bottom-start' })
 mountChecklist(checklist, { dock: 'bottom-end' })
-
-// ---------------------------------------------------------------------------
-// 4. Expose window.__guideflow so @guideflow/devtools extension can detect it.
-//    The content script injected by the extension watches for this property.
-// ---------------------------------------------------------------------------
-;(window as Window & { __guideflow?: unknown }).__guideflow = gfWithAI
 
 // ---------------------------------------------------------------------------
 // 4. Mount React tree

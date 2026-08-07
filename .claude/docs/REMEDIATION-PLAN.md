@@ -803,18 +803,59 @@ transfers to an embedded tour library.
 > finishing 7.9c and running the screen-reader pass. 8.2 is forty bytes and belongs *with* 7.9c.
 > The rest should not jump that queue.
 
-- [ ] **8.2 Opt-in `window.__guideflow`** — ship with 7.9c. The devtools extension detects tours
+- [x] **8.2 Opt-in `window.__guideflow`** — done. `createGuideFlow({ exposeGlobal: true })`. The devtools extension detects tours
       through that global and **no package in `packages/*` ever sets it** — only `apps/demo` and the
       e2e fixture. So the one feature `PRODUCT-ROADMAP.md` §2 calls unique reaches zero real
       applications. `createGuideFlow({ exposeGlobal: true })`, ~40 B. **Opt-in, never default** — the
       global lets any script on the page drive the tour.
-- [ ] **8.1 `advanceOn`** — the highest-leverage item in the teardown. ADR-004 spent ~1.3 kB so
+      **The blast radius is worse than "someone can drive your tour", and the doc comment now says
+      so:** `instance` extends the emitter, so one line of third-party script can
+      `emit('tour:complete', …)`, which runs core's own handler and writes a completed record to
+      storage — permanently suppressing that flow for that user. `configure({ exposeGlobal: false })`
+      is a real kill switch rather than the silent no-op it started as (that would have been a fresh
+      instance of AUDIT `configure-mostly-ignored`, three lines from the warn that exists for it).
+      `destroy()` clears the global only if it still points at that instance.
+      **Four** places asserted "the library never sets this" — CLAUDE.md §6 twice, `global.d.ts`, and
+      a core test named after the claim. All corrected. The e2e fixture switched to the option, which
+      turned 20+ existing assertions into live four-browser coverage for no new test code.
+      Core entry 15.2 → **15.29 kB** against 15.5 kB.
+- [x] **8.1 `advanceOn`** — the highest-leverage item in the teardown. ADR-004 spent ~1.3 kB so
       `clickThrough` carves a real `clip-path` hole and the user can click the spotlit control; the
       engine attaches exactly one listener, `document` `keydown` at
       [tour.ts:655](../../packages/core/src/engine/tour.ts#L655), and nothing on the target — so the
       tour just sits there. Shepherd and driver.js both ship this. **Helper on
       `@guideflow/core/navigation` first (zero core bytes)**; a declarative `Step.advanceOn` only if
       usage earns the bytes. Verify in `apps/e2e` — happy-dom has no `clip-path` hit-testing.
+      **Done, and the adversarial pass found a leak in the first implementation.** `step:exit` is
+      **not** a superset of the terminal paths: `send()` moves the machine before `_emitStepExit()`,
+      which reads the machine's *current* step — `null` for an ordinary `done: { final: true }` state
+      with no steps — so the emit is skipped while the once-only flag is set, `_doEnd` early-returns
+      on it, and only `tour:complete` fires. Reproduced, then fixed by also taking `tour:complete`
+      and `tour:abandon`. The test counts the listener rather than the behaviour, because a leaked
+      listener still bails on `!isActive` and looks fine; measured `['keydown','keydown']` without
+      the fix.
+      Also closed: `step:waiting` and `tour:pause` both drop the spotlight — which releases pointer
+      capture and makes the *whole page* clickable — and neither emits `step:exit`; and `step:enter`
+      fires twice with no exit between on `resume()` and `rerender()`, so teardown-before-arm is
+      load-bearing. And forgetting `clickThrough` does not merely no-op: the click hits the overlay,
+      whose handler calls `skip()`, so the user's first attempt to follow the instruction *destroys*
+      the tour. It warns once, naming that.
+      20 unit tests + **32 e2e across four browsers**. Core entry unchanged; navigation subpath
+      2 → **2.5 kB** gate, measured 2.19 kB — **ADR-020**, following ADR-016's pattern.
+      Known limitation registered as **8.1b**, not hidden: a `click` rule is mouse-only today.
+- [ ] **8.1b `clickThrough` steps are keyboard-unreachable** — surfaced by 8.1's adversarial pass,
+      and **pre-existing**: `advanceOn` makes it matter, it does not cause it. The default renderer
+      force-returns focus into the popover on Tab and sets `aria-modal="true"` on **every** step,
+      including `clickThrough` ones, so a keyboard or AT user cannot reach the control the step is
+      telling them to use — while `apps/docs/guide/accessibility.md:150` instructs authors to make
+      it Tab-reachable. When `step.clickThrough === true`, drop `aria-modal` and widen the trap to
+      *popover ∪ target*. **`apps/e2e/tests/accessibility.spec.ts:88` currently asserts the opposite,
+      green in four browsers** — scope it to non-clickThrough steps in the same change.
+      Three related renderer defects from the same pass: `renderStep` focuses the first control on
+      *every* render (so advancing mid-`input` sends the next space keystroke to the close button and
+      abandons the tour); `hideStep` restores focus unconditionally (so finishing a tour by acting
+      rips focus out of whatever the app just opened); and completion is announced by nothing at all.
+      All four are invisible to `pnpm test` — happy-dom returns `[]` from `_focusables`.
 - [ ] **8.5 `?gf_tour=` deep-link start** — the only survivor of the teardown's distribution layer,
       and the answer to §6.4 "reply to the ticket with a clickable walkthrough". `StartTrigger` has
       no URL form and `URLSearchParams` appears nowhere in `packages/core/src`. Lands on the

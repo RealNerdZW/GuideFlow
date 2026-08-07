@@ -351,3 +351,105 @@ describe('theme', () => {
     second.destroy()
   })
 })
+
+// ---------------------------------------------------------------------------
+// exposeGlobal (Phase 8.2)
+//
+// The devtools extension detects a page through `window.__guideflow`. Until
+// this option existed, nothing in `packages/*` ever assigned it — only
+// `apps/demo` and the e2e fixture did — so the extension detected essentially
+// no real application. It is opt-in because the global hands any script on the
+// page a driveable tour instance.
+// ---------------------------------------------------------------------------
+
+type WinExt = Window & { __guideflow?: unknown }
+const win = (): WinExt => window as WinExt
+
+describe('exposeGlobal', () => {
+  afterEach(() => {
+    delete win().__guideflow
+  })
+
+  it('does NOT set window.__guideflow by default', () => {
+    gf = createGuideFlow({ injectStyles: false })
+    expect(win().__guideflow).toBeUndefined()
+  })
+
+  it('does not set it for `exposeGlobal: false` either', () => {
+    gf = createGuideFlow({ exposeGlobal: false, injectStyles: false })
+    expect(win().__guideflow).toBeUndefined()
+  })
+
+  it('exposes the instance when opted in', () => {
+    gf = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(gf)
+  })
+
+  it('exposes the full instance, not the bare engine', () => {
+    // `createGuideFlow` mutates a TourEngine via Object.assign, and the
+    // extension reads `start`/`listFlows` — which live on the literal, not the
+    // prototype. Assigning before the assign would expose a half-built object.
+    gf = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    const exposed = win().__guideflow as GuideFlowInstance
+    expect(typeof exposed.start).toBe('function')
+    expect(typeof exposed.listFlows).toBe('function')
+    expect(typeof exposed.on).toBe('function')
+  })
+
+  it('clears the global on destroy()', () => {
+    const local = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(local)
+    local.destroy()
+    expect('__guideflow' in win()).toBe(false)
+  })
+
+  it('destroying a second instance does not unregister the first', () => {
+    // Two opted-in instances on one page: the second overwrites the global.
+    // An unconditional `delete` in destroy() would then have the second's
+    // teardown remove whatever is currently registered — including the first.
+    const first = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(first)
+    const second = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(second)
+
+    second.destroy()
+    expect(win().__guideflow).toBeUndefined()
+
+    // And the reverse order: destroying the one that is NOT registered must
+    // leave the registration alone.
+    const third = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    const fourth = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    third.destroy()
+    expect(win().__guideflow).toBe(fourth)
+    fourth.destroy()
+  })
+
+  it('configure({ exposeGlobal }) is a real switch, not a silent no-op', () => {
+    // AUDIT `configure-mostly-ignored`, which this key would otherwise join.
+    // The whole security argument for the flag is that the developer stays in
+    // control of it, so turning it off has to actually turn it off.
+    gf = createGuideFlow({ injectStyles: false })
+    expect(win().__guideflow).toBeUndefined()
+
+    gf.configure({ exposeGlobal: true })
+    expect(win().__guideflow).toBe(gf)
+
+    gf.configure({ exposeGlobal: false })
+    expect(win().__guideflow).toBeUndefined()
+  })
+
+  it('configure({ exposeGlobal: false }) on a foreign registration leaves it alone', () => {
+    const other = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    gf = createGuideFlow({ injectStyles: false })
+
+    gf.configure({ exposeGlobal: false })
+    expect(win().__guideflow).toBe(other)
+    other.destroy()
+  })
+
+  it('does not throw when destroy() runs twice', () => {
+    const local = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    local.destroy()
+    expect(() => { local.destroy() }).not.toThrow()
+  })
+})

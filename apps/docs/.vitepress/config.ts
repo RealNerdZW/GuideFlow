@@ -177,6 +177,7 @@ export default defineConfig({
             { text: 'Flows & Steps', link: '/guide/flows-and-steps' },
             { text: 'State Machine', link: '/guide/state-machine' },
             { text: 'Spotlight & Popover', link: '/guide/spotlight-popover' },
+            { text: 'Advancing on interaction', link: '/guide/advance-on' },
             { text: 'Routing & SPAs', link: '/guide/routing' },
             { text: 'Persistence', link: '/guide/persistence' },
             { text: 'Targeting & frequency', link: '/guide/targeting' },

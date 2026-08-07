@@ -4,8 +4,10 @@ import type { FlowDefinition, GuideFlowInstance } from '@guideflow/core'
 declare global {
   interface Window {
     /**
-     * The library never sets this — `fixtures/index.html` assigns it, exactly as
-     * a real integration must for the devtools extension to detect a tour.
+     * Set by `createGuideFlow({ exposeGlobal: true })` in `fixtures/index.html`,
+     * exactly as a real integration opts in for the devtools extension to detect
+     * a tour. It used to be a hand-written assignment, because the library had
+     * no way to do it.
      */
     __guideflow: GuideFlowInstance
     /** Set once the fixture has finished wiring its flows. */

@@ -39,6 +39,17 @@ import type {
   StepContent,
 } from './types/index.js'
 import type { EventEmitter } from './utils/emitter.js'
+import { isBrowser } from './utils/ssr.js'
+
+/**
+ * `window` with the devtools detection global.
+ *
+ * A local intersection rather than a `declare global` augmentation: core is
+ * imported by Next, Nuxt and SvelteKit apps, and a global `Window.__guideflow`
+ * would leak into every consumer's type space — and collide with the one
+ * `apps/e2e/global.d.ts` already declares.
+ */
+type GlobalWithGuideFlow = Window & { __guideflow?: unknown }
 
 // ── Re-exports ─────────────────────────────────────────────────────────────
 
@@ -362,6 +373,13 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         console.warn('[GuideFlow] configure({ renderer }) is ignored — set it in createGuideFlow().')
       }
 
+      // Not a factory-only key. The whole security argument for `exposeGlobal`
+      // is that the developer stays in control of it, so
+      // `configure({ exposeGlobal: false })` has to be a real kill switch
+      // rather than the silent no-op that AUDIT `configure-mostly-ignored`
+      // is about — three lines below the warn that exists for that class.
+      if (patch.exposeGlobal !== undefined) _setGlobal(patch.exposeGlobal)
+
       // Let the renderer pick up nonce / injectStyles / theming changes.
       renderer.onInit?.(_config)
     },
@@ -515,6 +533,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       _broadcastSync = null
       _broadcastUserId = null
       _activeFlow = null
+      _setGlobal(false)
     },
 
     i18n,
@@ -522,6 +541,27 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   })
   // instance === engine, so TourEngine's prototype getters (isActive,
   // currentStepId, etc.) are already reachable — no extra wiring needed.
+
+  /**
+   * Register or unregister this instance on `window.__guideflow`.
+   *
+   * Called from three places: the factory below, `configure()` and `destroy()`.
+   * The unregister path is identity-guarded — two instances that both opted in
+   * leave the *last* one on the global, and an unconditional delete in the
+   * first's teardown would unregister whichever is actually live.
+   */
+  function _setGlobal(on: boolean): void {
+    if (!isBrowser()) return
+    const w = window as GlobalWithGuideFlow
+    if (on) w.__guideflow = instance
+    else if (w.__guideflow === instance) delete w.__guideflow
+  }
+
+  // Opt-in detection for the devtools extension. Assigned after the
+  // `Object.assign`, because that is what produces the object the extension
+  // needs to read — `engine` alone is missing `start`, `next`, `listFlows` and
+  // every other wrapper the panel dispatches to.
+  if (_config.exposeGlobal === true) _setGlobal(true)
 
   /**
    * Create the cross-tab channel once per instance (recreating it only if the

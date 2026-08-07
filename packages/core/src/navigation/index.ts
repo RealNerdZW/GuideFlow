@@ -34,6 +34,8 @@ export { matchRoute, currentUrl } from './route.js'
 export { waitForElement } from './wait.js'
 export type { WaitForElementOptions } from './wait.js'
 export { watchHistory } from './history.js'
+export { advanceOn } from './advance.js'
+export type { AdvanceOnHost, AdvanceOnRule, AdvanceOnSpec } from './advance.js'
 
 export interface NavigationConfig {
   /**

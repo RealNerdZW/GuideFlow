@@ -601,6 +601,38 @@ export interface GuideFlowConfig {
    * moment a bundler gives the subpath its own copy of the module.
    */
   sanitizeHTML?: (html: string) => string
+  /**
+   * Assign this instance to `window.__guideflow`, which is how the GuideFlow
+   * devtools extension detects a page.
+   *
+   * **Off by default, and it must stay that way.** The global hands every
+   * script on the page a driveable tour instance — an analytics tag, a chat
+   * widget or an ad script could start, skip or end a tour, and read
+   * `gf.progress`. That is a fine trade when a developer asks for it and a bad
+   * one to impose.
+   *
+   * The consequence is **durable, not just reversible**: the instance extends
+   * the event emitter, so `window.__guideflow.emit('tour:complete', { flowId })`
+   * runs core's own completion handler, which writes a completed record to
+   * storage. `start()` honours that record, so one line from any third-party
+   * script permanently stops an onboarding flow from ever showing that user
+   * again. Keep this opt-in.
+   *
+   * Until this existed the library never set the global at all: only
+   * `apps/demo` and the e2e fixture did, so the extension — one of the two
+   * things nothing else in the tier ships — detected essentially no real
+   * application, and every "the panel says GuideFlow is not on this page"
+   * report was this.
+   *
+   * Cleared by `destroy()`, and only if the global still points at this
+   * instance: two instances on one page must not have the second's teardown
+   * delete the first's registration.
+   *
+   * ```ts
+   * const gf = createGuideFlow({ exposeGlobal: import.meta.env.DEV })
+   * ```
+   */
+  exposeGlobal?: boolean
 }
 
 // ── AI Types (shared shapes used in core too) ─────────────────────────────────

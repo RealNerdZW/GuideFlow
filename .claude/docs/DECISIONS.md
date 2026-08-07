@@ -1089,3 +1089,74 @@ Four properties, each with a test:
   binary and speaks JSON-RPC over real stdio, which is the only way to catch the
   classic MCP failure: anything written to stdout is framed as a protocol
   message and corrupts the stream. Measured clean.
+
+---
+
+## ADR-020 — `advanceOn` is a navigation-subpath helper, and the gate moves 2 → 2.5 kB
+
+**Status.** Accepted (Phase 8.1).
+
+**Context.** ADR-004 spent ~1.3 kB carving a real `clip-path` hole in the overlay so a
+`clickThrough` step lets the user click the control it is highlighting. Measured afterwards: the
+engine attaches exactly one listener — `document.addEventListener('keydown', …)`
+([tour.ts:655](../../packages/core/src/engine/tour.ts#L655)) — and **nothing on the target**. The
+spotlight's only others are a backdrop-dismiss click and scroll/resize. So the user clicked, the app
+responded, and the step waited for **Next**. `advanceOn` existed nowhere in the repository, while
+Shepherd ships `advanceOn` and driver.js ships `onNextClick`.
+
+`clickThrough` was therefore half a feature for five phases, and the half that was missing is the
+one that turns "read this" into "do this".
+
+**Decision.**
+
+1. **A helper on `@guideflow/core/navigation`, not a declarative `Step.advanceOn` field.** The
+   declarative form is the better authoring story and the only one a `.flow.json` can carry — but it
+   is ~200–300 B in the size-gated core entry, which has ~300 B of headroom that content variables
+   (8.3) and content i18n (8.4) are already competing for. The helper hangs off `step:enter`, needs
+   no engine change, and costs the core entry **zero**. Take the field later, with its own ADR, once
+   this has demand.
+2. **Raise the navigation subpath 2 → 2.5 kB.** Measured **2.19 kB**. This is ADR-016's pattern
+   exactly: the cost lands on an opt-in bundle paid for by the people who asked for it, and the core
+   entry does not move — measured unchanged at 15.29 kB, inside 15.5 kB.
+3. **Capture-phase delegation on `document`**, not a listener on the target element. Three reasons,
+   each sufficient: an app handler calling `stopPropagation()` would silently kill a bubble listener
+   with no error anywhere; non-bubbling events never reach one at all; and the resolved `Element` is
+   not stable across a host re-render, so a listener bound to it dies with the node.
+4. **`next()` and `send()` only — never `end`/`skip`.** `end` maps to `stop()`, which emits
+   `tour:abandon`. Only `next()` past the last step takes the completed path. Wiring a final step to
+   `end` would file every "the user finished by doing the thing" as an abandonment in
+   `@guideflow/analytics` — the same class of error ADR-018 caught in the survey-as-a-step proposal.
+
+**What the adversarial pass found, and what it changed.**
+
+- **`step:exit` is not emitted on every terminal path.** `send()` moves the machine *before* calling
+  `_emitStepExit()`, which reads the machine's *current* step; for an ordinary `done: { final: true }`
+  state carrying no steps that is `null`, so the emit is skipped while `_stepExitEmitted` is still
+  set — `_doEnd(true)` then early-returns on the flag and only `tour:complete` fires. A helper
+  subscribed only to `step:exit` keeps its listener for the life of the page. **Reproduced, then
+  fixed** by also subscribing `tour:complete` and `tour:abandon`. The test counts the listener
+  rather than the behaviour, because a leaked listener still bails on `!isActive` and looks fine.
+- **`step:waiting` needs a teardown too.** `_enterWaiting` drops the spotlight, and `hide()` sets
+  `pointer-events: none` on the overlay — so the whole page becomes clickable while a route wait is
+  in flight. Same for `pause()`, which emits `tour:pause` and **no** `step:exit`.
+- **`step:enter` fires twice with no `step:exit` between**, on `resume()` and on `rerender()` — the
+  latter on every route re-anchor. Teardown-before-arm on every `step:enter` is therefore
+  load-bearing, not defensive style.
+- **Forgetting `clickThrough` does not merely do nothing — it *dismisses* the tour.**
+  `dismissOnBackdropClick` defaults true, so the click hits the overlay and calls `skip()`. The
+  user's first attempt to follow the instruction destroys the tour. A pointer rule armed on a step
+  without `clickThrough` warns once, naming that consequence.
+
+**Consequences.**
+
+- **Known limitation, documented rather than hidden: keyboard users cannot reach the target.** The
+  renderer traps focus inside the popover and sets `aria-modal="true"` on every step, including
+  `clickThrough` ones, so Tab never leaves the dialog — which `apps/e2e/tests/accessibility.spec.ts`
+  currently pins green in four browsers. `advanceOn` does not cause this; it makes it matter. The
+  accessible integration today is for the app to dispatch its own event
+  (`document.dispatchEvent(new CustomEvent('app:saved'))`) and match on that, which fires whatever
+  the input modality. Widening the trap for `clickThrough` steps is **Phase 8.1b**.
+- A `keydown` rule can double-advance against the engine's own arrow-key handler, which calls
+  `next()` on ArrowRight/ArrowDown for a non-editable target. Use `when` to exclude the arrows.
+- Synthetic events are deliberately **not** rejected. An `isTrusted` check would block the
+  app-dispatched `CustomEvent` form, which is the accessible integration above.

@@ -70,8 +70,9 @@ survives a deploy) are **authoring-time only** — nothing in the engine imports
 can reach an application bundle unless you import it yourself. See
 [packages/core](packages/core#subpath-entry-points).
 
-> The devtools panel discovers a page through the `window.__guideflow` global. The library never sets it —
-> assign your instance to it yourself if you want the extension to see your app.
+> The devtools panel discovers a page through the `window.__guideflow` global. Opt in with
+> `createGuideFlow({ exposeGlobal: true })` — off by default, because the global lets any script on
+> the page drive your tour. Gate it on a dev build.
 
 ---
 

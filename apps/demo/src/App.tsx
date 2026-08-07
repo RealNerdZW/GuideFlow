@@ -851,9 +851,12 @@ export function App({
             <span style={badge('blue')}>@guideflow/devtools</span>
           </h2>
           <p style={{ margin: '0 0 14px', color: C.muted, fontSize: 13 }}>
-            <code style={S.code}>@guideflow/devtools</code> is a Manifest V3 browser extension.
-            This page exposes <code style={S.code}>window.__guideflow</code> so the extension's
-            content script can detect the running instance automatically.
+            <code style={S.code}>@guideflow/devtools</code> is a Manifest V3 browser extension. It
+            detects a page through <code style={S.code}>window.__guideflow</code>, which the library
+            sets only when you ask: <code style={S.code}>createGuideFlow({'{ exposeGlobal: true }'})</code>.
+            It is opt-in because the global hands any script on the page a driveable tour instance —
+            so this demo gates it on the dev build, and the status below reflects the build you are
+            actually looking at.
           </p>
 
           {/* Live status row */}

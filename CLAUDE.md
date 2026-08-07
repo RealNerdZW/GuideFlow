@@ -98,20 +98,20 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, 2026-08-03)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1 + 8.2, 2026-08-07)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1260 unit tests pass**, 1 skipped
-(core 497, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, devtools 54,
+Build, type-check, lint and unit tests are **all green**: **1310 unit tests pass**, 1 skipped
+(core 526, ai 153, react 114, analytics 98, survey 79, checklist 73, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
-**Seven** bundles, each gated independently: `@guideflow/core` **15.2 kB / 15.5 kB**, `./authoring`
-**5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./selector` **1.76 kB / 2.5 kB**,
-`./navigation` **1.55 kB / 2 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
+**Seven** bundles, each gated independently: `@guideflow/core` **15.29 kB / 15.5 kB**, `./authoring`
+**5.35 kB / 5.5 kB**, `./targeting` **2.6 kB / 2.75 kB**, `./navigation` **2.19 kB / 2.5 kB**,
+`./selector` **1.76 kB / 2.5 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 391 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 455 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -149,8 +149,12 @@ default" marketing claim until someone has run it.
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
 > accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
-> completion). Core measures **15.2 kB with 300 B of headroom**. Six raises is a lot; the next
-> addition should look for a real saving before asking for a seventh.
+> completion). Core measures **15.29 kB with ~210 B of headroom**. Six raises is a lot; the next
+> addition should look for a real saving before asking for a seventh — and 8.3 (content variables)
+> and 8.4 (content i18n) both want core bytes, so that conversation is next, not hypothetical.
+>
+> **ADR-020 did the same for the *navigation* subpath, 2 → 2.5 kB**, to land `advanceOn`: measured
+> 2.19 kB, core entry unchanged. Two subpath raises now follow this shape; it is the one to copy.
 >
 > **ADR-016 raised the *targeting subpath* to 2.75 kB, not the core entry.** That is the pattern to
 > copy: `install()` needed real route handling, `watchHistory` cost 380 B, and the cost landed on
@@ -327,9 +331,12 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   message back to the sender's own context, so a worker asking itself gets "Could not establish
   connection. Receiving end does not exist." Assert on `chrome.storage` instead — which is also
   why the recording buffer is written through to `chrome.storage.session`.
-- **`window.__guideflow` is never set by the library.** The devtools extension detects tours through
-  that global, but only `apps/demo/src/main.tsx` assigns it. Any "the extension doesn't detect my
-  app" report is this.
+- **`window.__guideflow` is set only when the host opts in.** `createGuideFlow({ exposeGlobal: true })`
+  assigns it (Phase 8.2); nothing else in `packages/*` does. Until that option existed the library
+  never set it at all, and only `apps/demo` did — which is why the extension detected essentially no
+  real application. Any "the extension doesn't detect my app" report is now a missing `exposeGlobal`.
+  It must stay opt-in: `instance` extends the emitter, so a third-party script can
+  `emit('tour:complete', …)` and permanently mark a tour completed in storage.
 - **`tsup.config.ts` is an array of five configs, and NONE of them may set `clean: true`.** tsup
   runs them concurrently, so a clean races the subpath builds and deletes `.d.ts` files they have
   already written — with no build error at all. `dist/` is removed once, up front, by the `build`
@@ -557,25 +564,35 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   component instance, so a composable called from a bare `effectScope()` (a Pinia store, a shared
   composable) registers no teardown at all and leaks every listener. `onScopeDispose` covers the
   component case too, because `setup()` runs inside its own effect scope.
-- **`clickThrough` lets the user click the button, and the tour does not notice.** The engine
-  attaches exactly one listener — `document.addEventListener('keydown', …)` at
+- **The engine attaches exactly ONE listener** — `document.addEventListener('keydown', …)` at
   [tour.ts:655](packages/core/src/engine/tour.ts#L655) — and nothing on the target. The spotlight's
-  only others are a backdrop-dismiss click and scroll/resize. So ADR-004's 1.3 kB `clip-path` hole
-  is half a feature: the user acts, the app responds, and the step waits for **Next**. There is no
-  `advanceOn` anywhere in the repo. That is `EXPANSION-PLAN.md` §8.1, not an oversight to fix
-  casually — it is core bytes against 300 B of headroom.
+  only others are a backdrop-dismiss click and scroll/resize. That is why ADR-004's 1.3 kB
+  `clip-path` hole was half a feature for five phases: the user acted, the app responded, and the
+  step waited for **Next**. `advanceOn` on `@guideflow/core/navigation` is the other half (ADR-020),
+  and it is a *helper* — the declarative `Step.advanceOn` a `.flow.json` could carry is still
+  unbuilt, because that is core bytes.
+  **Forgetting `clickThrough` on an `advanceOn` step does not no-op — it DISMISSES the tour.**
+  `dismissOnBackdropClick` defaults true, so the click lands on the overlay and calls `skip()`; the
+  user's first attempt to follow the instruction destroys the tour. The helper warns once.
+  **And a `click` rule is mouse-only today** — the renderer traps focus in the popover and sets
+  `aria-modal` on every step, so Tab never reaches the target (8.1b). The accessible integration is
+  an app-dispatched `CustomEvent`, which fires whatever the input modality.
 - **A `.flow.json` can carry neither variables nor translations, and that is structural.**
   `Step.content` accepts `() => MaybePromise<StepContent>`, so a *code-authored* flow personalises
   and localises freely — and a function does not serialise. Every flow file the recorder, the MCP
   server and `guideflow export` produce therefore has copy frozen in one language at author time.
   Before "fixing" this by making `content` a function somewhere, note that the whole ADR-014
   delivery model is a static JSON asset. See `EXPANSION-PLAN.md` §§8.3–8.4.
-- **The library never sets `window.__guideflow`, so the devtools extension detects almost nothing.**
-  Documented above as the explanation for every "the extension doesn't detect my app" report — the
-  consequence is that the feature `PRODUCT-ROADMAP.md` §2 calls unique reaches zero real
-  applications. Only `apps/demo/src/main.tsx` and the e2e fixture assign it. Forty bytes behind an
-  opt-in flag fixes it (`EXPANSION-PLAN.md` §8.2); it must stay opt-in, because the global lets any
-  script on the page drive the tour.
+- **`step:exit` is NOT emitted on every terminal path, so "subscribe to it, it covers every ending"
+  is false.** `send()` moves the machine *before* calling `_emitStepExit()`, which reads the
+  machine's *current* step — for an ordinary `done: { final: true }` state carrying no steps that is
+  `null`, so the emit is skipped while `_stepExitEmitted` is still set to true. `_doEnd(true)` then
+  early-returns on that flag and only `tour:complete` fires.
+  `next()` is safe (it exits *before* moving); `send()`, `prev()` and `goTo()` are not. Anything
+  releasing a resource on `step:exit` must also take `tour:complete` and `tour:abandon` —
+  `advanceOn` does, and `advance-on.test.ts` pins it by counting the listener rather than the
+  behaviour, because a leaked listener still bails on `!isActive` and looks fine.
+  Related: on those same three methods `step:exit`'s `stepId` names the step being **entered**.
 - **`@guideflow/cli` no longer imports `vite` or `ora`.** `studio.ts` imported `vite` at module
   scope, so every spec that re-imported the entry point paid for it; `push.ts` pulled in `ora`. Both
   commands are deleted (7.9a, 7.10) and so are the dependencies. The CLI is `init`, `export`,
