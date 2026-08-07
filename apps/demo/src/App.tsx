@@ -1,4 +1,5 @@
 import type { GuideBrain } from '@guideflow/ai'
+import type { BannerController } from '@guideflow/banner'
 import { ExperimentEngine, type AnalyticsCollector, type AnalyticsEvent } from '@guideflow/analytics'
 import type { FlowDefinition, FlowSnapshot, GuideFlowInstance, HintStep, Step, TourEvents } from '@guideflow/core'
 import { watchAttributeTour } from '@guideflow/core'
@@ -9,7 +10,8 @@ import {
   useTour,
   useTourStep,
 } from '@guideflow/react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { SurveyController } from '@guideflow/survey'
 
 import {
   announcementFlow,
@@ -29,6 +31,8 @@ export interface AppProps {
   instance: AugmentedGF
   collector: AnalyticsCollector
   capturedEvents: AnalyticsEvent[]
+  banners: BannerController
+  surveys: SurveyController
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +123,13 @@ const FLOW_MAP = { onboardingFlow, fsmBranchFlow, conditionalFlow, customActions
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
-export function App({ instance: gf, collector: _collector, capturedEvents }: AppProps): React.JSX.Element {
+export function App({
+  instance: gf,
+  collector: _collector,
+  capturedEvents,
+  banners,
+  surveys,
+}: AppProps): React.JSX.Element {
   const { isActive, currentStepIndex, totalSteps, next, prev, stop } = useTour()
   const { ref: headerRef }   = useTourStep<HTMLHeadingElement>('welcome-header')
   const { ref: toursRef }    = useTourStep<HTMLDivElement>('tours-section')
@@ -131,6 +141,21 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
   const [fsmRole, setFsmRole]     = useState<DemoContext['role']>('user')
   const [eventLog, setEventLog]   = useState<{ evt: string; ts: number }[]>([])
   const logEndRef                 = useRef<HTMLDivElement>(null)
+
+  // ── Docked surfaces ─────────────────────────────────────────────────────
+  // `useSyncExternalStore` with the controllers' own pre-bound functions —
+  // exactly what their `subscribe` / `getSnapshot` / `getServerSnapshot` shape
+  // exists for. No adapter package, no wrapper.
+  const bannerState = useSyncExternalStore(
+    banners.subscribe,
+    banners.getSnapshot,
+    banners.getServerSnapshot,
+  )
+  const surveyState = useSyncExternalStore(
+    surveys.subscribe,
+    surveys.getSnapshot,
+    surveys.getServerSnapshot,
+  )
 
   // ── Programmatic hotspots ───────────────────────────────────────────────
   const [progHotspotId, setProgHotspotId] = useState<string | null>(null)
@@ -340,6 +365,7 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
           ['#gf-ab',          '🧪 A/B Testing'],
           ['#gf-i18n',        '🌍 i18n'],
           ['#gf-persistence', '💾 Persistence'],
+          ['#gf-docked',      '\uD83D\uDCE3 Docked surfaces'],
           ['#gf-config',      '\u2699\uFE0F Config'],
           ['#gf-devtools',    '🛠 DevTools'],
           ['#gf-cli',         '⌨️ CLI'],
@@ -667,6 +693,59 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
               {persistLog.slice(-6).map((l, i) => <div key={i} style={{ color: '#93c5fd' }}>{l}</div>)}
             </div>
           )}
+        </section>
+
+        {/* ── Docked surfaces ───────────────────────────────────────────── */}
+        <section id="gf-docked" style={S.card}>
+          <h2 style={S.cardTitle}>
+            📣 Docked surfaces
+            <span style={badge('purple')}>@guideflow/banner</span>
+            <span style={badge('green')}>@guideflow/survey</span>
+          </h2>
+          <p style={{ margin: '0 0 12px', color: C.muted, fontSize: 13 }}>
+            Non-blocking, one at a time, and inert while a tour runs — scroll up to the bar
+            and look bottom-left for the NPS card. Neither puts anything on the{' '}
+            <code style={S.code}>TourEvents</code> bus: both report through{' '}
+            <code style={S.code}>onEvent</code> into the same collector, so a dismissal never
+            lands in the tour funnel.
+          </p>
+
+          <div style={S.row}>
+            <span style={badge(bannerState.current ? 'green' : 'amber')}>
+              banner: {bannerState.current ? bannerState.current.id : 'none showing'}
+            </span>
+            <span style={badge('blue')}>queued: {bannerState.queued}</span>
+            <span style={badge(surveyState.current ? 'green' : 'amber')}>
+              survey: {surveyState.current ? surveyState.current.phase : 'none showing'}
+            </span>
+            {surveyState.current?.score !== null && surveyState.current !== null && (
+              <span style={badge('purple')}>score: {surveyState.current.score}</span>
+            )}
+          </div>
+
+          <p style={{ margin: '0 0 8px', color: C.muted, fontSize: 12 }}>
+            Both remember a dismissal in <code style={S.code}>ProgressStore</code>, so they stay
+            gone across a reload. That is correct in production and useless in a demo — hence:
+          </p>
+          <div style={S.row}>
+            <button style={btn('secondary')} onClick={() => void banners.reset()}>
+              Show the banner again
+            </button>
+            <button style={btn('secondary')} onClick={() => void surveys.reset()}>
+              Ask the survey again
+            </button>
+          </div>
+
+          <div style={{ ...S.log, marginTop: 8 }}>
+            <div style={{ color: '#86efac' }}>
+              {'// every banner and survey event is in the analytics feed above'}
+            </div>
+            <div>guideflow.banner.show | .action | .dismiss</div>
+            <div>guideflow.survey.show | .response | .dismiss</div>
+            <div style={{ color: C.subtle }}>
+              {'// the survey cooldown is 60s here; 90 days is the usual NPS setting'}
+            </div>
+          </div>
         </section>
 
         {/* ── Config ────────────────────────────────────────────────────── */}

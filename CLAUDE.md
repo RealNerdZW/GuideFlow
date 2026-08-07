@@ -500,6 +500,11 @@ still reads the `defaultI18n` singleton directly — that is AUDIT
   happened to be reading `dist` when it vanished (core's fixture-guard test imports
   `apps/e2e/fixtures/flows.d.ts`, which imports `@guideflow/core` by package name). Both tasks now
   declare `["^build", "build"]`. Reproduced 1-in-3 before, 0-in-3 after.
+- **Two of core's subpaths are DIRECTORIES.** `targeting` and `navigation` are `src/<name>/index.ts`;
+  `selector`, `authoring`, `html` and `versioning` are flat `src/<name>.ts`. `apps/demo`'s generic
+  alias mapped every subpath to `src/$1.ts`, which was fine until a package importing
+  `@guideflow/core/targeting` was added to the demo. Anchored entries for the two directories come
+  first.
 - **A bare string alias in Vite is a PREFIX match.** `apps/demo/vite.config.ts` aliased
   `'@guideflow/core'` to `…/src/index.ts`, so the first `@guideflow/core/selector` import in the tree
   resolved to `…/src/index.ts/selector` and the build died. Subpath-aware aliases must come first,

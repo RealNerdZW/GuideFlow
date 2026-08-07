@@ -6,8 +6,12 @@ import {
   type AnalyticsEvent,
   type AnalyticsTransport,
 } from '@guideflow/analytics'
+import { createBanners } from '@guideflow/banner'
+import { mountBanner } from '@guideflow/banner/widget'
 import { createGuideFlow, LocalStorageDriver } from '@guideflow/core'
 import { TourProvider } from '@guideflow/react'
+import { createSurveys } from '@guideflow/survey'
+import { mountSurvey } from '@guideflow/survey/widget'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 
@@ -94,6 +98,60 @@ collector.attach(gf)
 const gfWithAI = createAI(new MockProvider(), gf, { intentDebounceMs: 1500 })
 
 // ---------------------------------------------------------------------------
+// 3b. The docked surfaces — a banner and an NPS survey
+//
+// Both are host-wired into the SAME collector the tour events go to, which is
+// the whole point of their `onEvent` seam: neither package depends on
+// @guideflow/analytics, and neither puts anything on the TourEvents bus, so a
+// banner dismissal never lands in the tour funnel alongside people abandoning a
+// tour.
+//
+// Mounted here rather than in a React effect because the controllers are
+// instance-scoped, exactly like the collector above. The widgets are imperative
+// DOM by design — the controllers are `subscribe`/`getSnapshot`, so a host that
+// wants to render its own can ignore the widget subpath entirely.
+// ---------------------------------------------------------------------------
+export const banners = createBanners(gf, [
+  {
+    id: 'demo-v2',
+    title: 'GuideFlow 0.2 is out',
+    body: 'Docked banners, NPS surveys and an MCP server for authoring tours.',
+    actions: [
+      { label: 'Show me', variant: 'primary', flowId: 'onboardingFlow' },
+      { label: 'Not now', dismisses: true },
+    ],
+  },
+], {
+  onEvent: (event) => {
+    console.log('[banner]', event.type, event)
+    collector.track(`guideflow.banner.${event.type}`, { ...event })
+  },
+})
+
+export const surveys = createSurveys(gf, [
+  {
+    id: 'demo-nps',
+    question: 'How likely are you to recommend GuideFlow to a colleague?',
+    scale: { min: 0, max: 10, minLabel: 'Not likely', maxLabel: 'Very likely' },
+    followUp: { label: 'What is the main reason for your score?', placeholder: 'Optional' },
+    thanks: 'Thank you — that goes straight to the collector below.',
+    // 90 days in production; one minute here so the demo is re-runnable.
+    targeting: { cooldownMs: 60_000 },
+  },
+], {
+  onEvent: (event) => {
+    console.log('[survey]', event.type, event)
+    collector.track(`guideflow.survey.${event.type}`, { ...event })
+  },
+})
+
+// `bottom-start`: `mountSurvey` defaults to `bottom-end`, which is also
+// `mountChecklist`'s default. Neither package can detect the other, so the
+// corner is the host's problem to allocate — and this is the demo of that.
+mountBanner(banners, { dock: 'top' })
+mountSurvey(surveys, { dock: 'bottom-start' })
+
+// ---------------------------------------------------------------------------
 // 4. Expose window.__guideflow so @guideflow/devtools extension can detect it.
 //    The content script injected by the extension watches for this property.
 // ---------------------------------------------------------------------------
@@ -106,7 +164,13 @@ const container = document.getElementById('root')!
 createRoot(container).render(
   <React.StrictMode>
     <TourProvider instance={gfWithAI}>
-      <App instance={gfWithAI} collector={collector} capturedEvents={capturedEvents} />
+      <App
+        instance={gfWithAI}
+        collector={collector}
+        capturedEvents={capturedEvents}
+        banners={banners}
+        surveys={surveys}
+      />
     </TourProvider>
   </React.StrictMode>,
 )

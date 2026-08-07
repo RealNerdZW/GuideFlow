@@ -2,22 +2,26 @@
   "name": "@guideflow/demo",
   "version": "0.1.0",
   "private": true,
-  "description": "GuideFlow demo app — exercises core, react, analytics, and ai packages",
+  "description": "GuideFlow demo app \u2014 exercises core, react, analytics, and ai packages",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "smoke": "node smoke.mjs"
   },
   "dependencies": {
     "@guideflow/ai": "workspace:*",
     "@guideflow/analytics": "workspace:*",
+    "@guideflow/banner": "workspace:*",
     "@guideflow/core": "workspace:*",
     "@guideflow/react": "workspace:*",
+    "@guideflow/survey": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.2.0",

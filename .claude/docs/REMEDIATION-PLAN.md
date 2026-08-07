@@ -763,6 +763,23 @@ the budget could not absorb it**, so the packaging change had to come first.
 
 ---
 
+- [x] **Wire the docked surfaces into `apps/demo`** (standalone, no phase). The design panel that
+      reviewed 7.8b measured that `@guideflow/checklist`'s only consumer was a test fixture — the
+      demo, which is the showcase, mounted none of it. `@guideflow/banner` and `@guideflow/survey`
+      are now wired in `main.tsx` alongside the collector, with both `onEvent` seams routed into
+      the same `AnalyticsCollector` the tour events go to, and a `📣 Docked surfaces` section that
+      reads live state through `useSyncExternalStore` with the controllers' own pre-bound
+      functions.
+      Two things the wiring surfaced. The demo aliases packages to **source**, and its generic
+      `@guideflow/core/(.+)` rule mapped `@guideflow/core/targeting` to `src/targeting.ts` — which
+      does not exist, because `targeting` and `navigation` are directories. Hypothetical until a
+      package that imports them was added to the demo. And both surfaces persist their dismissal
+      to `ProgressStore`, so a demo that showed them once and never again is useless: the section
+      has explicit reset buttons, and the survey cooldown is 60s rather than 90 days.
+      `apps/demo/smoke.mjs` drives the built demo in real Chromium — six checks including the
+      dismissal surviving a reload and Reset bringing it back. `pnpm --filter @guideflow/demo smoke`.
+      **The checklist is still not mounted in the demo.**
+
 ## Suggested first week
 
 If you only have five days, this is the highest-value slice — it turns "the README is wrong" into "the
