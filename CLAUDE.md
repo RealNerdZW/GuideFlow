@@ -98,12 +98,12 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1–8.7 + 8.9, 2026-08-08)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1–8.7 + 8.9, all a11y follow-ups, 2026-08-08)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1399 unit tests pass**, 1 skipped
-(core 580, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
+Build, type-check, lint and unit tests are **all green**: **1409 unit tests pass**, 1 skipped
+(core 590, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.54 kB / 16 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
