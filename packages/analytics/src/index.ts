@@ -55,6 +55,9 @@ export { PostHogTransport } from './transports/posthog.js';
 export { MixpanelTransport } from './transports/mixpanel.js';
 export { AmplitudeTransport } from './transports/amplitude.js';
 export { SegmentTransport } from './transports/segment.js';
+export { GA4Transport } from './transports/ga4.js';
+export type { GA4TransportOptions } from './transports/ga4.js';
+export { HeapTransport } from './transports/heap.js';
 export { WebhookTransport } from './transports/webhook.js';
 export type { WebhookTransportOptions } from './transports/webhook.js';
 

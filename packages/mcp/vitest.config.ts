@@ -12,7 +12,10 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/__tests__', 'src/index.ts', 'src/version.ts'],
-      thresholds: { statements: 90, lines: 90, branches: 85, functions: 90 },
+      // Ratchets, set just below measured (97.63 / 87.79 / 100 / 97.63 after
+      // the catalogue tools landed and their three defects were fixed). Raise
+      // them as coverage improves; never lower one to make a build pass.
+      thresholds: { statements: 97, lines: 97, branches: 87, functions: 95 },
     },
   },
 })

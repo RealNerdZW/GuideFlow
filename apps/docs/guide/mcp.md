@@ -79,6 +79,75 @@ the result and refuses to hand back something the engine would mishandle.
 
 It returns `fileContents` — save it yourself.
 
+### `guideflow_extract_strings`
+
+Every translatable string in a flow, as a [content catalogue](/guide/i18n) skeleton keyed
+by step id and state id. Point it at a `path`, a `flowId`, or a flow inline.
+
+Values are the **original** copy rather than blanks, so the file diffs source against
+translation and a half-finished one is still readable. Translate the values in place.
+
+```json
+{
+  "steps": {
+    "hello": { "title": "Welcome back, {{firstName}}", "body": "You are on the free plan." }
+  },
+  "states": { "welcome": "Getting started" }
+}
+```
+
+`steps` and `states` are separate maps because step ids and state ids are separate
+namespaces — a state called `welcome` can coexist with a step called `welcome`, and one
+flat map would silently collide.
+
+It also returns a `tokens` map naming the tokens each string has to keep, and refuses a
+flow that does not validate: a catalogue keyed on ids the engine would reject matches
+nothing at runtime, in silence.
+
+### `guideflow_translate_flow`
+
+**It does not translate.** You translate — with your own client, your own credentials, and
+a human reviewing the diff. This checks the result, and returns the bytes to save.
+
+Four failures, none of which throws, logs, or fails a test in your application:
+
+| Code | What happens in production |
+|---|---|
+| `unknown-step` / `unknown-state` | The entry is never read. |
+| `token-lost` | The personalisation vanishes, in that locale only. |
+| `field-not-in-original` | The catalogue *adds* a line that exists in no other locale. |
+| `empty-override` | The copy is blanked rather than falling through. |
+
+`token-lost` is the one worth the tool. The pipeline is content → catalogue → token
+interpolation → renderer, catalogue **first**, precisely so that a translated string
+carrying a token still resolves — see [Content variables](/guide/content-variables). The
+corollary is that a translation which dropped the token renders a sentence with a hole in
+it and reports nothing.
+
+Token *names* are compared, not the written form. The fallback in
+<code v-pre>{{plan|your plan}}</code> is copy, so translating it is correct and is not
+flagged.
+
+An incomplete translation is a **warning**, never an error: a missing key falls through to
+the flow's own copy, which is a working page in the wrong language rather than a broken
+tour. `coverage` reports how much is done — `translated` counts only values that resolve to
+a string the flow actually has, so an entry flagged `unknown-step` or `field-not-in-original`
+does not inflate it, and `translated` can never exceed `total`.
+
+`fileContents` is withheld when there are errors — handing back bytes to save would invite
+committing a catalogue we have just said reaches nothing. When it is present, save it and
+load it in your app:
+
+```ts
+import es from './onboarding.es.json'
+
+gf.i18n.registerContent('es', es)
+gf.i18n.use('es')
+```
+
+There is no loader for that file. A catalogue is application data, and GuideFlow does not
+fetch.
+
 ## Why there is no `simulate`
 
 The original proposal had a fifth tool: drive a flow headlessly against a URL and return

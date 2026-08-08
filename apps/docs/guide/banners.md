@@ -181,7 +181,7 @@ three sound together has not been heard by anyone.
 
 ## Theming
 
-Reads the same [tokens](/guide/spotlight-popover#theming) as everything else, so
+Reads the same [tokens](/themes/#custom-themes) as everything else, so
 `data-gf-theme` on the document element themes it for free. Its own z-index
 token sits **below** the checklist and the hint/hotspot band, so a banner never
 covers a control the user needs:

@@ -93,15 +93,55 @@ export const S = {
     cursor: 'pointer',
   }),
 
-  card: (dragging: boolean): CSSProperties => ({
+  /** `active` is true while the card is being dragged OR is picking a target. */
+  card: (active: boolean): CSSProperties => ({
     background: '#181825',
-    border: `1px solid ${dragging ? '#cba6f7' : '#313244'}`,
+    border: `1px solid ${active ? '#cba6f7' : '#313244'}`,
     borderRadius: 6,
     padding: 10,
     marginBottom: 8,
     listStyle: 'none',
-    opacity: dragging ? 0.7 : 1,
+    opacity: active ? 0.7 : 1,
   }),
+
+  /**
+   * A compact square button for the reorder and insert controls.
+   *
+   * Disabled at the ends of the list, so it carries its own disabled colours:
+   * `S.btn` has no notion of one, and a control that looks live at position 1
+   * and does nothing is worse than one that says it cannot.
+   */
+  iconBtn: (disabled: boolean): CSSProperties => ({
+    background: 'transparent',
+    color: disabled ? '#45475a' : '#a6adc8',
+    border: '1px solid #45475a',
+    borderRadius: 4,
+    padding: '4px 8px',
+    fontSize: 12,
+    lineHeight: 1.2,
+    fontFamily: 'inherit',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    flex: '0 0 auto',
+  }),
+
+  /**
+   * Visually hidden, still announced.
+   *
+   * NOT `display: none` and NOT `visibility: hidden`: both take the node out of
+   * the accessibility tree entirely, so a live region using either is silent —
+   * which looks exactly like a live region that works.
+   */
+  srOnly: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: 'hidden',
+    clip: 'rect(0 0 0 0)',
+    whiteSpace: 'nowrap',
+    border: 0,
+  } as CSSProperties,
 
   list: { padding: 0, margin: 0 } as CSSProperties,
   stepNo: {

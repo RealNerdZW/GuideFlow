@@ -1,6 +1,6 @@
 ---
-description: "Analytics transports reference for @guideflow/analytics — PostHog, Mixpanel, Amplitude, Segment, Webhook, and the AnalyticsTransport interface."
-keywords: GuideFlow transports, PostHog, Mixpanel, Amplitude, Segment, Webhook, @guideflow/analytics
+description: "Analytics transports reference for @guideflow/analytics — PostHog, Mixpanel, Amplitude, Segment, Google Analytics 4, Heap, Webhook, and the AnalyticsTransport interface."
+keywords: GuideFlow transports, PostHog, Mixpanel, Amplitude, Segment, GA4, Google Analytics, Heap, Webhook, @guideflow/analytics
 ---
 
 # Transports
@@ -86,6 +86,114 @@ new SegmentTransport()
 ```
 
 Calls `window.analytics.track(event.event, { ...event.properties, timestamp: event.timestamp })`.
+
+---
+
+### GA4Transport
+
+```ts
+import { GA4Transport } from '@guideflow/analytics'
+
+new GA4Transport()
+new GA4Transport({ measurementId: 'G-XXXXXXXXXX' })
+```
+
+Calls `window.gtag('event', name, params)`, read lazily on every event. A `gtag` that is present but
+not callable — the placeholder a hand-rolled snippet can leave behind before `gtag.js` loads —
+counts as absent.
+
+::: warning GA4 will not tell you it dropped your event
+An event name containing a character GA4 does not allow is not rejected. The hit is accepted, the
+event never appears in the property, and there is no error in the console or the network tab. That
+is why this transport rewrites rather than forwards.
+:::
+
+**Event and parameter names.** Every character outside `[A-Za-z0-9_]` becomes a single underscore; a
+name not starting with a letter is prefixed `gf_` (GA4 requires a leading letter and reserves `_`
+for Google's own events); the result is truncated to 40 characters, last.
+
+| GuideFlow | GA4 |
+|---|---|
+| `guideflow.tour.started` | `guideflow_tour_started` |
+| `guideflow.tour.completed` | `guideflow_tour_completed` |
+| `guideflow.tour.abandoned` | `guideflow_tour_abandoned` |
+| `guideflow.step.viewed` | `guideflow_step_viewed` |
+| `guideflow.step.exited` | `guideflow_step_exited` |
+| `guideflow.step.skipped` | `guideflow_step_skipped` |
+
+Property keys go through the same function, so `flow.id` and `flow_id` would collapse into one
+parameter — last one wins. Truncation is the other lossy step: two custom `collector.track()` names
+that differ only after character 40 become one GA4 event.
+
+**Parameter values.** Strings are cut to 100 characters. Finite numbers and booleans pass through.
+Everything else — objects, arrays, `null`, `undefined`, `NaN`, `Infinity`, functions — is dropped,
+because a single unsupported value invalidates the whole hit rather than the one parameter.
+
+`timestamp` carries `event.timestamp` and wins over a property of the same name.
+`measurementId` is forwarded as gtag's `send_to` and is not name-sanitised (a hyphen is illegal in a
+GA4 *name*, and rewriting it would point the hit at nothing). You only need it when one page
+configures more than one GA4 destination.
+
+::: warning `send_to` is reserved
+`send_to` is a gtag **control** parameter — it names the destination the hit is routed to, not
+something about the event. A property called `send_to` (or `send.to`, or anything else that
+sanitises to it) is therefore **dropped**, whether or not you configured a `measurementId`. If it
+were not, a tour author or a `globalProperties` entry could redirect your events to a GA4 property
+you do not control, and in the default configuration — no `measurementId` — there would be nothing
+to overwrite the forged value with.
+:::
+
+GA4's own limits of 25 parameters per event and 50 custom dimensions per property are **not**
+enforced here — silently choosing which 25 survive would be worse than letting GA4 apply its rule
+where you can see it.
+
+---
+
+### HeapTransport
+
+```ts
+import { HeapTransport } from '@guideflow/analytics'
+
+new HeapTransport()
+```
+
+Calls `window.heap.track(event.event, { ...flattened, timestamp: event.timestamp })`. The event name
+is forwarded verbatim — Heap has no name constraints GuideFlow's names breach.
+
+`window.heap` is resolved lazily on every event **and shape-checked**: a `heap` that is present but
+has no callable `track` counts as absent. That is not a corner case — the first line of Heap's own
+install snippet is `window.heap = window.heap || []`, so for the whole of page load the global is an
+array with no `track` on it, which is exactly when an onboarding tour fires its first event.
+
+Heap stores primitive property values. A nested object is not an error and not a serialised string:
+the property is dropped, with no diagnostic anywhere. So this transport flattens first.
+
+| Property | Sent to Heap |
+|---|---|
+| `{ user: { plan: 'pro' } }` | `user.plan: 'pro'` |
+| `{ tags: ['beta', 'eu'] }` | `tags.0: 'beta'`, `tags.1: 'eu'` |
+| `{ signed_up: new Date(…) }` | `signed_up: '2026-07-30T12:00:00.000Z'` |
+| `{ limits: new Map([['seats', 12]]) }` | `limits.seats: 12` |
+| `{ flags: new Set(['beta']) }` | `flags.0: 'beta'` |
+| `{ flow_id: undefined }` | *(dropped)* |
+| `{ cb: () => {} }` | *(dropped, reported)* |
+
+`Date`, `Map` and `Set` are special-cased because all three are objects with **no own enumerable
+keys** — the generic walk finds nothing in them and the property disappears. The brand check uses
+`Object.prototype.toString`, not `instanceof`, so a `Date` or `Map` that arrived from an iframe or a
+cross-document bridge is still recognised: `instanceof` compares constructor identity, which does
+not survive a realm boundary. A `Map` entry whose **key** is not a string, number or boolean is
+dropped, because every object key stringifies to `[object Object]` and keeping them would collapse
+distinct entries onto one column.
+
+Nesting stops at four segments (`a.b.c.d`). That cap is also the cycle guard: `globalProperties` is
+yours, and a self-referencing object in it would otherwise walk forever rather than fail.
+
+When a whole top-level property produces no key at all — a `RegExp`, an `Error` (whose fields are
+non-enumerable), a `WeakMap`, a function, `NaN` — the transport emits **one** `console.warn` naming
+it, per transport instance. `null` and `undefined` are exempt: those are absent values, not lost
+ones. The warning exists because a property that is simply not there is the failure mode you cannot
+debug from Heap's UI; it fires once because this runs on every event.
 
 ---
 

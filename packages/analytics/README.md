@@ -72,7 +72,16 @@ const { value: theme } = engine.assign({
 | `MixpanelTransport` | Mixpanel |
 | `AmplitudeTransport` | Amplitude |
 | `SegmentTransport` | Segment |
+| `GA4Transport` | Google Analytics 4 (`gtag`) |
+| `HeapTransport` | Heap |
 | `WebhookTransport` | Any HTTP endpoint |
+
+Each vendor transport reads the SDK's own global lazily and does nothing when it is absent —
+initialising the SDK stays your job. Two of them rewrite what they send, because their backends
+require it: `GA4Transport` rewrites event and parameter names to GA4's `[A-Za-z0-9_]`/40-character
+rule (`guideflow.tour.completed` becomes `guideflow_tour_completed`), and `HeapTransport` flattens
+nested properties to dotted keys, since Heap stores primitives only and drops the rest without
+saying so.
 
 ## Key Exports
 
@@ -84,6 +93,8 @@ const { value: theme } = engine.assign({
 | `MixpanelTransport` | Mixpanel transport |
 | `AmplitudeTransport` | Amplitude transport |
 | `SegmentTransport` | Segment transport |
+| `GA4Transport` | Google Analytics 4 transport |
+| `HeapTransport` | Heap transport |
 | `WebhookTransport` | Generic webhook transport |
 
 ## Peer Dependencies

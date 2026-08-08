@@ -222,6 +222,16 @@ export default defineConfig({
           ],
         },
         {
+          text: 'Recipes',
+          items: [
+            { text: 'Interactive changelog', link: '/guide/feature-launch' },
+            { text: 'Guides in a help centre', link: '/guide/help-centre' },
+            { text: 'Account personalisation', link: '/guide/personalisation' },
+            { text: 'Routing survey answers', link: '/guide/answer-routing' },
+            { text: 'Cross-frame control', link: '/guide/cross-frame' },
+          ],
+        },
+        {
           text: 'Migration',
           items: [
             { text: 'From Driver.js', link: '/guide/migrate-driver' },

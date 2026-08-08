@@ -46,10 +46,40 @@ Two consequences, and both are the point:
 | `guideflow_get_flow` | One flow by path or by id, plus derived facts |
 | `guideflow_validate_flow` | The engine's real rules, with a fix for every problem |
 | `guideflow_author_flow` | A step list → a validated flow file, as bytes to save |
+| `guideflow_extract_strings` | A flow → the translation catalogue skeleton, keyed by id |
+| `guideflow_translate_flow` | A filled catalogue → every way it is silently wrong |
 
 The validator is `@guideflow/core/authoring`'s — the same one `guideflow validate` and
 the DevTools Recorder use, not a re-implementation. A flow that passes here is one the
 engine will run.
+
+## Translation, with no translation service
+
+The same inversion again: `guideflow_extract_strings` gives you every translatable
+string keyed by step id and state id, **you** translate the values, and
+`guideflow_translate_flow` checks the result. No key, no network, no vendor.
+
+A translated catalogue is silently wrong in four ways, none of which throws, logs, or
+fails a test in the host application:
+
+1. **A key that resolves to no step or state.** It is simply never read.
+2. **A lost `{{token}}`.** The content pipeline is `content → catalogue → {{token}} →
+   renderer`, catalogue first *so that* a translated string containing `{{firstName}}`
+   still resolves. A translation that dropped it renders the sentence without the name —
+   in one locale, for as long as nobody on the team reads that locale.
+3. **A field the original step does not have.** The catalogue merges over content, so it
+   *adds* the line in that locale and no other.
+4. **An empty value.** It is a value, so it blanks the copy rather than falling through.
+
+An incomplete translation is a warning, never an error: a missing key falls through to
+the flow's own copy, which is a working page.
+
+```
+extract → translate the values in place → check → save the bytes → registerContent()
+```
+
+Token *names* are compared, not the written form, so translating the fallback in
+`{{plan|your plan}}` is correct.
 
 ## Why there is no `simulate`
 

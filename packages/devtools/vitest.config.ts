@@ -26,14 +26,21 @@ export default defineConfig({
        * excluded here. Widening this list without widening the tests would
        * produce a lower number and no more safety.
        */
-      include: ['src/cloneable.ts', 'src/messages.ts', 'src/recorder/session.ts'],
+      include: [
+        'src/cloneable.ts',
+        'src/messages.ts',
+        'src/recorder/session.ts',
+        'src/recorder/steps.ts',
+      ],
       exclude: ['src/**/*.test.ts', 'src/__tests__'],
       // A ratchet, set just below measured. Raise it as coverage improves;
       // never lower it to make a build pass.
+      // Raised with `steps.ts`, which arrived fully covered: 99 / 91.17 / 100
+      // / 99 before, 99.3 / 93.61 / 100 / 99.3 after.
       thresholds: {
-        statements: 95,
-        lines: 95,
-        branches: 88,
+        statements: 99,
+        lines: 99,
+        branches: 93,
         functions: 95,
       },
     },

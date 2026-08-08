@@ -12,6 +12,9 @@
     "mixpanel",
     "amplitude",
     "segment",
+    "google-analytics",
+    "ga4",
+    "heap",
     "event-tracking",
     "experiment"
   ],

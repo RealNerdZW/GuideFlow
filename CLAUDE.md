@@ -39,7 +39,9 @@ packages/
   vue/          @guideflow/vue        GuideFlowPlugin + useTour composable (no components)
   svelte/       @guideflow/svelte     createTourStore (no components)
   ai/           @guideflow/ai         GuideBrain + OpenAI / Anthropic / Ollama / Mock providers
-  analytics/    @guideflow/analytics  AnalyticsCollector, 5 transports, ExperimentEngine
+  analytics/    @guideflow/analytics  AnalyticsCollector, 7 transports, ExperimentEngine. GA4 and Heap
+                                      rewrite what they send — GA4 rejects the dots in every GuideFlow
+                                      event name, Heap drops nested objects, and both do it silently.
   checklist/    @guideflow/checklist   createChecklist + docked mountChecklist widget. A projection of
                                       ProgressStore. Depends on core; core never imports it.
   banner/       @guideflow/banner      createBanners + docked mountBanner widget. One non-blocking
@@ -102,9 +104,13 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1409 unit tests pass**, 1 skipped
-(core 590, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
-vue 47, mcp 37, svelte 34, cli 33).
+Build, type-check, lint and unit tests are **all green**: **1652 unit tests pass**, 3 skipped
+(core 599, analytics 236, ai 153, react 147, mcp 90, checklist 88, devtools 84, survey 79,
+banner 62, vue 47, svelte 34, cli 33). Re-measure with
+`pnpm turbo run test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e --force` before
+quoting this line — it was left saying `devtools 54` through two rounds of devtools work, and
+`core` moved 593 → 599 inside a single session while four Phase 8 tail items were in flight. A
+count copied rather than measured is how a baseline stops being one.
 **Seven** bundles, each gated independently: `@guideflow/core` **15.54 kB / 16 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
 `./selector` **1.76 kB / 2.5 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
@@ -128,15 +134,24 @@ only place `clip-path` hit-testing is real, which is what `clickThrough` now dep
 touch positioning, focus, pointer capture or CSS, run the e2e suite — a green `pnpm test` proves
 nothing about any of them.**
 
-Every package has a real `test` script; `--passWithNoTests` has been removed everywhere. Six
-packages carry coverage thresholds set as **ratchets** just below measured coverage — raise them as
-coverage improves, never lower them to make a build pass. The one remaining hole is
-`@guideflow/devtools`, which still has no tests (needs an extension harness).
+Every package has a real `test` script; `--passWithNoTests` has been removed everywhere. **All
+twelve** packages carry coverage thresholds set as **ratchets** just below measured coverage —
+raise them as coverage improves, never lower them to make a build pass.
+
+**Correction.** This paragraph said "Six packages" and named `@guideflow/devtools` as "the one
+remaining hole, which still has no tests (needs an extension harness)". Both halves were stale:
+every `packages/*/vitest.config.ts` carries thresholds, and devtools has **84** unit tests plus the
+13-spec Chromium harness below. The sentence survived two rounds of devtools work while sitting two
+paragraphs under a test count that already contradicted it — check a "still has no tests" note
+against the count above it before you believe it. What devtools genuinely cannot unit-test is
+narrower and is written down where it belongs: the `coverage.include` comment in
+`packages/devtools/vitest.config.ts` lists the four modules a unit test can honestly own, and says
+why the worker, the content script, the panel and the Recorder's React tree are not among them.
 
 **Correction (0.2.0 release check).** This section used to say the Phase 3 devtools hardening "has
 still not been exercised in a browser". **That stopped being true in 7.9b** and the sentence outlived
 the fix — it then propagated into a release PR description before a fact-check caught it.
-`apps/e2e/tests-extension` loads the real unpacked extension in full Chromium (10 specs, its own
+`apps/e2e/tests-extension` loads the real unpacked extension in full Chromium (13 specs, its own
 `{ project: extension, browser: chromium }` entry in `ci.yml`), so the nonce handshake and the relay
 allowlist are exercised on the **happy** path: the four-hop detection assertion goes red if the
 per-load nonce desyncs or a type leaves `RELAYABLE`. `optional_host_permissions` was retired in 7.9b
@@ -355,6 +370,16 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
 - **The extension project must stay serial.** Each of its tests launches a full Chromium with a
   fresh profile. Nine in parallel exhausted the machine and produced nine "Tearing down context
   exceeded the test timeout" failures that read exactly like nine product bugs.
+- **An extension page in a TAB has `sender.tab` set, exactly like a content script.** MEASURED from
+  `recorder.html`: `{ hasTab: true, origin: "chrome-extension://<id>" }`. The service worker's
+  provenance gate classified "one of our own pages" as `sender.tab === undefined` — true of the
+  popup and the DevTools panel, false of the Recorder — so **every privileged request the Recorder
+  made fell through both branches and got no response at all**: Record, Preview, Check, Save and
+  clearing the capture buffer were dead from the day it shipped. Nothing said so, because two of
+  them report success without reading the reply and every e2e test armed recording from the *worker*
+  rather than by clicking the button. Classify by `sender.origin`, which the browser sets and a page
+  cannot claim. The general lesson: **a test that drives the subject from the inside proves nothing
+  about the path a user takes.**
 - **A service worker cannot `chrome.runtime.sendMessage` to itself.** Chrome does not deliver a
   message back to the sender's own context, so a worker asking itself gets "Could not establish
   connection. Receiving end does not exist." Assert on `chrome.storage` instead — which is also
@@ -490,6 +515,12 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   corrupts the stream and the client appears to hang with no error anywhere. `packages/mcp` writes
   its startup banner to stderr, and the smoke test asserts every stdout line parses as JSON — which
   is the only way to catch this, because `InMemoryTransport` never sees the process.
+  **That smoke test did not exist until 8.10.** This bullet was written next to the *intention* in
+  7.11 and nothing in the package ever spawned a process, so for four phases the sentence describing
+  the protection was the only protection. `packages/mcp/src/__tests__/stdio-smoke.test.ts` now runs
+  the built binary through a real handshake; measured against a deliberate `console.log`, all three
+  of its assertions go red and the static one names the file. Same lesson as the "Accessible by
+  Default" line above: a note asserting a test exists is not a test.
 - **`turbo` filters the environment, so `os.tmpdir()` is unreliable inside a task.** On Windows it
   reads `TEMP` then `TMP`; with neither passed through it returns the literal string
   `undefined	emp` and `mkdtempSync` fails with ENOENT — inside turbo only, which reads as a flaky
@@ -547,6 +578,27 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   happened to be reading `dist` when it vanished (core's fixture-guard test imports
   `apps/e2e/fixtures/flows.d.ts`, which imports `@guideflow/core` by package name). Both tasks now
   declare `["^build", "build"]`. Reproduced 1-in-3 before, 0-in-3 after.
+- **A subpath's signatures may name core's INTERFACES freely and must never name one of its
+  CLASSES.** `tsup.config.ts` is seven configs each with `dts: true`, and rollup-dts bundles per
+  entry: it does not emit an import back into the main entry's declarations, it *inlines the whole
+  transitive type graph*. `dist/targeting/index.d.ts` had zero import statements and its own copies
+  of `I18nRegistry`, `ProgressStore` and `EventEmitter`. Duplicated interfaces unify structurally
+  and nobody notices; **a duplicated class with a `private` member is NOMINALLY typed**, so
+  `createTargeting(createGuideFlow({}))` was a TS2345 for every published consumer through 0.1.9 —
+  chain `GuideFlowInstance → configure → GuideFlowConfig → renderer → RendererContract → setI18n →
+  I18nRegistry`, ending in "separate declarations of a private property `_locales`". Both
+  `GuideFlowInstance` and `GuideFlowConfig` reach a class, so the transitive case is the one that
+  bites. Use a structural host naming only what you call — `TargetingHost`, `AdvanceOnHost`,
+  `DeepLinkHost`, `CapStore`. **`pnpm type-check` cannot see any of this**: every in-repo caller
+  resolves through tsconfig `paths` to `src` and shares one copy of the graph, and nothing here ever
+  type-checks `dist`. `scripts/check-dist-types.mjs` (a scratch consumer on `moduleResolution
+  node16`, ESM *and* CJS, in the `pack` CI job) and `subpath-type-isolation.test.ts` are what keep it
+  fixed.
+  Unrelated and still open: `createNavigation<Ctx>()` cannot be passed to `createGuideFlow<Ctx>()`
+  because `GuideFlowConfig` is not generic while `Step<TContext>` is invariant. MEASURED identically
+  through `src` and `dist`, so it is **not** the inlining bug; fixing it means making
+  `GuideFlowConfig` generic, which ripples into `RendererContract.onInit`, `configure()` and all
+  three adapters. Call `createNavigation({…})` without the type argument, which is what the docs show.
 - **Two of core's subpaths are DIRECTORIES.** `targeting` and `navigation` are `src/<name>/index.ts`;
   `selector`, `authoring`, `html` and `versioning` are flat `src/<name>.ts`. `apps/demo`'s generic
   alias mapped every subpath to `src/$1.ts`, which was fine until a package importing
@@ -588,6 +640,15 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
 - **A VitePress dead link aborts the build at `renderStart`, BEFORE SSR — so it masks every later
   error.** Fixing one dead link surfaced a second, unrelated break that had been invisible behind it.
   When a docs build fails, fix and re-run rather than assuming the first error was the only one.
+- **VitePress validates a dead PAGE and not a dead `#fragment`.** A link to a heading that does not
+  exist builds green and silently drops the reader at the top of the page. Two were live:
+  `/guide/spotlight-popover#theming` in `banners.md` since 7.8b (that page has no Theming heading),
+  and `/guide/targeting#deep-links-gf-tour` hand-written from the heading text — the real id is
+  `deep-links-—-gf-tour`, because **punctuation survives slugify** and `## Deep links — ?gf_tour=`
+  keeps its em dash as a literal U+2014. Never hand-write an anchor from heading text; copy the id
+  out of the built HTML. `scripts/check-docs-anchors.mjs` fails CI on all of it, and reads the
+  emitted `dist` rather than re-implementing slugify, so it cannot drift from VitePress. It runs
+  after `docs:build` for that reason.
 - **The docs site was never built before merge until 8.x.** Every `ci.yml` task passes
   `--filter=!docs`, and `docs.yml` only fires on push to `master`, so a broken docs build failed at
   *deploy* — after review, after merge, with the published site left stale. The `docs` job in
@@ -668,6 +729,16 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   happen — dropped the utterance into a detached node. `_liveRegionEl` stays set while that removal
   is pending, or a tour restarting inside the window builds a SECOND region and the stale one keeps
   saying "Tour complete" under the new step.
+- **An IDENTICAL consecutive announcement is silent, and nothing reports it.** A live region is
+  spoken because it *mutated*; a region re-rendered with the string it already holds has not
+  mutated. In React that is exact — `setAnnouncement(text)` with an unchanged `text` leaves the
+  text node alone — so the Recorder's "Moved to position 2 of 2." was announced the first time a
+  step moved and never again. `DefaultRenderer._announce` is safe only because it writes `''` first
+  and the real text on the next frame; the clear IS the mitigation, so do not "optimise" it away.
+  `packages/devtools/src/recorder/steps.ts` does the same job with `nextAnnouncement`, which
+  alternates an invisible U+200B so consecutive values always differ. Assert this on **raw**
+  `textContent` — Playwright's `toHaveText` normalises the marker away, and so does every
+  string-equality check that would have caught it.
 - **The content pipeline is `content → locale catalogue → {{token}} → renderer`, in that order,
   in `_resolveContent`.** The order is the whole reason 8.3 and 8.4 shipped together: a *translated*
   string containing `{{firstName}}` only resolves if the catalogue is applied first. It lives in the

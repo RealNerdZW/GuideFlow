@@ -28,18 +28,18 @@
  * *acts* on it lives in this subpath and hooks through existing public seams:
  * `gf.listFlows()`, `gf.progress`, `gf.on('tour:start')`, `gf.start()`.
  */
-import type { GuideFlowInstance } from '../index.js'
 import { watchHistory } from '../navigation/history.js'
-import type { FlowDefinition, GuidanceContext, StartTrigger } from '../types/index.js'
+import type { FlowDefinition, GuidanceContext, StartTrigger, TourEvents } from '../types/index.js'
 
-import { loadCaps, recordShow, saveCaps } from './caps.js'
-import { startFromUrl } from './deep-link.js'
+import { loadCaps, recordShow, saveCaps, type CapStore } from './caps.js'
+import { startFromUrl, type DeepLinkHost } from './deep-link.js'
 import { emptyCaps, evaluateFlow, type CapRecord, type FlowEvaluation } from './rules.js'
 
 export { matchUrl, matchAudience, matchSchedule, sessionCount, evaluateFlow, emptyCaps } from './rules.js'
 export type { BlockReason, CapRecord, FlowEvaluation, EvaluationEnv } from './rules.js'
 export { startFromUrl } from './deep-link.js'
 export type { DeepLinkHost, DeepLinkOptions } from './deep-link.js'
+export type { CapStore } from './caps.js'
 
 const isBrowser = (): boolean => typeof window !== 'undefined' && typeof document !== 'undefined'
 
@@ -67,6 +67,55 @@ export interface TargetingOptions {
   anonymousId?: boolean
 }
 
+/**
+ * The slice of a GuideFlow instance this engine uses.
+ *
+ * Structural, and deliberately **not** `GuideFlowInstance<TContext>`. Naming
+ * that type here is what made `@guideflow/core/targeting` unusable from
+ * TypeScript for every published consumer, all through 0.1.9:
+ *
+ * `tsup.config.ts` is seven configs each carrying `dts: true`, and rollup-dts
+ * bundles per entry — it does not emit `import type { … } from '../index.js'`
+ * into a subpath's declarations, it INLINES the entire transitive type graph.
+ * `dist/targeting/index.d.ts` had zero import statements and its own copies of
+ * `I18nRegistry`, `ProgressStore` and `EventEmitter`. Interfaces duplicated that
+ * way unify structurally and nobody notices; a **class with a `private` member
+ * is nominally typed**, so the copy here and the copy in `dist/index.d.ts` are
+ * permanently distinct. `GuideFlowInstance` reaches `I18nRegistry` through
+ * `configure → GuideFlowConfig → renderer → RendererContract → setI18n`, so
+ * passing a real instance was a TS2345 whose error chain ended in
+ * "Types have separate declarations of a private property '_locales'".
+ *
+ * Nothing in this repo could see it: every in-repo caller resolves
+ * `@guideflow/core` through `tsconfig` `paths` to `src`, so they all share one
+ * copy of the graph. `scripts/check-dist-types.mjs` compiles a scratch consumer
+ * against the built `dist` through the real `exports` map, which is the only
+ * arrangement that reproduces it.
+ *
+ * The rule this leaves behind: **a subpath may reference core's interfaces and
+ * type aliases freely, and must never reference one of its classes.** Today
+ * that means `I18nRegistry`, `ProgressStore`, `EventEmitter`, `TourEngine` and
+ * anything reaching them — `GuideFlowInstance` and `GuideFlowConfig` both do.
+ */
+export interface TargetingHost<TContext extends GuidanceContext = GuidanceContext>
+  extends DeepLinkHost<TContext> {
+  /**
+   * Frequency caps and the completed/dismissed gates.
+   *
+   * Only the four methods this engine calls. `getRecord`/`setRecord` carry the
+   * `caps` record — see `caps.ts` for why that suffix and not another.
+   */
+  readonly progress: CapStore & {
+    isCompleted: (userId: string, flowId: string) => Promise<boolean>
+    isDismissed: (userId: string, flowId: string) => Promise<boolean>
+  }
+  /** Only `tour:start` is subscribed, but the full map keeps the shape honest. */
+  on: <K extends keyof TourEvents>(
+    event: K,
+    listener: (payload: TourEvents[K]) => void,
+  ) => () => void
+}
+
 export interface TargetingEngine<TContext extends GuidanceContext = GuidanceContext> {
   /** Score every candidate. Never starts anything, never writes. */
   evaluate(trigger?: StartTrigger): Promise<Array<FlowEvaluation<TContext>>>
@@ -83,7 +132,7 @@ export interface TargetingEngine<TContext extends GuidanceContext = GuidanceCont
 const ANON_KEY = 'gf:anon-id'
 
 export function createTargeting<TContext extends GuidanceContext = GuidanceContext>(
-  gf: GuideFlowInstance<TContext>,
+  gf: TargetingHost<TContext>,
   options: TargetingOptions = {},
 ): TargetingEngine<TContext> {
   const sessionGapMs = options.sessionGapMs ?? DEFAULT_SESSION_GAP_MS

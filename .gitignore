@@ -19,6 +19,9 @@ coverage
 
 # Cache
 .turbo
+# Scratch consumer package built by scripts/check-dist-types.mjs. Removed on
+# exit unless --keep; ignored so an interrupted run cannot be committed.
+.dist-types-check
 .cache
 .parcel-cache
 .eslintcache

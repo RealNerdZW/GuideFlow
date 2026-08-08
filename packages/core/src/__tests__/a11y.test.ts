@@ -319,6 +319,92 @@ describe('a11y — focus management', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// ADR-024 — the widened trap, and the one target shape it does not reach.
+//
+// `clickThrough` cuts the same hole in the tab order that it cuts in the
+// overlay, so a step saying "click Save" is followable from the keyboard. The
+// renderer decides that from `step.target`, which it re-resolves itself as
+// `string | Element` only — so a FUNCTION target resolves to null there even
+// though the engine resolved it fine and the spotlight is sitting on the right
+// element. Both directions are pinned: the second is a KNOWN GAP, documented in
+// `apps/docs/guide/advance-on.md`, not a design choice.
+// ---------------------------------------------------------------------------
+
+describe('a11y — clickThrough widens the focus trap', () => {
+  let renderer: DefaultRenderer
+  let undoVisible: () => void
+  let saveButton: HTMLButtonElement
+
+  beforeEach(() => {
+    undoVisible = makeVisible()
+    saveButton = document.createElement('button')
+    saveButton.id = 'save'
+    saveButton.textContent = 'Save'
+    document.body.appendChild(saveButton)
+    renderer = new DefaultRenderer()
+    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+  })
+
+  afterEach(() => {
+    renderer.hideStep()
+    undoVisible()
+    document.body.innerHTML = ''
+  })
+
+  /** Render one clickThrough step and hand back the popover's own controls. */
+  function renderClickThrough(target: Exclude<Step['target'], undefined>): HTMLElement[] {
+    const content: StepContent = { title: 'Save your work' }
+    const step: Step = { id: 'save', clickThrough: true, content, target }
+    renderer.renderStep(step, content, 1, 3)
+    const popover = document.querySelector<HTMLElement>('.gf-popover')!
+    return Array.from(popover.querySelectorAll('button'))
+  }
+
+  function pressTab(): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    document.dispatchEvent(event)
+    return event
+  }
+
+  it('puts the highlighted element last in the tab order for a selector target', () => {
+    const buttons = renderClickThrough('#save')
+    buttons[buttons.length - 1]!.focus()
+
+    const event = pressTab()
+
+    // The scope is discontiguous, so the trap drives every step explicitly.
+    expect(event.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(saveButton)
+  })
+
+  it('reaches it for an Element target too', () => {
+    const buttons = renderClickThrough(saveButton)
+    buttons[buttons.length - 1]!.focus()
+
+    pressTab()
+
+    expect(document.activeElement).toBe(saveButton)
+  })
+
+  it('KNOWN GAP: does not reach it for a function target', () => {
+    const buttons = renderClickThrough(() => saveButton)
+    buttons[buttons.length - 1]!.focus()
+
+    pressTab()
+
+    // The engine resolved this target and the spotlight is on it, but the
+    // renderer re-resolved `step.target` as string | Element and got null, so
+    // `_clickThroughEl` stayed null and the trap wrapped to the popover instead
+    // of stepping into the page. Fixing it means handing the renderer the
+    // element the engine already resolved — a RendererContract.renderStep
+    // signature change, so it is a decision rather than a patch. Until then the
+    // docs tell authors to use a selector string.
+    expect(document.activeElement).not.toBe(saveButton)
+    expect(document.activeElement).toBe(buttons[0])
+  })
+})
+
 describe('a11y — keyboard does not hijack form controls', () => {
   const flow: FlowDefinition = {
     id: 'kb',

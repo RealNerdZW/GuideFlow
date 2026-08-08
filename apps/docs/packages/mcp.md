@@ -28,7 +28,7 @@ security model. See the guide.
 
 ## Tools
 
-All four are `readOnlyHint: true` and `destructiveHint: false`. Nothing writes a file.
+All six are `readOnlyHint: true` and `destructiveHint: false`. Nothing writes a file.
 
 | Tool | Arguments |
 |---|---|
@@ -36,6 +36,8 @@ All four are `readOnlyHint: true` and `destructiveHint: false`. Nothing writes a
 | `guideflow_get_flow` | exactly one of `path` or `flowId` |
 | `guideflow_validate_flow` | `flow` — a `FlowDefinition` or a `{ gfFlowFile, flow }` envelope |
 | `guideflow_author_flow` | `id`, `name`, `steps[]`, `sourceUrl?` |
+| `guideflow_extract_strings` | exactly one of `path`, `flowId` or `flow` |
+| `guideflow_translate_flow` | `locale`, `catalogue`, and exactly one flow source |
 
 Every tool returns `structuredContent` alongside a JSON text block, so clients that render
 only text still show something useful.
