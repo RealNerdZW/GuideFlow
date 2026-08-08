@@ -5,9 +5,26 @@
  * key prefix `resetUser()` sweeps and needs no second driver — a user who
  * configures `persistence` once gets caps in the same place as everything else.
  */
-import type { ProgressStore } from '../persistence/progress-store.js'
-
 import { emptyCaps, type CapRecord } from './rules.js'
+
+/**
+ * The two `ProgressStore` methods this file uses, structurally.
+ *
+ * Deliberately NOT `import type { ProgressStore }`. `ProgressStore` is a class
+ * with private fields, so it is **nominally** typed — and rollup-dts bundles
+ * each tsup entry separately, inlining the whole transitive type graph into
+ * `dist/targeting/index.d.ts` rather than importing it from `dist/index.d.ts`.
+ * Two identical inlined copies of a class with a `private` member never unify,
+ * so naming the class here made `createTargeting(gf)` a TS2345 for every
+ * consumer resolving through the `exports` map. Duplicated *interfaces* unify
+ * structurally and cost nothing; duplicated classes are the whole bug.
+ *
+ * `scripts/check-dist-types.mjs` is what keeps this true.
+ */
+export interface CapStore {
+  getRecord: <T>(userId: string, suffix: string) => Promise<T | null>
+  setRecord: <T>(userId: string, suffix: string, value: T) => Promise<void>
+}
 
 const SUFFIX = 'caps'
 /** Enough history for any plausible session window; bounded so it cannot grow. */
@@ -15,7 +32,7 @@ const MAX_GLOBAL_RECENT = 32
 const MAX_FLOW_RECENT = 16
 const MAX_FLOWS = 50
 
-export async function loadCaps(store: ProgressStore, userId: string): Promise<CapRecord> {
+export async function loadCaps(store: CapStore, userId: string): Promise<CapRecord> {
   const raw = await store.getRecord<CapRecord>(userId, SUFFIX)
   // An unknown schema version is DISCARDED, not migrated. A cap record is
   // disposable — the cost of rebuilding it is one extra tour impression, and
@@ -25,7 +42,7 @@ export async function loadCaps(store: ProgressStore, userId: string): Promise<Ca
 }
 
 export async function saveCaps(
-  store: ProgressStore,
+  store: CapStore,
   userId: string,
   caps: CapRecord,
 ): Promise<void> {

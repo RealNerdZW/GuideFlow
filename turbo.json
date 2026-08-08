@@ -11,7 +11,20 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"],
+      // `build` (own package) as well as `^build` (dependencies), for the same
+      // reason lint and type-check below carry it — and MEASURED here, three
+      // times in one session, as three different packages "failing".
+      //
+      // Two suites read their OWN package's dist: @guideflow/mcp's
+      // stdio-smoke.test.ts SPAWNS `dist/index.js`, and @guideflow/devtools'
+      // store-readiness.test.ts reads `dist/manifest.json` and the icon PNGs.
+      // Every package's build starts with `fsx rm dist`, so with `^build` alone
+      // turbo is free to schedule a package's test alongside its own build —
+      // and the test loses the race against the rm. It presents as an
+      // intermittent, unrelated-looking failure in whichever package was
+      // scheduled first, which is exactly the shape that gets waved through as
+      // "flaky CI".
+      "dependsOn": ["^build", "build"],
       "outputs": ["coverage/**"],
       // TEMP/TMP/TMPDIR as well as CI: turbo filters the environment, and on
       // Windows `os.tmpdir()` reads TEMP then TMP before falling back. With

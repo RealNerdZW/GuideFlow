@@ -16,6 +16,8 @@ import * as entry from '../index.js';
 import { PrivacyPolicy } from '../privacy.js';
 import { EXPERIMENT_EXPOSED_EVENT, startVariant } from '../start-variant.js';
 import { AmplitudeTransport } from '../transports/amplitude.js';
+import { GA4Transport } from '../transports/ga4.js';
+import { HeapTransport } from '../transports/heap.js';
 import { MixpanelTransport } from '../transports/mixpanel.js';
 import { PostHogTransport } from '../transports/posthog.js';
 import { SegmentTransport } from '../transports/segment.js';
@@ -31,6 +33,8 @@ describe('package entry point', () => {
     expect(entry.MixpanelTransport).toBe(MixpanelTransport);
     expect(entry.AmplitudeTransport).toBe(AmplitudeTransport);
     expect(entry.SegmentTransport).toBe(SegmentTransport);
+    expect(entry.GA4Transport).toBe(GA4Transport);
+    expect(entry.HeapTransport).toBe(HeapTransport);
     expect(entry.WebhookTransport).toBe(WebhookTransport);
     expect(entry.computeFunnel).toBe(computeFunnel);
     expect(entry.ExperimentEngine).toBe(ExperimentEngine);
@@ -46,6 +50,8 @@ describe('package entry point', () => {
       'AnalyticsCollector',
       'EXPERIMENT_EXPOSED_EVENT',
       'ExperimentEngine',
+      'GA4Transport',
+      'HeapTransport',
       'MixpanelTransport',
       'PostHogTransport',
       'PrivacyPolicy',

@@ -19,7 +19,8 @@
     "docs:build": "pnpm --filter docs build",
     "storybook": "pnpm --filter @guideflow/storybook dev",
     "demo": "pnpm --filter @guideflow/demo dev",
-    "sync-repo": "node scripts/sync-repo-meta.mjs"
+    "sync-repo": "node scripts/sync-repo-meta.mjs",
+  "check-dist-types": "node scripts/check-dist-types.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.9.0",

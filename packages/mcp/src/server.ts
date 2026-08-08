@@ -18,19 +18,25 @@
 // The validator behind `validate_flow` is `@guideflow/core/authoring`'s — the
 // same one `guideflow validate` and the DevTools Recorder use. ADR-012's "one
 // engine" promise, reaching one more surface.
+//
+// `extract_strings` and `translate_flow` are the same inversion applied to
+// localisation: no translation service, no key, no network. The model
+// translates; these two say which strings exist and whether what came back will
+// still run. See `catalogue.ts`.
 // ---------------------------------------------------------------------------
 
+import type { FlowDefinition } from '@guideflow/core'
 import {
   draftToFlow,
   explainNotLinear,
   stringifyFlowFile,
   validateFlow,
   type FlowDraft,
-  type FlowIssue,
 } from '@guideflow/core/authoring'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 
+import { checkCatalogue, extractStrings, type CatalogueIssue } from './catalogue.js'
 import { findByFlowId, listFlows, readFlowFile } from './flows.js'
 import { OutsideRootError } from './root.js'
 
@@ -80,8 +86,23 @@ function describe(error: unknown): string {
   return err?.message ?? String(error)
 }
 
+/**
+ * Everything a client renders as an issue.
+ *
+ * Structural rather than `FlowIssue`, so the catalogue tools' own issue codes —
+ * a separate closed union, in a separate namespace — go through the same
+ * formatter and arrive looking identical.
+ */
+interface RenderableIssue {
+  code: string
+  severity: string
+  path: string
+  message: string
+  hint: string
+}
+
 /** Issues, trimmed to what a model needs to act. */
-function issueLines(issues: FlowIssue[]): Array<Record<string, unknown>> {
+function issueLines(issues: readonly RenderableIssue[]): Array<Record<string, unknown>> {
   return issues.map((i) => ({
     code: i.code,
     severity: i.severity,
@@ -89,6 +110,91 @@ function issueLines(issues: FlowIssue[]): Array<Record<string, unknown>> {
     message: i.message,
     hint: i.hint,
   }))
+}
+
+/** A flow file resolved from an id, or a message saying why it was not. */
+function locateByFlowId(root: string, flowId: string): { path: string } | { message: string } {
+  const matches = findByFlowId(root, flowId)
+  if (matches.length === 0) {
+    return {
+      message: `No flow with id "${flowId}" under ${root}. Run guideflow_list_flows to see what exists.`,
+    }
+  }
+  if (matches.length > 1) {
+    return {
+      message:
+        `Ambiguous: ${matches.length} files declare the id "${flowId}" — ` +
+        `${matches.map((m) => m.path).join(', ')}. Pass one of them as \`path\`.`,
+    }
+  }
+  return { path: matches[0]?.path as string }
+}
+
+type FlowSource =
+  | { ok: true; flow: FlowDefinition; path: string | null }
+  | { ok: false; message: string }
+
+/**
+ * The one flow a tool was pointed at: from disk by path or id, or inline.
+ *
+ * Inline matters for the catalogue tools specifically — a model that has just
+ * authored a flow has it in hand and has not written it anywhere yet, and
+ * making it save a file first to extract its strings would be a round trip for
+ * nothing.
+ *
+ * A flow that does not validate is REFUSED rather than half-processed. Every
+ * catalogue key is a step or state id, so an id the validator would have
+ * rejected produces a catalogue that quietly matches nothing.
+ */
+function resolveFlowSource(
+  root: string,
+  args: { path?: string | undefined; flowId?: string | undefined; flow?: unknown },
+): FlowSource {
+  const given = [args.path, args.flowId, args.flow].filter((v) => v !== undefined).length
+  if (given !== 1) {
+    return { ok: false, message: 'Pass exactly one of `path`, `flowId` or `flow`.' }
+  }
+
+  if (args.flow !== undefined) {
+    const raw = args.flow
+    const input =
+      raw !== null && typeof raw === 'object' && 'gfFlowFile' in raw
+        ? (raw as unknown as { flow: unknown }).flow
+        : raw
+    const result = validateFlow(input)
+    if (!result.flow) {
+      return {
+        ok: false,
+        message:
+          `That flow does not validate, so its step and state ids cannot be trusted: ` +
+          `${result.errors[0]?.message ?? 'unknown error'} ` +
+          'Run guideflow_validate_flow for the full list.',
+      }
+    }
+    return { ok: true, flow: result.flow, path: null }
+  }
+
+  try {
+    let target = args.path
+    if (target === undefined && args.flowId !== undefined) {
+      const located = locateByFlowId(root, args.flowId)
+      if ('message' in located) return { ok: false, message: located.message }
+      target = located.path
+    }
+    const result = readFlowFile(root, target as string)
+    if (!result.flow) {
+      return {
+        ok: false,
+        message:
+          `${result.path} does not validate, so its step and state ids cannot be trusted: ` +
+          `${result.issues.find((i) => i.severity === 'error')?.message ?? 'unknown error'} ` +
+          'Run guideflow_get_flow for the full list.',
+      }
+    }
+    return { ok: true, flow: result.flow, path: result.path }
+  } catch (error) {
+    return { ok: false, message: describe(error) }
+  }
 }
 
 const READ_ONLY = {
@@ -218,19 +324,9 @@ Error Handling:
       try {
         let target = path
         if (target === undefined && flowId !== undefined) {
-          const matches = findByFlowId(root, flowId)
-          if (matches.length === 0) {
-            return fail(
-              `No flow with id "${flowId}" under ${root}. Run guideflow_list_flows to see what exists.`,
-            )
-          }
-          if (matches.length > 1) {
-            return fail(
-              `Ambiguous: ${matches.length} files declare the id "${flowId}" — ` +
-                `${matches.map((m) => m.path).join(', ')}. Pass one of them as \`path\`.`,
-            )
-          }
-          target = matches[0]?.path
+          const located = locateByFlowId(root, flowId)
+          if ('message' in located) return fail(located.message)
+          target = located.path
         }
         const result = readFlowFile(root, target as string)
         return ok({
@@ -403,6 +499,172 @@ Error Handling:
           ...(sourceUrl !== undefined && { sourceUrl }),
         }),
         suggestedPath: `${id}.flow.json`,
+      })
+    },
+  )
+
+  // ── extract strings ─────────────────────────────────────────────────────
+
+  server.registerTool(
+    'guideflow_extract_strings',
+    {
+      title: 'Extract a flow’s translatable strings',
+      description: `Emit the ContentCatalogue skeleton for a flow: every translatable string, keyed by step id and state id, ready to be translated in place.
+
+A catalogue sits **beside** the flow, never inside it — translators want a flat file of strings, not a state machine, and an untranslated key falls through to the flow's own copy so a partial translation degrades one string at a time.
+
+**This does not translate anything — you are the model.** It tells you exactly which strings exist, which key each belongs to, and which \`{{token}}\` each one must keep. Translate the values in place, then check the result with guideflow_translate_flow.
+
+Args:
+  - path (string): Flow file, relative to the server root.
+  - flowId (string): The flow's own \`id\`.
+  - flow (object): A FlowDefinition, or a { gfFlowFile, flow } envelope, inline.
+  Pass exactly one.
+
+Returns:
+  {
+    "flowId": string,
+    "path": string | null,        // null when the flow was passed inline
+    "stringCount": number,        // translatable strings found
+    "catalogue": {
+      "steps":  { "<stepId>":  { "title"?, "body"?, "html"? } },
+      "states": { "<stateId>": "<chapter label>" }
+    },
+    "tokens": { "steps.welcome.title": ["firstName"] },  // must survive translation
+    "issues": [{ "code", "severity", "path", "message", "hint" }]
+  }
+
+Examples:
+  - Use when: "translate the welcome tour into Spanish" -> extract, translate the values, then guideflow_translate_flow
+  - Use when: you want to know whether a flow is translatable at all
+  - Don't use when: you already have a filled catalogue (use guideflow_translate_flow)
+
+Notes:
+  - Values are the ORIGINAL copy, not blanks, so the file diffs source against
+    translation. Overwrite each value; do not add keys.
+  - \`steps\` and \`states\` are separate maps because step ids and state ids are
+    separate namespaces — a state called "welcome" can coexist with a step
+    called "welcome", and one flat map would silently collide.
+  - Every \`{{token}}\` must appear in the translation. The catalogue is applied
+    BEFORE interpolation, so a translated sentence containing {{firstName}}
+    still resolves — wherever in the sentence you put it.
+  - Steps in every state are extracted, not only those on the NEXT path.
+
+Error Handling:
+  - Refuses a flow that does not validate: a catalogue keyed on ids the engine
+    would reject matches nothing at runtime, in silence.`,
+      inputSchema: {
+        path: z.string().min(1).optional().describe('Path relative to the server root'),
+        flowId: z.string().min(1).optional().describe("The flow's own id"),
+        flow: z.unknown().optional().describe('A FlowDefinition, inline'),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ path, flowId, flow }) => {
+      const source = resolveFlowSource(root, { path, flowId, flow })
+      if (!source.ok) return fail(source.message)
+
+      const extracted = extractStrings(source.flow)
+      return ok({
+        flowId: source.flow.id,
+        path: source.path,
+        stringCount: extracted.stringCount,
+        stepCount: Object.keys(extracted.catalogue.steps).length,
+        stateCount: Object.keys(extracted.catalogue.states).length,
+        catalogue: extracted.catalogue,
+        tokens: extracted.tokens,
+        issues: issueLines(extracted.issues),
+      })
+    },
+  )
+
+  // ── check a translation ─────────────────────────────────────────────────
+
+  server.registerTool(
+    'guideflow_translate_flow',
+    {
+      title: 'Check a translated catalogue against its flow',
+      description: `Validate a filled ContentCatalogue against the flow it is for, and return the bytes to save beside it.
+
+**It does not call a translation service and does not translate — you are the model.** You translate; this catches the four ways a translated catalogue is silently wrong at runtime, none of which throws, logs, or fails a test in the host application:
+
+  1. A key that resolves to no step or state. It is simply never read.
+  2. A \`{{token}}\` present in the original and missing from the translation. The personalisation disappears in that locale only.
+  3. A field the original step does not have. The catalogue merges over content, so it ADDS the line in this locale and no other.
+  4. An empty value. \`{ ...content, ...override }\` treats it as a value, so it blanks the copy rather than falling through.
+
+Args:
+  - locale (string): The BCP 47 tag this catalogue is for, e.g. "es" or "pt-BR".
+  - catalogue (object): { steps?: { <stepId>: { title?, body?, html? } }, states?: { <stateId>: label } }
+  - path | flowId | flow: the flow to check against — exactly one, as guideflow_extract_strings.
+
+Returns:
+  {
+    "locale": string,
+    "valid": boolean,            // true when there are no ERRORS
+    "errorCount": number,
+    "warningCount": number,
+    "issues": [{ "code", "severity", "path", "message", "hint" }],
+    "coverage": {
+      "total": number,           // translatable strings in the flow
+      "translated": number,      // of those, how many the catalogue supplies
+      "missingSteps": string[],
+      "missingStates": string[]
+    },
+    "fileContents": string,      // present only when valid
+    "suggestedPath": string      // e.g. "welcome.es.json"
+  }
+
+Codes you will see: token-lost, unknown-step, unknown-state, field-not-in-original, empty-override, unknown-field, token-invented, token-in-html, translation-unchanged, state-label-not-in-original, incomplete-translation.
+
+Examples:
+  - Use when: you have just translated the output of guideflow_extract_strings
+  - Use when: reviewing a translation someone else committed
+  - Don't use when: you want to check the flow itself (use guideflow_validate_flow)
+
+Notes:
+  - **It writes no file.** Save \`fileContents\` with your own file tools, then
+    load it in the host and call \`gf.i18n.registerContent(locale, catalogue)\`.
+    There is no loader for it: a catalogue is application data, and GuideFlow
+    does not fetch.
+  - An incomplete translation is a warning, never an error. A missing key falls
+    through to the flow's own copy, which is a working page.
+  - Token names are compared, not the written form: \`{{plan|your plan}}\` has a
+    translatable fallback, so translating it is correct.`,
+      inputSchema: {
+        locale: z.string().min(1).describe('BCP 47 tag, e.g. "es" or "pt-BR"'),
+        // Deliberately `unknown` rather than a modelled object, exactly as
+        // guideflow_validate_flow takes its flow: the mistakes worth catching
+        // here are shape mistakes, and a schema rejection would replace eleven
+        // issues that each name a fix with one opaque parse error.
+        catalogue: z.unknown().describe('The filled ContentCatalogue'),
+        path: z.string().min(1).optional().describe('Path relative to the server root'),
+        flowId: z.string().min(1).optional().describe("The flow's own id"),
+        flow: z.unknown().optional().describe('A FlowDefinition, inline'),
+      },
+      annotations: READ_ONLY,
+    },
+    ({ locale, catalogue, path, flowId, flow }) => {
+      const source = resolveFlowSource(root, { path, flowId, flow })
+      if (!source.ok) return fail(source.message)
+
+      const result = checkCatalogue(source.flow, catalogue)
+      const issues: CatalogueIssue[] = result.issues
+      return ok({
+        locale,
+        flowId: source.flow.id,
+        path: source.path,
+        valid: result.valid,
+        errorCount: result.errors.length,
+        warningCount: result.warnings.length,
+        issues: issueLines(issues),
+        coverage: result.coverage,
+        // Withheld when there are errors: handing back bytes to save would
+        // invite committing a catalogue we have just said reaches nothing.
+        ...(result.valid && {
+          fileContents: `${JSON.stringify(catalogue, null, 2)}\n`,
+          suggestedPath: `${source.flow.id}.${locale}.json`,
+        }),
       })
     },
   )

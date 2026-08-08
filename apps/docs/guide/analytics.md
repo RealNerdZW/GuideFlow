@@ -1,5 +1,5 @@
 ---
-description: Track product tour engagement with @guideflow/analytics. Collect six tour lifecycle events and send them to PostHog, Mixpanel, Amplitude, Segment or a webhook.
+description: Track product tour engagement with @guideflow/analytics. Collect six tour lifecycle events and send them to PostHog, Mixpanel, Amplitude, Segment, Google Analytics 4, Heap or a webhook.
 keywords: GuideFlow analytics, product tour events, tour analytics PostHog Mixpanel, @guideflow/analytics
 ---
 
@@ -162,10 +162,27 @@ Full detail: [Privacy](./privacy).
 | `MixpanelTransport` | `window.mixpanel` | `mixpanel.track(event, props)` |
 | `AmplitudeTransport` | `window.amplitude` | `amplitude.track(event, props)` |
 | `SegmentTransport` | `window.analytics` | `analytics.track(event, props)` |
+| `GA4Transport` | `window.gtag` | `gtag('event', name, params)` |
+| `HeapTransport` | `window.heap` | `heap.track(event, props)` |
 | `WebhookTransport` | `fetch` | `POST` of a JSON array |
 
-The four vendor transports read their global lazily on every event, and silently do nothing if it is
+The six vendor transports read their global lazily on every event, and silently do nothing if it is
 absent. Initialising the vendor SDK is your job.
+
+Two of them cannot forward the event verbatim, because their backends will not take it:
+
+- **GA4 rejects dots in an event name**, and every GuideFlow event name has two. An illegal name is
+  not an error — Google accepts the hit and the event never appears in the property, days later,
+  when someone opens the report. `GA4Transport` maps every character outside `[A-Za-z0-9_]` to an
+  underscore, so `guideflow.tour.completed` arrives as `guideflow_tour_completed`. Parameter names
+  go through the same rule, string values are cut to 100 characters, and anything that is not a
+  string, a finite number or a boolean is dropped — an object or a `null` parameter invalidates the
+  whole hit, so dropping it is what keeps the event.
+- **Heap stores primitives only.** A nested object is not rejected and not stringified; the property
+  is simply absent. `HeapTransport` flattens it first, so `{ user: { plan: 'pro' } }` arrives as
+  `user.plan`.
+
+See [Transports](../api/analytics/transports) for the full mapping.
 
 A transport implements `track(event)` — see [Transports](../api/analytics/transports) for the
 interface and a working custom implementation.

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
 import { AmplitudeTransport } from '../transports/amplitude.js'
+import { HeapTransport } from '../transports/heap.js'
 import type { AnalyticsEvent, AnalyticsTransport } from '../transports/interface.js'
 import { MixpanelTransport } from '../transports/mixpanel.js'
 import { PostHogTransport } from '../transports/posthog.js'
@@ -55,6 +56,18 @@ const SPECS: TransportSpec[] = [
     method: 'track',
     timestampKey: 'timestamp',
     create: () => new SegmentTransport(),
+  },
+  {
+    // Heap belongs here for the shared contract only — it is the one vendor
+    // transport that rewrites the property bag, and heap.test.ts covers that.
+    // A flat bag of primitives, which is what makeEvent() builds, passes
+    // through it unchanged, so it has to satisfy exactly these assertions.
+    label: 'HeapTransport',
+    name: 'heap',
+    globalName: 'heap',
+    method: 'track',
+    timestampKey: 'timestamp',
+    create: () => new HeapTransport(),
   },
 ]
 

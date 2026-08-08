@@ -253,6 +253,202 @@ test.describe('the Recorder page', () => {
     await expect(recorder.getByLabel('Tour name')).toHaveValue('My saved draft');
   });
 
+  test('its own buttons can actually reach the page', async ({
+    context,
+    serviceWorker,
+    extensionId,
+  }) => {
+    // Every other test in this file arms recording by messaging the content
+    // script FROM THE WORKER, so the Recorder's outbound path — the Record
+    // button, Preview, Check, Save — had never been exercised at all. It was
+    // broken from the day it shipped: the worker classified an extension page
+    // as "our own" by `sender.tab === undefined`, which is false for a page in
+    // an ordinary tab, so `GF_SEND_TO_TAB` fell through the provenance gate
+    // and got no response. Clicking the button is the assertion.
+    const page = await context.newPage();
+    await page.goto(FIXTURE);
+    await page.waitForFunction(() => window.__gfReady === true);
+    await page.bringToFront();
+    const tabId = await activeTabId(serviceWorker);
+
+    const recorder = await context.newPage();
+    await recorder.goto(`chrome-extension://${extensionId}/recorder.html?tabId=${String(tabId)}`);
+    await recorder.locator('#gf-record-btn').click();
+
+    await expect(page.locator('#__gf_recording_badge__')).toBeVisible({ timeout: 10_000 });
+    await expect(recorder.locator('#gf-record-btn')).toContainText('Stop recording');
+    await expect(recorder.locator('#gf-status')).toHaveCount(0);
+  });
+
+  test('inserts, reorders and deletes a step without re-recording', async ({
+    context,
+    serviceWorker,
+    extensionId,
+  }) => {
+    // "One bad step means re-record the whole thing" is the reason a recorder
+    // gets abandoned after the first session. None of this list surgery is
+    // reachable from a unit test: `steps.ts` is pure and pinned there, and this
+    // is the wiring — including the keyboard reorder, which is the ONLY
+    // reorder for anyone not using a pointer.
+    const page = await context.newPage();
+    await page.goto(FIXTURE);
+    await page.waitForFunction(() => window.__gfReady === true);
+    await page.bringToFront();
+    const tabId = await activeTabId(serviceWorker);
+
+    await serviceWorker.evaluate(
+      (id) => chrome.tabs.sendMessage(id, { type: 'GF_START_RECORDING' }),
+      tabId,
+    );
+    await page.click('#step-one');
+    await page.click('#step-two');
+    await pollSteps(serviceWorker, tabId, 2);
+
+    const recorder = await context.newPage();
+    await recorder.goto(`chrome-extension://${extensionId}/recorder.html?tabId=${String(tabId)}`);
+    await recorder.locator('#gf-import-captured').click();
+    await expect(recorder.locator('#gf-step-list > li')).toHaveCount(2);
+
+    // A step was forgotten between the two that were recorded.
+    await recorder.getByLabel('Insert a step below step 1').click();
+    await expect(recorder.locator('#gf-step-list > li')).toHaveCount(3);
+    // The caret is already in the new step's title, so it can be typed into
+    // without reaching for the mouse.
+    await recorder.keyboard.type('The forgotten step');
+    await expect(recorder.getByLabel('Step 2 title')).toHaveValue('The forgotten step');
+    await recorder.getByLabel('Step 2 target').fill('#step-three');
+
+    // Reorder from the keyboard alone. The drag-and-drop this sits beside
+    // cannot be driven by one.
+    await recorder.getByLabel('Move step 2 down').press('Enter');
+    await expect(recorder.getByLabel('Step 3 title')).toHaveValue('The forgotten step');
+    // Focus followed the step it moved. React re-inserts the node to reorder
+    // it, and a node that leaves the document resets focus to <body> — so
+    // without the deliberate restore, one keyboard move strands the user at
+    // the top of the page. The step landed last, which DISABLES the button
+    // that got it there, and a disabled button cannot hold focus: the restore
+    // falls back to its opposite number, which is always live in that case.
+    await expect(recorder.getByLabel('Move step 3 down')).toBeDisabled();
+    await expect(recorder.getByLabel('Move step 3 up')).toBeFocused();
+    // `toContainText`, not `toHaveText`: every announcement now carries an
+    // invisible U+200B on alternate turns — see the identical-announcement
+    // assertion below.
+    await expect(recorder.locator('#gf-live')).toContainText('Moved to position 3 of 3.');
+
+    // Deleting the middle one leaves the other two and the draft still valid.
+    await recorder.getByLabel('Delete step 2').click();
+    await expect(recorder.locator('#gf-step-list > li')).toHaveCount(2);
+    await expect(recorder.locator('#gf-validation')).toContainText('valid');
+    await expect(recorder.locator('#gf-export-btn')).toBeEnabled();
+
+    // ── An IDENTICAL announcement must still reach the live region ─────────
+    //
+    // The defect: `setAnnouncement(text)` wrote the string straight into the
+    // region, and React does not touch a text node whose string is unchanged.
+    // Two steps left, so moving the top one down says "Moved to position 2 of
+    // 2." every time — and the second one produced no DOM mutation at all, so
+    // nothing was announced. Silent, invisible, and only a screen-reader user
+    // is affected.
+    //
+    // The assertion is on the RAW textContent, not on `toHaveText`: Playwright
+    // normalises the marker away, which is exactly the thing under test.
+    const liveRaw = (): Promise<string> =>
+      recorder.locator('#gf-live').evaluate((el) => el.textContent ?? '');
+    const spoken = (raw: string): string => raw.replace(/\u200B/g, '').trim();
+
+    await recorder.getByLabel('Move step 1 down').press('Enter');
+    await expect.poll(async () => spoken(await liveRaw())).toBe('Moved to position 2 of 2.');
+    const first = await liveRaw();
+
+    await recorder.getByLabel('Move step 1 down').press('Enter');
+    // Same sentence, different node content. A live region whose content does
+    // not change is not spoken again, so this inequality IS the announcement.
+    await expect.poll(liveRaw).not.toBe(first);
+    expect(spoken(await liveRaw())).toBe('Moved to position 2 of 2.');
+
+    // Ids stayed unique across all of that — a collision would have thrown
+    // inside draftToFlow and disabled Export with no visible cause.
+    const ids = await recorder.locator('#gf-step-list > li').evaluateAll((els) =>
+      els.map((el) => el.getAttribute('data-step-id')),
+    );
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test('re-records one step target, keeping its title and body', async ({
+    context,
+    serviceWorker,
+    extensionId,
+  }) => {
+    // The headline of 8.8. It reuses INSPECT mode rather than recording:
+    // recording appends a stream of actions, which is the shape that cannot
+    // repair a single step. Four hops — recorder → worker → content script →
+    // page click → back — and the assertion goes red if any of them stops
+    // routing `GF_ELEMENT_SELECTED` to the Recorder's port.
+    const page = await context.newPage();
+    await page.goto(FIXTURE);
+    await page.waitForFunction(() => window.__gfReady === true);
+    await page.bringToFront();
+    const tabId = await activeTabId(serviceWorker);
+
+    await serviceWorker.evaluate(
+      (id) => chrome.tabs.sendMessage(id, { type: 'GF_START_RECORDING' }),
+      tabId,
+    );
+    await page.click('#step-one');
+    await pollSteps(serviceWorker, tabId, 1);
+    await serviceWorker.evaluate(
+      (id) => chrome.tabs.sendMessage(id, { type: 'GF_STOP_RECORDING' }),
+      tabId,
+    );
+
+    const recorder = await context.newPage();
+    await recorder.goto(`chrome-extension://${extensionId}/recorder.html?tabId=${String(tabId)}`);
+    await recorder.locator('#gf-import-captured').click();
+    await recorder.getByLabel('Step 1 title').fill('Open the thing');
+    await recorder.getByLabel('Step 1 body').fill('It is over here.');
+    await expect(recorder.getByLabel('Step 1 target')).toHaveValue('#step-one');
+
+    await recorder.getByLabel('Re-record the target of step 1').click();
+    await expect(recorder.locator('#gf-status')).toContainText('click the element');
+
+    // ── The pick/record interlock, both ways ───────────────────────────────
+    //
+    // A pick and a recording cannot both own the document's capture-phase
+    // click listener — inspect calls `stopPropagation`, not
+    // `stopImmediatePropagation`, so a pick taken mid-recording ALSO lands in
+    // the captured buffer. The re-record button was already disabled while
+    // recording; nothing stopped recording starting while a pick was pending.
+    await expect(recorder.locator('#gf-record-btn')).toBeDisabled();
+
+    // And the state is still reachable from outside this page — the popup, a
+    // context menu, the worker. A pending pick that cannot be called off from
+    // there silently consumes the next element the user selects for any other
+    // reason, so Cancel stays live even while recording.
+    await serviceWorker.evaluate(
+      (id) => chrome.tabs.sendMessage(id, { type: 'GF_START_RECORDING' }),
+      tabId,
+    );
+    await expect(recorder.locator('#gf-record-btn')).toContainText('Stop recording');
+    await expect(recorder.getByLabel('Cancel re-recording step 1')).toBeEnabled();
+    await serviceWorker.evaluate(
+      (id) => chrome.tabs.sendMessage(id, { type: 'GF_STOP_RECORDING' }),
+      tabId,
+    );
+    await expect(recorder.locator('#gf-record-btn')).toContainText('Record');
+
+    // The user goes back to their app and clicks the RIGHT element this time.
+    await page.bringToFront();
+    await page.click('#step-three');
+
+    await recorder.bringToFront();
+    await expect(recorder.getByLabel('Step 1 target')).toHaveValue('#step-three');
+    // Only the target moved.
+    await expect(recorder.getByLabel('Step 1 title')).toHaveValue('Open the thing');
+    await expect(recorder.getByLabel('Step 1 body')).toHaveValue('It is over here.');
+    // And it did not also land in the captured buffer as a new step.
+    await expect(recorder.locator('#gf-step-list > li')).toHaveCount(1);
+  });
+
   test('says so plainly when opened with no tab to record', async ({ context, extensionId }) => {
     const recorder = await context.newPage();
     await recorder.goto(`chrome-extension://${extensionId}/recorder.html`);

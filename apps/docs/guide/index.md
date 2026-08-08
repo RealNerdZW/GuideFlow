@@ -18,7 +18,7 @@ first-class rather than bolted on:
 - **AI-generated steps** — `gf.ai.generate()` serializes the page and asks your model to write the steps; you assemble them into a flow
 - **Intent detection** — a classifier over recent user events emits an `intent:detected` signal you subscribe to and act on ([nothing is triggered automatically](/guide/ai-intent))
 - **Adaptive flows** — branch on role or data with `showIf` and FSM transitions
-- **Analytics** — six tour lifecycle events to PostHog, Mixpanel, Amplitude, Segment or a webhook, with consent and URL-scrubbing defaults, plus [deterministic A/B assignment you apply yourself](/guide/ab-testing)
+- **Analytics** — six tour lifecycle events to PostHog, Mixpanel, Amplitude, Segment, Google Analytics 4, Heap or a webhook, with consent and URL-scrubbing defaults, plus [deterministic A/B assignment you apply yourself](/guide/ab-testing)
 - **DevTools extension** — an MV3 extension lives in the repo for inspecting a page's tour state and recording steps. It is **not published** to any store or to npm: build it and load it unpacked
 
 ## Packages
@@ -30,7 +30,11 @@ first-class rather than bolted on:
 | `@guideflow/vue` | Vue 3 plugin and `useTour` composable |
 | `@guideflow/svelte` | Svelte 4/5 `createTourStore` |
 | `@guideflow/ai` | `GuideBrain` plus Proxy / OpenAI / Anthropic / Ollama / Mock providers |
-| `@guideflow/analytics` | Event collection, 5 transports, A/B testing |
+| `@guideflow/analytics` | Event collection, 7 transports, A/B testing |
+| `@guideflow/checklist` | Docked onboarding checklist, projected from stored progress |
+| `@guideflow/banner` | Docked, non-blocking announcement bar |
+| `@guideflow/survey` | Docked NPS / CSAT card, with the answers routed to you |
+| `@guideflow/mcp` | Read-only MCP server over the flow-authoring API |
 | `@guideflow/cli` | `guideflow init / export / validate` |
 | `@guideflow/devtools` | Manifest V3 browser extension — **not published**; load it unpacked from the repo |
 

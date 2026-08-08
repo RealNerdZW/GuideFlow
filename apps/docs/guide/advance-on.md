@@ -39,6 +39,31 @@ following the instruction. `advanceOn` warns once per step id when it sees this.
 { id: 'save', target: '#save', clickThrough: true, content: { title: 'Save your work' } }
 ```
 
+### Use a selector string for the target
+
+`Step.target` also accepts an `Element` and a `(context) => Element | Promise<Element>` function.
+A **function** target and `clickThrough` do not currently work together, and the failure is silent.
+
+The engine resolves a function target and hands the element to the spotlight, so the `clip-path`
+hole is cut and the mouse works. The renderer is handed the raw `step` and re-resolves `target`
+itself, as `string | Element` only — a function resolves to `null` there. So the widened focus
+trap below never engages: <kbd>Tab</kbd> cannot reach the highlighted element, `aria-modal="true"`
+stays on the popover claiming the page is inert, and a keyboard user cannot perform the interaction
+`advanceOn` is waiting for.
+
+A selector string and an `Element` are both fine. Prefer the string — it also survives
+`JSON.stringify`, so the step can live in a [`.flow.json`](/reference/flow-file).
+
+```ts
+{ id: 'save', target: '#save', clickThrough: true }              // ✅ reachable
+{ id: 'save', target: () => findSaveButton(), clickThrough: true } // ❌ mouse only
+```
+
+Fixing this properly means handing the renderer the element the engine already resolved, which
+changes the `RendererContract.renderStep` signature — a deliberate decision rather than a patch.
+`@guideflow/react`'s `GuidePopover` has the same shape and the same gap. Both are pinned by test so
+the behaviour cannot drift unnoticed.
+
 ## Keyboard and screen-reader users
 
 On a `clickThrough` step the focus trap widens to include the highlighted element, so

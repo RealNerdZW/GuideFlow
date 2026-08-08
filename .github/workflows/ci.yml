@@ -98,6 +98,14 @@ jobs:
       - name: Build docs
         run: pnpm docs:build
 
+      # AFTER the build, because it reads the emitted ids rather than guessing
+      # VitePress's slugify. VitePress validates a dead PAGE and fails the build;
+      # it does not validate the #fragment, so a link to a heading that does not
+      # exist ships green and drops the reader at the top of the page. Two were
+      # live before this ran — one since 7.8b.
+      - name: Guard against broken doc anchors
+        run: node scripts/check-docs-anchors.mjs
+
       # The demo is built and copied into the docs output by docs.yml, so a demo
       # that does not compile takes the whole docs deploy down with it. ci.yml
       # excludes @guideflow/demo from every other task, so this is the only place
@@ -126,7 +134,11 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          for pkg in core react vue svelte ai analytics cli checklist devtools; do
+          # Every package with a vitest.config.ts carrying thresholds. banner,
+          # survey and mcp were missing, so three ratchets were decorative:
+          # the file said 87% and nothing ever read it. Measured on adding —
+          # banner 94.47/86.19, survey 94.69/87.35, mcp 97.57/87.50 — all pass.
+          for pkg in core react vue svelte ai analytics cli checklist devtools banner survey mcp; do
             if [ -f "packages/$pkg/vitest.config.ts" ]; then
               echo "::group::coverage $pkg"
               pnpm exec vitest run --root "packages/$pkg" --coverage --coverage.reporter=text-summary --coverage.reporter=lcov
@@ -180,6 +192,17 @@ jobs:
       - run: pnpm turbo run build --filter=!@guideflow/storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
       - name: Verify publishable package contents
         run: node scripts/verify-pack.mjs
+
+      # The `type-check` job above CANNOT catch this, by construction: every
+      # in-repo caller resolves @guideflow/core through tsconfig `paths` to
+      # src, so they all share one copy of the type graph. A published consumer
+      # resolves through the `exports` map to dist/*.d.ts — a different graph,
+      # which rollup-dts builds per entry by INLINING everything rather than
+      # importing it. Two inlined copies of a class with a private member are
+      # nominally distinct, which is how `createTargeting(gf)` shipped as a
+      # TS2345 in 0.1.9. This compiles a scratch consumer against the real dist.
+      - name: Type-check a consumer against the built dist
+        run: node scripts/check-dist-types.mjs
 
   # ── End-to-end gate ────────────────────────────────────────────────────────
   # The Playwright suite had never executed: it booted Storybook while the specs

@@ -14,18 +14,32 @@
  * `onMessage` is therefore classified by *where it came from* before it is
  * acted upon (`.claude/docs/SECURITY-MODEL.md` §5 rule 3):
  *
- *  - `sender.id !== chrome.runtime.id` → another extension. Dropped outright.
- *  - `sender.tab?.id != null`          → one of our content scripts, in a real
- *                                        tab. May report tab state and may be
- *                                        relayed to that tab's panel, and
- *                                        nothing else. In particular it may
- *                                        NOT touch storage.
- *  - `sender.tab === undefined`        → one of our own extension pages (the
- *                                        DevTools panel or the action popup).
- *                                        These are the only senders allowed to
- *                                        read or write saved flows.
+ *  - `sender.id !== chrome.runtime.id`   → another extension. Dropped outright.
+ *  - `sender.origin === our origin`      → one of our own extension pages (the
+ *                                          popup, the DevTools panel, the
+ *                                          Recorder). The only senders allowed
+ *                                          to read or write saved flows.
+ *  - otherwise, `sender.tab?.id != null` → one of our content scripts, in a
+ *                                          real tab. May report tab state and
+ *                                          be relayed to that tab's pages, and
+ *                                          nothing else. It may NOT touch
+ *                                          storage.
  *
- * A page-forged message cannot reach here at all now (the content script
+ * **The extension-page test is the ORIGIN, not the absence of `sender.tab`.**
+ * It used to be `sender.tab === undefined`, which is true of the popup and the
+ * DevTools panel and false of the Recorder — an extension page in an ordinary
+ * tab, for which Chrome populates `sender.tab` exactly as it does for a
+ * content script. MEASURED, from the Recorder page:
+ * `{ hasTab: true, origin: "chrome-extension://<id>" }`. So every privileged
+ * request the Recorder made was classified as neither, fell through both
+ * branches, and got **no response at all** — Record, Preview, Check, Save and
+ * clearing the capture buffer were dead from the day it shipped. Two of them
+ * report success without reading the reply, which is why nothing said so.
+ *
+ * `sender.origin` is set by the browser and a content script carries its
+ * *page's* origin, so this cannot be forged from a page.
+ *
+ * A page-forged message cannot reach here at all (the content script
  * allowlists four read-only types), but the split is what makes that a
  * defence in depth rather than a single point of failure.
  */
@@ -147,6 +161,13 @@ function toPages(tabId: number, message: { type: string; payload?: unknown }): v
  */
 const TAB_MESSAGES = new Set<string>(TAB_REPORTS);
 
+/**
+ * The origin every one of our extension pages reports, and no page can claim.
+ *
+ * Read once: `chrome.runtime.id` is fixed for the life of the worker.
+ */
+const EXTENSION_ORIGIN = `chrome-extension://${chrome.runtime.id}`;
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const proto: unknown = Object.getPrototypeOf(value);
@@ -261,15 +282,25 @@ chrome.runtime.onMessage.addListener(
     const type = message.type;
 
     const tabId = sender.tab?.id;
-    /** A content script of ours, running in a real tab. */
-    const fromContentScript = tabId !== undefined && TAB_MESSAGES.has(type);
-    /** One of our own extension pages — the DevTools panel or the popup. */
-    const fromExtensionPage = sender.tab === undefined;
+    /** One of our own extension pages — the popup, the panel or the Recorder. */
+    const fromExtensionPage =
+      sender.origin === EXTENSION_ORIGIN ||
+      // Chrome before 80 has no `sender.origin`. The old rule is the fallback,
+      // and it is strictly narrower: a content script always carries a tab.
+      (sender.origin === undefined && sender.tab === undefined);
+    /**
+     * A content script of ours, running in a real tab.
+     *
+     * `!fromExtensionPage` first: the Recorder is itself in a tab, so without
+     * it an extension page sending a `TAB_REPORTS` type would be recorded as
+     * tab state for its OWN tab and relayed back to itself.
+     */
+    const fromContentScript = !fromExtensionPage && tabId !== undefined && TAB_MESSAGES.has(type);
 
     // A content script asking about its own tab. Answered before the allowlist
     // gate because it is a read of state the worker holds about that very tab —
     // it names no other tab and touches no storage.
-    if (type === 'GF_GET_RECORDING_FOR_SENDER' && tabId !== undefined) {
+    if (type === 'GF_GET_RECORDING_FOR_SENDER' && !fromExtensionPage && tabId !== undefined) {
       sendResponse({ recording: recordingTabs.has(tabId) });
       return undefined;
     }
