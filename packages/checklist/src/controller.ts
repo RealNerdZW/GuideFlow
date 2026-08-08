@@ -307,5 +307,9 @@ export function createChecklist<TContext extends GuidanceContext = GuidanceConte
       unsubscribes.length = 0
       listeners.clear()
     },
+    chrome: {
+      showProgress: definition.showProgress !== false,
+      dismissible: definition.dismissible !== false,
+    }
   }
 }

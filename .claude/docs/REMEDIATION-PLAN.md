@@ -921,12 +921,28 @@ transfers to an embedded tour library.
       Also measured, and now a standing trap: **happy-dom does not re-escape text nodes when it
       serialises `innerHTML`**, so an escaping assertion written that way tests its serialiser and
       reads as a vulnerability that is not there.
-- [ ] **8.7 `@guideflow/resource-centre`** — closes the last quarter of
+- [x] **8.7 The resource centre — built as four additions to `@guideflow/checklist`, not a package** — closes the last quarter of
       `no-checklists-surveys-banners-resource-centre`, and the only structural reason a user cannot
       restart a tour they finished. Same dock contract as the other three:
       **`dock-drift.test.ts` grows to four implementations**, refcounted styles, a fresh
       `setRecord` suffix, scaffolded at the group's current version, mounted in `apps/demo`.
       `bottom-end` is already the default for both checklist and survey.
+      **Decided: no thirteenth package — see ADR-023.** Three design proposals and two adversarial
+      reviews ran; one review was commissioned to argue the package should not exist, and it won on
+      four counts. The audit finding's own Fix says "pick **one** adjacent primitive… ship it as
+      `@guideflow/checklist`" — singular; the four-quarters obligation was invented in this plan.
+      All three proposals stripped `store.ts`, `snapshot.ts` and `identity.ts`, leaving ~1,500 of
+      ~1,900 lines a near-copy of the checklist — and one wrote of the disclosure semantics "copy it
+      exactly, divergence here would be a bug". This repo has learned that twice already ("there is
+      exactly one selector builder now") and `dock-drift.test.ts` exists because three copies of
+      *ninety* lines already needed a guard. And §8.7's stated justification had evaporated earlier
+      in the same phase, when the checklist gained replay.
+      Shipped instead: `ChecklistItem.href` (a real `<a>` — `onActivate` is a callback, so a help
+      article could never be a link, which was the one genuinely structural gap), `ChecklistItem.group`
+      (headings with `role="presentation"` so they do not inflate the item count),
+      `ChecklistDefinition.dismissible` and `.showProgress` (`role="progressbar"` over help articles
+      is a lie an AT reads as a percentage). 11 new tests, 88 in the package.
+      Declined rather than deferred: search, a category registry, icons, badges, per-group collapse.
 - [ ] **8.10 `extract_strings` / `translate_flow` MCP tools** — ADR-019's inversion applied to 8.4's
       catalogue. Read-only, key-free, the client is the model.
 - [ ] **8.8 Recorder: insert / reorder / re-record one step** — the only capture behaviour in the

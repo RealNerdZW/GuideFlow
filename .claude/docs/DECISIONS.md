@@ -1348,3 +1348,77 @@ and costs `{{user.name}}`. There is no other fat.
   space in a sentence does not, because nobody notices it.
 - Interpolation is one pass, so a context value containing `{{...}}` cannot reach back into the
   context. Pinned by a test.
+
+---
+
+## ADR-023 — No resource-centre package. The checklist *is* the resource centre
+
+**Status.** Accepted (Phase 8.7).
+
+**Context.** `EXPANSION-PLAN.md` §8.7 scheduled `@guideflow/resource-centre` as a thirteenth
+package, to close what it called the last unclosed quarter of
+`no-checklists-surveys-banners-resource-centre`. Three design proposals and two adversarial reviews
+were commissioned. One review was asked to argue the package should not exist. It won.
+
+**Decision: do not build it.** Extend `@guideflow/checklist` instead.
+
+**Why.** Four independent reasons, in descending order of weight.
+
+1. **The audit finding never asked for four.** Its own Fix reads: *"Pick **one** adjacent primitive
+   and build it properly… Ship it as `@guideflow/checklist` rather than bloating core."* Singular.
+   Three shipped. The four-quarters obligation was invented in the plan documents — by me — and
+   then cited back as a requirement.
+
+2. **It is a fork, and the proposals admitted it.** One wrote of the disclosure semantics: *"Copy it
+   exactly. Divergence here would be a bug, not a design."* The checklist's `buildSkeleton` is
+   already launcher + `aria-expanded` + `aria-controls` + hidden panel + focus-into-heading +
+   root-scoped Escape, and `patchList` is already a keyed patch. Strip `store.ts`, `snapshot.ts` and
+   `identity.ts` — which **all three** proposals stripped — and ~1,500 of ~1,900 lines are
+   near-duplicate. The genuine novelty was `href` rows and `group` headings.
+
+3. **This repository has already learned this twice.** "There is exactly one selector builder now.
+   There used to be three, and all three were broken the same two ways." And `dock-drift.test.ts`
+   exists because three copies of *ninety* lines was already uncomfortable enough to need a guard. A
+   fourth surface would have meant a fourth `createLiveRegion`, a fourth `setTourActive`, and ~1,500
+   lines of near-copy policed by a per-function drift test. That is the shape the project keeps
+   deciding against.
+
+4. **The stated justification had already evaporated.** §8.7 said the resource centre was "the only
+   structural reason a user cannot restart a tour they have already seen". That stopped being true
+   earlier in this same phase, when the checklist gained replay via `start(…, { force: true })` —
+   and `force`, not the `clearCompleted` §8.7 named, because clearing un-ticks the row that launched
+   it. A design agent quoted the new code back at the brief.
+
+**What shipped instead — four additions to `@guideflow/checklist`.**
+
+- **`ChecklistItem.href`** — renders a real `<a>`. This is the one gap that was genuinely
+  structural: `onActivate` is a callback, so a help article could never be a link. No middle-click,
+  no ctrl-click, no "copy link address", no `link` role. Only `http:`, `https:` and `mailto:`
+  survive; anything else renders as plain text, because the list may be author-supplied content.
+- **`ChecklistItem.group`** — headings derived from the values present, in first-appearance order,
+  ungrouped first. The `li` carries `role="presentation"` so headings do not inflate the list's item
+  count; the `h3` inside keeps its heading semantics, which is the only reason to have one.
+- **`ChecklistDefinition.dismissible`** — a help launcher the user summoned has nothing to get out
+  of the way.
+- **`ChecklistDefinition.showProgress`** — `role="progressbar"` over a list of help articles is a
+  lie an assistive technology reads out as a percentage.
+
+With the existing `hideWhenComplete: false`, those four make a permanent, grouped, link-carrying
+help launcher. Zero new packages, zero core bytes, no fourth dock-drift copy, no new storage suffix.
+
+**Consequences.**
+
+- `completed`, `caps`, `checklist`, `banner`, `survey` remain the whole `setRecord` suffix set. A
+  name was not reserved for a surface that does not exist — reserving one nothing writes is cargo
+  cult.
+- `ChecklistController.chrome` is a plain constant, deliberately **not** part of `getSnapshot()`:
+  these two flags never change, and putting them in the reactive comparator would add two fields
+  that can never differ.
+- The `Record<keyof ChecklistItemState, true>` guard in `snapshot.ts` caught `href` and `group` at
+  compile time and forced the decision to include them in the comparator. That guard was added
+  because "React's own tour-store comparator omits `isWaiting`" — it earned its keep here.
+- **The audit finding is closed**, and the remaining teardown ideas it inspired — search, categories
+  as a registry, icons, badges, per-group collapse — are declined rather than deferred. A tour
+  library's user has 3–15 flows; a search box over eight items is furniture.
+- A host with sixty resources should build its own list from `controller.getSnapshot()`. That is a
+  help centre, not a widget.

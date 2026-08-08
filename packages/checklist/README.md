@@ -89,6 +89,8 @@ createChecklist(gf, definition, {
   completed-flows array's own expiry.
 - **Cross-tab writes are last-write-wins.** Two tabs ticking different items in the same instant
   can lose one. Closing this needs a storage-level compare-and-swap no driver exposes.
+- **No search.** Three to fifteen items is the scale; a box over eight is furniture. Read
+  `controller.getSnapshot()` and render your own list if you have sixty.
 - **A manually ticked item cannot be re-run**, because there is no flow behind it — that row stays
   non-actionable rather than becoming a button that does nothing. A **flow-backed** done row is
   operable: selecting it replays the tour through `start(…, { force: true })`, which writes nothing

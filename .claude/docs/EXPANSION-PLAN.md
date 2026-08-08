@@ -379,7 +379,12 @@ the number everyone asks for, with no storage, no dashboard, no backend. It is a
 of "path analysis": we can compute a funnel over one client's events; cross-session aggregation is
 the host's warehouse and stays there.
 
-### 8.7 `@guideflow/resource-centre` — the thirteenth package
+### 8.7 The resource centre
+
+> **Shipped as four additions to `@guideflow/checklist`, not as a package — ADR-023.**
+> A commissioned sceptic won: the audit finding asks for *one* adjacent primitive, and
+> ~1,500 of the proposed ~1,900 lines were a near-copy of the checklist. The section below
+> is kept for the reasoning that survived; the packaging decision did not.
 
 Closes the last unclosed quarter of **`no-checklists-surveys-banners-resource-centre`**
 ([AUDIT.md:1013](AUDIT.md)) — checklists shipped in 7.8, banners in 7.8b, surveys in 7.8c. It is
@@ -387,11 +392,31 @@ also the one item on `PRODUCT-ROADMAP.md` §2's list of what the commercial tier
 teardown actually supplies, wearing a Demo Center costume (§3.2, §3.3) — and §6.4's "guides embedded
 in the help centre" is the in-app version of the same thing.
 
-It is additionally the only structural reason a user cannot **restart a tour they have already
-seen**; `clearCompleted` (7.10b) exists to make that work.
+**Correction.** This section used to say the resource centre was "the only structural reason a user
+cannot restart a tour they have already seen". That stopped being true in Phase 8.7's own
+groundwork: `@guideflow/checklist` replays a flow-backed done row through
+`start(…, { force: true })` — and `force`, not the `clearCompleted` this section originally named,
+because clearing would un-tick the very row that launched it.
 
-A docked, searchable launcher over registered flows plus author-supplied links, grouped into
-categories, showing completion through the same `ProgressStore` projection the checklist uses.
+So the justification is not replay. It is two other things, both structural:
+
+1. **It is the only surface that survives onboarding.** `ChecklistDefinition.hideWhenComplete`
+   defaults to *true* and the checklist is permanently dismissible — both correct for a checklist,
+   because a list that lingers after you finish is nagging. The consequence is that
+   replay-from-the-checklist reaches only users who have neither finished nor dismissed. A help
+   launcher is permanent by definition.
+2. **It is the only surface that answers "I am stuck on *this page*, now"** — §6.4's job, and the
+   one segment of the teardown that genuinely transfers.
+
+A docked launcher plus panel over an **author-declared** list of resources — flows, links and
+actions in one list, grouped by an optional heading — showing completion for flow rows through the
+same `ProgressStore` projection the checklist uses.
+
+**Author-declared, not auto-populated from `gf.listFlows()`**, and that is forced rather than
+chosen: `FlowDefinition` carries `id` and no title, so an auto-built list could only label rows with
+internal ids. Adding a title to `FlowDefinition` would make it content, which immediately needs a
+catalogue key and an `I18nRegistry` lookup — 8.4's whole argument — so it is a bigger decision than
+this package.
 
 **Non-negotiables, inherited from the three that shipped:**
 
@@ -527,7 +552,7 @@ The instruction was to upgrade without regressing. The specific hazards:
 - [x] A locale catalogue is registrable, partial, and falls through per key
 - [x] The stale React `GuidePopover` i18n warning is gone from `CLAUDE.md` and `apps/docs`
 - [x] A link starts a named tour in the recipient's own app, including for a user who already finished it
-- [ ] `no-checklists-surveys-banners-resource-centre` fully closed — all four surfaces shipped
+- [x] `no-checklists-surveys-banners-resource-centre` closed — three surfaces plus the checklist's help-centre mode (ADR-023)
 - [ ] Four docked surfaces coexist on one page with a clean announcement audit
 - [x] `computeFunnel` turns collector events into per-step drop-off
 - [ ] Build, type-check, lint, unit and e2e all green; `core` inside its stated budget

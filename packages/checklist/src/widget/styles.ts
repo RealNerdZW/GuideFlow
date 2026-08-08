@@ -120,6 +120,19 @@ export const CHECKLIST_CSS = `
 }
 
 .gf-checklist-item { margin: 0; }
+
+/* Section headings. list-style:none because the li carries role=presentation:
+   it is a heading, not an item, and must not be counted as one. */
+.gf-checklist-group { list-style: none; padding: 10px 4px 2px; }
+.gf-checklist-group:first-child { padding-top: 0; }
+.gf-checklist-group-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: var(--gf-muted-opacity, 0.72);
+}
 .gf-checklist-item:focus { outline: none; }
 .gf-checklist-item:focus-visible {
   outline: 2px solid var(--gf-accent-color, #4f46e5);

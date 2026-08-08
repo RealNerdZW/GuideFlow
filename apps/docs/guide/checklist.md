@@ -175,6 +175,50 @@ can lose one. This is the same class of race as `markCompleted` itself.
 **No cross-tab sync in v1.** A tick in one tab is not pushed to another; both converge on the next
 `refresh()` or reload.
 
+## Using it as a help centre
+
+The same widget, configured differently, is a permanent resource launcher — which is why there is
+no separate package for one:
+
+```ts
+createChecklist(gf, {
+  id: 'help',
+  title: 'Help & guides',
+  hideWhenComplete: false,   // never auto-hide; it is not onboarding
+  dismissible: false,        // the user summoned it
+  showProgress: false,       // help articles have nothing to complete
+  items: [
+    { id: 'tour',    title: 'Take the product tour', flowId: 'onboarding',  group: 'Guided' },
+    { id: 'billing', title: 'Set up billing',        flowId: 'billing',     group: 'Guided' },
+    { id: 'docs',    title: 'Documentation',         href: 'https://example.com/docs', group: 'Reading' },
+    { id: 'contact', title: 'Email support',         href: 'mailto:help@example.com',  group: 'Reading' },
+  ],
+})
+```
+
+**`href` renders a real `<a>`**, not a button that navigates. That is the whole point: middle-click,
+ctrl-click, "copy link address", the `link` role and the status-bar preview all come from the
+element, and none of them can be reproduced by a click handler. `onActivate` could always open a
+page; it could never be a link.
+
+Only `http:`, `https:` and `mailto:` are accepted. Anything else — notably `javascript:` — is
+dropped and the row renders as plain text, because the item list may be author-supplied content
+fetched alongside your flows.
+
+**`group` derives headings** from the values present, in first-appearance order, with ungrouped rows
+first. There is no group registry and no ordering knob: a heading exists so someone can skim fifteen
+rows, not because categories are a feature. The heading's `<li>` carries `role="presentation"`, so
+it does not inflate the list's item count for a screen reader.
+
+A completed, flow-backed row stays operable and replays the tour — see below.
+
+::: tip There is no search, deliberately
+Three to fifteen items is the scale this is built for, and a search box over eight of them is
+furniture that costs an input, a debounce, an empty state and a live region for the result count.
+If you have sixty resources you have a help centre, not a widget — read
+`controller.getSnapshot()` and render your own list.
+:::
+
 ## Things it deliberately does not do
 
 - **A manually ticked item cannot be re-run.** There is no flow behind it, so that row keeps its

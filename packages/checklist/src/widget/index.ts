@@ -133,7 +133,7 @@ export function mountChecklist(
       return
     }
 
-    updateChrome(els, state, strings)
+    updateChrome(els, state, strings, controller.chrome)
     patchList(els.list, state.items, strings, activate)
     setTourActive(els.root, state.tourActive)
 

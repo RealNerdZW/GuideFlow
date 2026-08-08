@@ -16,6 +16,30 @@ import type {
 } from './types.js'
 
 /**
+ * Schemes that may reach an `href` attribute.
+ *
+ * The list may be author-supplied content — fetched with the flows, or written
+ * by someone who is not the developer — so `javascript:` and `data:` must not
+ * become a link the user can activate inside their own application. Anything
+ * unrecognised returns `null` and the row renders as plain text: visible and
+ * inert beats invisible, and beats live.
+ *
+ * A relative URL is resolved against the document to check its scheme, then
+ * returned **as written**, so it keeps working under a base tag or a router.
+ */
+const SAFE_SCHEMES = new Set(['http:', 'https:', 'mailto:'])
+
+function safeHref(href: string | undefined): string | null {
+  if (href === undefined || href === '') return null
+  try {
+    const base = typeof document !== 'undefined' ? document.baseURI : 'https://localhost/'
+    return SAFE_SCHEMES.has(new URL(href, base).protocol) ? href : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Resolve a definition plus its two truth sources into item states.
  *
  * An item is done if **either** its `flowId` appears in `completedFlows`
@@ -54,6 +78,14 @@ export function deriveChecklist(
       available: blockedBy.length === 0,
       blockedBy,
       flowId: item.flowId ?? null,
+      // A link row is one that has no other way to act. `flowId` and
+      // `onActivate` both win, so a row can never be two things at once and the
+      // widget never has to arbitrate.
+      href:
+        item.flowId === undefined && item.onActivate === undefined
+          ? safeHref(item.href)
+          : null,
+      group: item.group ?? null,
     }
   })
 

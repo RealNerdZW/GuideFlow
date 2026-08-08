@@ -435,3 +435,121 @@ describe('mountChecklist', () => {
     controller.destroy()
   })
 })
+
+describe('as a resource centre', () => {
+  let gf: GuideFlowInstance
+
+  afterEach(() => {
+    gf?.destroy()
+    document.body.innerHTML = ''
+  })
+
+  // Not a fourth package. ADR-023: the resource-centre job is this widget with
+  // `hideWhenComplete: false`, `dismissible: false`, `showProgress: false` and
+  // some link rows — and the alternative was a ~1500-line near-copy of it.
+  const helpCentre: ChecklistDefinition = {
+    id: 'help',
+    title: 'Help & guides',
+    hideWhenComplete: false,
+    dismissible: false,
+    showProgress: false,
+    items: [
+      { id: 'tour', title: 'Product tour', flowId: 'profile-tour', group: 'Guided' },
+      { id: 'billing', title: 'Billing tour', flowId: 'billing-tour', group: 'Guided' },
+      { id: 'docs', title: 'Documentation', href: 'https://example.com/docs', group: 'Reading' },
+      { id: 'evil', title: 'Blocked', href: 'javascript:alert(1)', group: 'Reading' },
+    ],
+  }
+
+  it('renders a link row as a real anchor, so middle-click and copy-link work', async () => {
+    gf = make()
+    const controller = createChecklist(gf, helpCentre)
+    const view = mountChecklist(controller)
+    await flush()
+
+    const row = document.querySelector('[data-item-id="docs"] .gf-checklist-row')
+    expect(row?.tagName).toBe('A')
+    expect(row?.getAttribute('href')).toBe('https://example.com/docs')
+
+    view.destroy()
+    controller.destroy()
+  })
+
+  it('renders a refused scheme as a button, never a dead anchor', async () => {
+    gf = make()
+    const controller = createChecklist(gf, helpCentre)
+    const view = mountChecklist(controller)
+    await flush()
+
+    const row = document.querySelector('[data-item-id="evil"] .gf-checklist-row')
+    expect(row?.tagName).toBe('BUTTON')
+    expect(row?.getAttribute('href')).toBeNull()
+
+    view.destroy()
+    controller.destroy()
+  })
+
+  it('derives group headings that do not inflate the list item count', async () => {
+    gf = make()
+    const controller = createChecklist(gf, helpCentre)
+    const view = mountChecklist(controller)
+    await flush()
+
+    const headings = Array.from(document.querySelectorAll('.gf-checklist-group-title'))
+    expect(headings.map((h) => h.textContent)).toEqual(['Guided', 'Reading'])
+    // role="presentation" keeps them out of the list semantics — "6 items" for
+    // four rows and two headings is worse than no headings at all.
+    for (const li of Array.from(document.querySelectorAll('.gf-checklist-group'))) {
+      expect(li.getAttribute('role')).toBe('presentation')
+    }
+
+    view.destroy()
+    controller.destroy()
+  })
+
+  it('hides the progressbar and the dismiss control when asked', async () => {
+    // `role="progressbar"` over a list of help articles is a lie an assistive
+    // technology reads out as a percentage, and a help launcher the user
+    // summoned has nothing to get out of the way.
+    gf = make()
+    const controller = createChecklist(gf, helpCentre)
+    const view = mountChecklist(controller)
+    await flush()
+
+    expect(document.querySelector<HTMLElement>('.gf-checklist-progress')?.hidden).toBe(true)
+    expect(document.querySelector<HTMLElement>('.gf-checklist-dismiss')?.hidden).toBe(true)
+
+    view.destroy()
+    controller.destroy()
+  })
+
+  it('still shows both by default, so onboarding is unchanged', async () => {
+    gf = make()
+    const controller = createChecklist(gf, definition)
+    const view = mountChecklist(controller)
+    await flush()
+
+    expect(document.querySelector<HTMLElement>('.gf-checklist-progress')?.hidden).toBe(false)
+    expect(document.querySelector<HTMLElement>('.gf-checklist-dismiss')?.hidden).toBe(false)
+
+    view.destroy()
+    controller.destroy()
+  })
+
+  it('survives completion, so the launcher is permanent', async () => {
+    // The one thing the checklist could not previously be. `hideWhenComplete`
+    // defaults true, which is right for onboarding and wrong for help.
+    gf = make()
+    await gf.progress.markCompleted('u1', 'profile-tour')
+    await gf.progress.markCompleted('u1', 'billing-tour')
+    const controller = createChecklist(gf, helpCentre)
+    const view = mountChecklist(controller)
+    await flush()
+
+    expect(controller.getSnapshot().hidden).toBe(false)
+    expect(document.querySelector('.gf-checklist')).not.toBeNull()
+
+    view.destroy()
+    controller.destroy()
+  })
+})

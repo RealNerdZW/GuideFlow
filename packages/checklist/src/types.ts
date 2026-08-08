@@ -26,6 +26,33 @@ export interface ChecklistItem {
   requires?: string[]
   /** Runs instead of `gf.start(flowId)` when activated. Wins when both are set. */
   onActivate?: () => void | Promise<void>
+  /**
+   * Render this row as a real link to `href` instead of a button.
+   *
+   * The reason it is a URL and not another callback: `onActivate` can open a
+   * page, and it still would not be a link. No middle-click, no ctrl-click, no
+   * "copy link address", no `link` role for a screen reader, no status bar
+   * preview. A help article, a video or a changelog page is a link, and a list
+   * that mixes tours with articles is what makes this widget a help centre
+   * rather than only an onboarding list.
+   *
+   * Never ticks and never tracks completion — there is nothing to complete.
+   * Ignored when `flowId` or `onActivate` is set.
+   *
+   * Only `http:`, `https:` and `mailto:` survive; anything else (notably
+   * `javascript:`) is dropped and the row renders as plain text, because the
+   * list may be author-supplied content.
+   */
+  href?: string
+  /**
+   * Section heading this row sits under.
+   *
+   * Headings are derived from the values present, in first-appearance order,
+   * with ungrouped rows first. There is no group registry, no ordering knob and
+   * no per-group collapse: a heading exists so someone can skim fifteen rows,
+   * not because categories are a feature.
+   */
+  group?: string
 }
 
 export interface ChecklistDefinition {
@@ -41,8 +68,30 @@ export interface ChecklistDefinition {
    * bytes are laid out, `version` is what the product team changed.
    */
   version?: string | number
-  /** Hide the widget once every item is done. Default `true`. */
+  /**
+   * Hide the widget once every item is done. Default `true`.
+   *
+   * Correct for onboarding — a list that lingers after you finish is nagging.
+   * Set `false`, with `dismissible: false`, to make this a permanent help
+   * launcher instead. See the resource-centre recipe in the docs.
+   */
   hideWhenComplete?: boolean
+  /**
+   * Offer the dismiss control. Default `true`.
+   *
+   * A help launcher must not be dismissable: the user summoned it, and there
+   * is nothing to get out of the way. `dismiss()` still exists on the
+   * controller for a host that wants its own affordance — this only governs
+   * the built-in button.
+   */
+  dismissible?: boolean
+  /**
+   * Show the progress bar and the "{done} of {total}" count. Default `true`.
+   *
+   * A list of help articles has no completion to report, and `role="progressbar"`
+   * over one is a lie an assistive technology will read out.
+   */
+  showProgress?: boolean
 }
 
 // ── State (output) ─────────────────────────────────────────────────────────
@@ -64,6 +113,16 @@ export interface ChecklistItemState {
   /** Ids of the unmet `requires` entries. Empty when available. */
   readonly blockedBy: readonly string[]
   readonly flowId: string | null
+  /**
+   * Sanitised link target, or `null` for a row that is not a link.
+   *
+   * Already scheme-checked by `derive`, so the widget renders an anchor when
+   * this is non-null and never has to decide. A rejected scheme arrives here as
+   * `null`, so the row degrades to plain text rather than to a dead anchor.
+   */
+  readonly href: string | null
+  /** Section heading, or `null` for an ungrouped row. */
+  readonly group: string | null
 }
 
 export interface ChecklistState {
@@ -172,6 +231,14 @@ export interface ChecklistController {
   /** Re-read storage and re-derive. Call after your app changes `context.userId`. */
   refresh(): Promise<void>
   destroy(): void
+  /**
+   * Chrome the definition turned off. Constant for the controller's lifetime.
+   *
+   * Deliberately NOT part of `getSnapshot()`: these never change, and putting
+   * them in the reactive snapshot would add two fields to the comparator that
+   * can never differ — cost with no signal. `mountChecklist` reads them once.
+   */
+  readonly chrome: { readonly showProgress: boolean; readonly dismissible: boolean }
 }
 
 /** Signature of {@link createChecklist}, kept here so `types.ts` is the contract. */

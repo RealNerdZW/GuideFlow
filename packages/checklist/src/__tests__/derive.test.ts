@@ -142,3 +142,59 @@ describe('deriveChecklist', () => {
     expect(items[0]?.blockedBy).toBe(items[1]?.blockedBy)
   })
 })
+
+describe('link rows', () => {
+  const withLinks: ChecklistDefinition = {
+    id: 'help',
+    title: 'Help',
+    items: [
+      { id: 'tour', title: 'Take the tour', flowId: 'onboarding' },
+      { id: 'doc', title: 'Read the guide', href: 'https://example.com/guide' },
+      { id: 'mail', title: 'Email us', href: 'mailto:help@example.com' },
+      { id: 'rel', title: 'Changelog', href: '/changelog' },
+      { id: 'evil', title: 'Nope', href: 'javascript:alert(1)' },
+      { id: 'data', title: 'Nope either', href: 'data:text/html,<script>x</script>' },
+      { id: 'both', title: 'Flow wins', flowId: 'f2', href: 'https://example.com' },
+      { id: 'cb', title: 'Callback wins', href: 'https://example.com', onActivate: () => {} },
+    ],
+  }
+  const href = (id: string): string | null =>
+    deriveChecklist(withLinks, { completedFlows: [], manual: {} })
+      .items.find((item) => item.id === id)?.href ?? null
+
+  it('keeps http, https and mailto', () => {
+    expect(href('doc')).toBe('https://example.com/guide')
+    expect(href('mail')).toBe('mailto:help@example.com')
+  })
+
+  it('keeps a relative href as written, so a base tag or router still works', () => {
+    expect(href('rel')).toBe('/changelog')
+  })
+
+  it('refuses javascript: and data:', () => {
+    // The list may be author-supplied content — fetched alongside the flows, or
+    // written by someone who is not the developer. A rejected scheme becomes a
+    // plain-text row: visible and inert beats invisible, and beats live.
+    expect(href('evil')).toBeNull()
+    expect(href('data')).toBeNull()
+  })
+
+  it('is null for a flow row, and for a callback row', () => {
+    // Exclusive by construction, so the widget never has to arbitrate.
+    expect(href('tour')).toBeNull()
+    expect(href('both')).toBeNull()
+    expect(href('cb')).toBeNull()
+  })
+
+  it('carries group through, null when absent', () => {
+    const grouped = deriveChecklist(
+      { id: 'g', title: 'G', items: [
+        { id: 'a', title: 'A', group: 'Basics' },
+        { id: 'b', title: 'B' },
+      ] },
+      { completedFlows: [], manual: {} },
+    )
+    expect(grouped.items[0]?.group).toBe('Basics')
+    expect(grouped.items[1]?.group).toBeNull()
+  })
+})

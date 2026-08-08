@@ -25,6 +25,8 @@ export const ITEM_KEYS = Object.keys({
   available: true,
   blockedBy: true,
   flowId: true,
+  href: true,
+  group: true,
 } satisfies Record<keyof ChecklistItemState, true>) as ReadonlyArray<keyof ChecklistItemState>
 
 export const STATE_KEYS = Object.keys({
