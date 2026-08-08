@@ -155,6 +155,104 @@ describe('AnalyticsCollector', () => {
     expect(transport.events).toHaveLength(1)
     expect(transport2.events).toHaveLength(1)
   })
+
+  it('ignores a second attach(), and its return value still detaches', () => {
+    // A duplicate subscription doubles every event, which silently doubles every
+    // count downstream. The second call is a no-op — but it still has to hand
+    // back a working unsubscribe, or a caller that only kept the second one
+    // leaks the subscription for the life of the page.
+    collector.attach(asInstance(gf))
+    const detachAgain = collector.attach(asInstance(gf))
+
+    gf.emit('tour:start', { flowId: 'flow-1' })
+    expect(transport.events).toHaveLength(1)
+
+    detachAgain()
+    gf.emit('tour:start', { flowId: 'flow-1' })
+    expect(transport.events).toHaveLength(1)
+  })
+
+  it('warns and keeps going when a transport throws', () => {
+    // One broken transport must not silence the others, and must not take the
+    // engine's event handler down with it.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const good = createMockTransport()
+    const c = new AnalyticsCollector()
+      .addTransport({ name: 'bad', track() { throw new Error('boom') } })
+      .addTransport(good)
+
+    c.attach(asInstance(gf))
+    expect(() => gf.emit('tour:start', { flowId: 'flow-1' })).not.toThrow()
+
+    expect(good.events).toHaveLength(1)
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Transport "bad" threw:'),
+      expect.any(Error),
+    )
+    c.detach()
+    warn.mockRestore()
+  })
+
+  it('emits no dwell for an exit with no matching enter', () => {
+    collector.attach(asInstance(gf))
+    gf.emit('step:exit', { stepId: 's1', stepIndex: 0 })
+    const exited = transport.events.find((e) => e.event === 'guideflow.step.exited')
+    expect(exited).toBeDefined()
+    expect(exited!.properties['dwell_ms']).toBeUndefined()
+  })
+
+  it('does not let a tour inherit dwell time from an abandoned one', () => {
+    // tour:abandon clears the step timer. Without that, the next tour's first
+    // exit reports the wall-clock gap between the two tours as dwell — which
+    // could be hours, and would move the median for that step.
+    collector.attach(asInstance(gf))
+    gf.emit('tour:start', { flowId: 'a' })
+    gf.emit('step:enter', { stepId: 's1', stepIndex: 0, target: null })
+    gf.emit('tour:abandon', { flowId: 'a', stepId: 's1', stepIndex: 0 })
+
+    gf.emit('tour:start', { flowId: 'b' })
+    gf.emit('step:exit', { stepId: 's1', stepIndex: 0 })
+
+    const exited = transport.events.find((e) => e.event === 'guideflow.step.exited')
+    expect(exited?.properties['dwell_ms']).toBeUndefined()
+  })
+
+  it('omits url and referrer where there is no DOM', () => {
+    // The collector is imported by Nuxt/Next/SvelteKit users. `base()` reads
+    // window and document, and touching either unguarded on a server is a
+    // ReferenceError that takes the render down — not an undefined field.
+    vi.stubGlobal('window', undefined)
+    vi.stubGlobal('document', undefined)
+    try {
+      const t = createMockTransport()
+      const c = new AnalyticsCollector().addTransport(t)
+      c.attach(asInstance(gf))
+
+      expect(() => gf.emit('tour:start', { flowId: 'flow-1' })).not.toThrow()
+      expect(t.events).toHaveLength(1)
+      expect(t.events[0]!.properties['url']).toBeUndefined()
+      expect(t.events[0]!.properties['referrer']).toBeUndefined()
+      expect(t.events[0]!.properties['flow_id']).toBe('flow-1')
+      c.detach()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('flush() tolerates a transport that does not implement it', async () => {
+    const c = new AnalyticsCollector().addTransport({ name: 'no-flush', track() { /* drops */ } })
+    await expect(c.flush()).resolves.toBeUndefined()
+  })
+
+  it('flush() settles even when one transport rejects', async () => {
+    const good = createMockTransport()
+    const c = new AnalyticsCollector()
+      .addTransport({ name: 'rejects', track() { /* noop */ }, flush: () => Promise.reject(new Error('nope')) })
+      .addTransport(good)
+
+    await expect(c.flush()).resolves.toBeUndefined()
+    expect(good.flush).toHaveBeenCalled()
+  })
 })
 
 // ---------------------------------------------------------------------------

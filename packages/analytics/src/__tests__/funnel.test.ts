@@ -228,4 +228,199 @@ describe('computeFunnel', () => {
     expect(f?.started).toBe(0);
     expect(f?.completionRate).toBe(0);
   });
+
+  it('averages the two middle samples when the dwell count is even', () => {
+    // Three samples pick a middle one; four have to average the inner pair, and
+    // getting that wrong shows up as a median that is also a recorded value.
+    const events = [
+      started('f'), viewed('f', 's1'), exited('f', 's1', 1000), completed('f'),
+      started('f'), viewed('f', 's1'), exited('f', 's1', 2000), completed('f'),
+      started('f'), viewed('f', 's1'), exited('f', 's1', 3000), completed('f'),
+      started('f'), viewed('f', 's1'), exited('f', 's1', 900_000), completed('f'),
+    ];
+    const [f] = computeFunnel(events);
+    expect(f?.steps[0]?.medianDwellMs).toBe(2500);
+  });
+
+  it('keeps the given order for events sharing a millisecond', () => {
+    // The collector emits synchronously in engine order, so a whole run can land
+    // on one timestamp. The sort must be a no-op there — a comparator that did
+    // not return 0 for a tie would let an engine reorder the run and charge the
+    // drop-off to the wrong step.
+    const stamp = new Date(Date.UTC(2026, 1, 1)).toISOString();
+    const sameMs = (e: AnalyticsEvent): AnalyticsEvent => ({ ...e, timestamp: stamp });
+
+    const [f] = computeFunnel([
+      sameMs(started('f')),
+      sameMs(viewed('f', 's1')),
+      sameMs(viewed('f', 's2')),
+      sameMs(abandoned('f', 's2')),
+    ]);
+
+    expect(f?.started).toBe(1);
+    expect(f?.steps.map((s) => s.stepId)).toEqual(['s1', 's2']);
+    expect(f?.steps[1]?.droppedOff).toBe(1);
+    expect(f?.steps[0]?.droppedOff).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Incomplete payloads.
+//
+// `flow_id` on step events is new, `step_id` on an abandon can be absent, and a
+// merged export can be missing whichever field the producer never wrote. Every
+// case below is a stream a host can really hand this function, and the
+// difference between the fallbacks working and not is an empty funnel.
+// ---------------------------------------------------------------------------
+
+describe('computeFunnel — attribution when a payload is incomplete', () => {
+  it('ignores a started event with no flow_id and leaves the open run alone', () => {
+    // There is no honest flow to charge it to, and treating it as a run
+    // boundary would close the run that is genuinely open and bank a phantom
+    // `unfinished`.
+    const [f] = computeFunnel([
+      started('f'), viewed('f', 's1'),
+      ev('guideflow.tour.started', {}),
+      viewed('f', 's2'), completed('f'),
+    ]);
+
+    expect(f?.started).toBe(1);
+    expect(f?.unfinished).toBe(0);
+    expect(f?.completed).toBe(1);
+    expect(f?.steps.map((s) => s.stepId)).toEqual(['s1', 's2']);
+  });
+
+  it('invents no flow for a started event that names none', () => {
+    const funnels = computeFunnel([
+      ev('guideflow.tour.started', {}),
+      ev('guideflow.step.viewed', { step_id: 's1' }),
+    ]);
+    expect(funnels).toEqual([]);
+  });
+
+  it('attributes a completed event with no flow_id to the open run', () => {
+    const [f] = computeFunnel([
+      started('legacy'),
+      ev('guideflow.step.viewed', { step_id: 's1' }),
+      ev('guideflow.tour.completed', {}),
+    ]);
+
+    expect(f?.flowId).toBe('legacy');
+    expect(f?.completed).toBe(1);
+    expect(f?.unfinished).toBe(0);
+    expect(f?.steps[0]?.droppedOff).toBe(0);
+  });
+
+  it('drops a completed event that names no flow and follows no run', () => {
+    expect(computeFunnel([ev('guideflow.tour.completed', {})])).toEqual([]);
+  });
+
+  it('attributes an abandon with no flow_id to the open run', () => {
+    const [f] = computeFunnel([
+      started('legacy'),
+      ev('guideflow.step.viewed', { step_id: 's1' }),
+      ev('guideflow.tour.abandoned', { step_id: 's1' }),
+    ]);
+
+    expect(f?.flowId).toBe('legacy');
+    expect(f?.abandoned).toBe(1);
+    // An abandon is an ending, so the run must not also be counted unfinished.
+    expect(f?.unfinished).toBe(0);
+    expect(f?.steps[0]?.droppedOff).toBe(1);
+  });
+
+  it('falls back to the walk when the abandon payload names no step', () => {
+    const [f] = computeFunnel([
+      started('f'), viewed('f', 's1'), viewed('f', 's2'),
+      ev('guideflow.tour.abandoned', { flow_id: 'f' }),
+    ]);
+
+    expect(f?.abandoned).toBe(1);
+    expect(f?.steps[0]?.droppedOff).toBe(0);
+    expect(f?.steps[1]?.droppedOff).toBe(1);
+  });
+
+  it('records an abandon with no step anywhere without inventing one', () => {
+    const [f] = computeFunnel([
+      started('f'),
+      ev('guideflow.tour.abandoned', { flow_id: 'f' }),
+    ]);
+
+    expect(f?.started).toBe(1);
+    expect(f?.abandoned).toBe(1);
+    expect(f?.steps).toEqual([]);
+  });
+
+  it('drops an abandon that names no flow and follows no run', () => {
+    expect(computeFunnel([ev('guideflow.tour.abandoned', { step_id: 's1' })])).toEqual([]);
+  });
+
+  it('ignores a step view that names no step', () => {
+    const [f] = computeFunnel([
+      started('f'),
+      ev('guideflow.step.viewed', { flow_id: 'f' }),
+      viewed('f', 's1'),
+      completed('f'),
+    ]);
+    expect(f?.steps.map((s) => s.stepId)).toEqual(['s1']);
+  });
+
+  it('records dwell from a legacy exit event carrying no flow_id', () => {
+    const [f] = computeFunnel([
+      started('legacy'),
+      ev('guideflow.step.viewed', { step_id: 's1' }),
+      ev('guideflow.step.exited', { step_id: 's1', dwell_ms: 4000 }),
+      ev('guideflow.tour.completed', { flow_id: 'legacy' }),
+    ]);
+    expect(f?.steps[0]?.medianDwellMs).toBe(4000);
+  });
+
+  it('ignores an exit whose dwell is absent or not a finite number', () => {
+    // The collector writes `dwell_ms: undefined` whenever it has no start time —
+    // an exit with no matching enter, or the first step after an abandon. Those
+    // must not land in the sample set as 0 ms or NaN.
+    const [f] = computeFunnel([
+      started('f'), viewed('f', 's1'),
+      ev('guideflow.step.exited', { flow_id: 'f', step_id: 's1' }),
+      ev('guideflow.step.exited', { flow_id: 'f', step_id: 's1', dwell_ms: Number.NaN }),
+      ev('guideflow.step.exited', { flow_id: 'f', step_id: 's1', dwell_ms: Number.POSITIVE_INFINITY }),
+      ev('guideflow.step.exited', { flow_id: 'f', step_id: 's1', dwell_ms: '500' }),
+      completed('f'),
+    ]);
+    expect(f?.steps[0]).not.toHaveProperty('medianDwellMs');
+  });
+
+  it('ignores an exit with no step to attribute the dwell to', () => {
+    const [f] = computeFunnel([
+      started('f'), viewed('f', 's1'),
+      ev('guideflow.step.exited', { flow_id: 'f', dwell_ms: 1234 }),
+      completed('f'),
+    ]);
+    expect(f?.steps[0]).not.toHaveProperty('medianDwellMs');
+  });
+
+  it('ignores an exit that arrives before any tour started', () => {
+    expect(computeFunnel([ev('guideflow.step.exited', { step_id: 'x', dwell_ms: 10 })])).toEqual([]);
+  });
+
+  it('attributes a legacy skip with no flow_id to the open run', () => {
+    const [f] = computeFunnel([
+      started('legacy'),
+      ev('guideflow.step.viewed', { step_id: 's1' }),
+      ev('guideflow.step.skipped', { step_id: 's1' }),
+      ev('guideflow.tour.abandoned', { flow_id: 'legacy', step_id: 's1' }),
+    ]);
+    expect(f?.steps[0]?.skipped).toBe(1);
+  });
+
+  it('ignores a skip that names no step, and one that precedes any run', () => {
+    const [f] = computeFunnel([
+      ev('guideflow.step.skipped', { step_id: 'orphan' }),
+      started('f'), viewed('f', 's1'),
+      ev('guideflow.step.skipped', { flow_id: 'f' }),
+      completed('f'),
+    ]);
+    expect(f?.steps.map((s) => s.stepId)).toEqual(['s1']);
+    expect(f?.steps[0]?.skipped).toBe(0);
+  });
 });

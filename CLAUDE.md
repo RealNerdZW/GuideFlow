@@ -626,6 +626,17 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   native Tab walk from the last popover control into the page, which is what the first version did.
   Still true: `Enter` synthesises a click on a native `<button>`/`<a href>` and NOT on a
   `<div role="button" tabindex="0">`, so those steps need an app-dispatched `CustomEvent`.
+  **KNOWN GAP: none of that fires when `target` is a FUNCTION.** The engine resolves a function
+  target ([tour.ts:634](packages/core/src/engine/tour.ts#L634), `await step.target(context)`), but
+  the renderer is handed the raw `step` and re-resolves it as `string | Element` only
+  ([default-renderer.ts:230](packages/core/src/renderer/default-renderer.ts#L230)) — so `targetEl`
+  is `null`, `_clickThroughEl` stays `null`, and the trap never widens. A `clickThrough` step with a
+  function target is therefore **keyboard-unreachable**, silently, and ADR-024 does not apply to it.
+  `@guideflow/react`'s `GuidePopover` has the same shape and the same gap; both are pinned by test
+  so the behaviour cannot drift unnoticed. Fixing it properly means handing the renderer the element
+  the engine already resolved — a `RendererContract.renderStep` signature change, so it is a
+  deliberate decision rather than a patch. Until then, **use a selector string for any
+  `clickThrough` step**.
 - **The renderer moves focus only when focus belongs to it, and restores only when it had it.**
   `renderStep` used to focus the popover's first control on EVERY render, so advancing while the
   user typed sent their next space keystroke to the header close button and ended the tour; and

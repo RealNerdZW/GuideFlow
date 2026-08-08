@@ -265,7 +265,25 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @guideflow/devtools build
+
+      # `turbo run`, not `pnpm --filter`. The extension imports
+      # `@guideflow/core/selector` (7.9a: there is exactly one selector builder),
+      # so building it in isolation leaves those imports unresolvable — and Vite
+      # does not error on that. It silently drops the three HTML entries and
+      # emits only the plain-TS ones, which is why the failure surfaces as
+      # "Expected Vite to emit src/panel/index.html" from the copy-static plugin
+      # rather than as a resolve error. Measured: 46 modules transformed with
+      # core's dist present, 8 without.
+      #
+      # This job never ran green — it was added alongside the extension in 7.9b
+      # and its first Linux run was the 0.2.0 release PR. It passed locally
+      # throughout because a developer's `packages/core/dist` already exists.
+      # `E2E (extension)` did NOT catch it: that job builds core first, and its
+      # `webServer.command` builds core and devtools together.
+      #
+      # devtools declares `@guideflow/core: workspace:*`, so `^build` orders
+      # this correctly instead of hardcoding the dependency here.
+      - run: pnpm turbo run build --filter=@guideflow/devtools
       - run: pnpm --filter @guideflow/devtools package
 
       - uses: actions/upload-artifact@v4

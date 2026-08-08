@@ -84,8 +84,39 @@ afterEach(() => {
   captured?.destroy()
   cleanup()
   document.body.innerHTML = ''
+  // `innerHTML` does not clear inline styles, and the RTL test writes one.
+  document.body.removeAttribute('style')
   vi.restoreAllMocks()
 })
+
+/** Dispatch a Tab at the document, where the focus trap listens. */
+function tab(shiftKey = false): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true })
+  document.dispatchEvent(event)
+  return event
+}
+
+function dialogEl(): HTMLElement {
+  const el = document.querySelector<HTMLElement>('[role="dialog"]')
+  if (!el) throw new Error('no dialog rendered')
+  return el
+}
+
+function popoverButtons(): HTMLButtonElement[] {
+  return Array.from(dialogEl().querySelectorAll('button'))
+}
+
+/** An element with a stubbed rect — happy-dom has no layout engine. */
+function makeRectElement(tag: string, id: string, top = 200): HTMLElement {
+  const el = document.createElement(tag)
+  el.id = id
+  el.getBoundingClientRect = () => ({
+    x: 100, y: top, left: 100, top, width: 200, height: 50,
+    right: 300, bottom: top + 50, toJSON: () => ({}),
+  }) as DOMRect
+  document.body.appendChild(el)
+  return el
+}
 
 // ── The headline defect ─────────────────────────────────────────────────────
 
@@ -469,5 +500,477 @@ describe('GuidePopover — custom children', () => {
 
     await settle(() => { fireEvent.click(button) })
     expect(screen.getByTestId('custom').textContent).toBe('Step two — 2/2')
+  })
+
+  it('hands the render prop prev and skip as well as next', async () => {
+    mount(
+      <GuidePopover>
+        {({ content, prev, skip }) => (
+          <div>
+            <span data-testid="title">{content.title}</span>
+            <button data-testid="back" onClick={prev} type="button">back</button>
+            <button data-testid="away" onClick={skip} type="button">away</button>
+          </div>
+        )}
+      </GuidePopover>,
+    )
+    await startTour()
+    const dismissed = vi.fn()
+    gf().on('tour:dismiss', dismissed)
+
+    await settle(() => { void gf().next() })
+    expect(screen.getByTestId('title').textContent).toBe('Step two')
+
+    await settle(() => { fireEvent.click(screen.getByTestId('back')) })
+    expect(screen.getByTestId('title').textContent).toBe('Step one')
+
+    await settle(() => { fireEvent.click(screen.getByTestId('away')) })
+    expect(dismissed).toHaveBeenCalledTimes(1)
+    expect(gf().isActive).toBe(false)
+  })
+
+  it('close ends the tour without completing it', async () => {
+    mount(
+      <GuidePopover>
+        {({ close }) => <button data-testid="x" onClick={close} type="button">x</button>}
+      </GuidePopover>,
+    )
+    await startTour()
+    const completed = vi.fn()
+    const abandoned = vi.fn()
+    gf().on('tour:complete', completed)
+    gf().on('tour:abandon', abandoned)
+
+    await settle(() => { fireEvent.click(screen.getByTestId('x')) })
+
+    // `close` maps to core's `end` action, i.e. stop() — the abandoned path.
+    expect(abandoned).toHaveBeenCalledTimes(1)
+    expect(completed).not.toHaveBeenCalled()
+  })
+
+  it('focuses the dialog itself when the custom content has no controls', async () => {
+    mount(<GuidePopover>{() => <p>Nothing to click here</p>}</GuidePopover>)
+    await startTour()
+
+    // `(focusable ?? el).focus()` — a dialog nobody can focus is one a screen
+    // reader user never lands in.
+    expect(document.activeElement).toBe(dialogEl())
+
+    // With nothing focusable anywhere in scope the trap must let Tab through
+    // rather than swallowing it.
+    const event = tab()
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('accepts a plain node as children', async () => {
+    mount(<GuidePopover><p data-testid="static">Static content</p></GuidePopover>)
+    await startTour()
+
+    expect(screen.getByTestId('static').textContent).toBe('Static content')
+    expect(screen.queryByText('Skip tour')).toBeNull()
+  })
+})
+
+// ── Props ───────────────────────────────────────────────────────────────────
+
+describe('GuidePopover — width and className', () => {
+  it('appends the className and applies the width', async () => {
+    mount(<GuidePopover className="tenant-theme" width={480} />)
+    await startTour()
+
+    const dialog = dialogEl()
+    expect(dialog.className).toBe('gf-popover tenant-theme')
+    expect(dialog.style.width).toBe('480px')
+  })
+
+  it('defaults to gf-popover alone at 320px', async () => {
+    mount(<GuidePopover />)
+    await startTour()
+
+    expect(dialogEl().className).toBe('gf-popover')
+    expect(dialogEl().style.width).toBe('320px')
+  })
+})
+
+// ── clickThrough (ADR-024) ──────────────────────────────────────────────────
+
+describe('GuidePopover — clickThrough steps', () => {
+  const saveFlow: FlowDefinition = {
+    id: 'ct-save',
+    initial: 'a',
+    states: {
+      a: {
+        steps: [{
+          id: 'c1',
+          target: '#save',
+          clickThrough: true,
+          scrollIntoView: false,
+          content: { title: 'Click Save' },
+        }],
+        final: true,
+      },
+    },
+  }
+
+  const modalFlow: FlowDefinition = {
+    id: 'ct-modal',
+    initial: 'a',
+    states: {
+      a: {
+        steps: [{
+          id: 'm1',
+          target: '#save',
+          scrollIntoView: false,
+          content: { title: 'Look at Save' },
+        }],
+        final: true,
+      },
+    },
+  }
+
+  function makeSaveButton(): HTMLButtonElement {
+    const button = document.createElement('button')
+    button.id = 'save'
+    button.textContent = 'Save'
+    document.body.appendChild(button)
+    return button
+  }
+
+  it('drops aria-modal, because the page provably is not inert', async () => {
+    makeSaveButton()
+    mount(<GuidePopover />)
+    await act(async () => { await gf().start(saveFlow) })
+
+    // ADR-004 cut a hole in the overlay, so claiming the rest of the page is
+    // inert would confine a screen reader away from the control being pointed at.
+    expect(dialogEl().getAttribute('aria-modal')).toBeNull()
+  })
+
+  it('keeps aria-modal on an ordinary step with the same target', async () => {
+    makeSaveButton()
+    mount(<GuidePopover />)
+    await act(async () => { await gf().start(modalFlow) })
+
+    expect(dialogEl().getAttribute('aria-modal')).toBe('true')
+  })
+
+  it('widens the tab order to include the highlighted element', async () => {
+    const save = makeSaveButton()
+    mount(<GuidePopover />)
+    await act(async () => { await gf().start(saveFlow) })
+
+    const buttons = popoverButtons()
+    const first = buttons[0]!
+    const last = buttons[buttons.length - 1]!
+
+    last.focus()
+    expect(tab().defaultPrevented).toBe(true)
+    // The hole in the overlay and the hole in the tab order are the same hole.
+    expect(document.activeElement).toBe(save)
+
+    // Discontiguous scope: from the target, Tab must come back round to the
+    // popover rather than walking on into the page.
+    expect(tab().defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(first)
+  })
+
+  it('walks backwards out of the highlighted element into the popover', async () => {
+    const save = makeSaveButton()
+    mount(<GuidePopover />)
+    await act(async () => { await gf().start(saveFlow) })
+
+    const buttons = popoverButtons()
+    const last = buttons[buttons.length - 1]!
+    save.focus()
+
+    expect(tab(true).defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(last)
+  })
+
+  it('exposes a focusable child of a target that is not focusable itself', async () => {
+    const panel = document.createElement('div')
+    panel.id = 'save'
+    const inner = document.createElement('button')
+    inner.id = 'inner'
+    panel.appendChild(inner)
+    document.body.appendChild(panel)
+
+    mount(<GuidePopover />)
+    await act(async () => { await gf().start(saveFlow) })
+
+    const buttons = popoverButtons()
+    buttons[buttons.length - 1]!.focus()
+    tab()
+
+    // Exactly one element beyond the popover, and the `<div>` itself is not it.
+    expect(document.activeElement).toBe(inner)
+  })
+
+  it('keeps the popover-only trap when the target is a function', async () => {
+    makeSaveButton()
+    mount(<GuidePopover />)
+    await act(async () => {
+      await gf().start({
+        id: 'ct-fn',
+        initial: 'a',
+        states: {
+          a: {
+            steps: [{
+              id: 'f1',
+              target: () => document.querySelector('#save'),
+              clickThrough: true,
+              scrollIntoView: false,
+              content: { title: 'Click Save' },
+            }],
+            final: true,
+          },
+        },
+      })
+    })
+
+    const buttons = popoverButtons()
+    const first = buttons[0]!
+    const last = buttons[buttons.length - 1]!
+    last.focus()
+    tab()
+
+    // KNOWN GAP, not a design choice. The engine resolves a function target
+    // (tour.ts `await step.target(context)`), but the renderer re-resolves the
+    // raw step as string | Element only, so targetEl is null and the trap never
+    // widens — leaving a clickThrough step keyboard-unreachable. Core's
+    // DefaultRenderer has the identical shape, so this is parity, not drift.
+    // Pinned here so the behaviour cannot change unnoticed; see the ADR-024
+    // entry in CLAUDE.md. Fixing it means handing the renderer the element the
+    // engine already resolved, which is a RendererContract change.
+    expect(document.activeElement).toBe(first)
+  })
+
+  it('sends Shift+Tab from outside the dialog to the last control', async () => {
+    const outside = document.createElement('button')
+    document.body.appendChild(outside)
+    mount(<GuidePopover />)
+    await startTour()
+    outside.focus()
+
+    const event = tab(true)
+
+    expect(event.defaultPrevented).toBe(true)
+    const buttons = popoverButtons()
+    expect(document.activeElement).toBe(buttons[buttons.length - 1])
+  })
+})
+
+// ── Focus, ADR-025 ──────────────────────────────────────────────────────────
+
+describe('GuidePopover — focus belongs to whoever has it', () => {
+  it('does not steal focus from a field the user is typing in', async () => {
+    mount(<><input data-testid="field" /><GuidePopover /></>)
+    await startTour()
+    expect(dialogEl().contains(document.activeElement)).toBe(true)
+
+    const field = screen.getByTestId('field')
+    field.focus()
+    await settle(() => { void gf().next() })
+
+    // Advancing while the user types used to send the next keystroke to the
+    // header close button, which ends the tour. WCAG 3.2.2.
+    expect(document.activeElement).toBe(field)
+    expect(dialogEl().textContent).toContain('Step two')
+  })
+
+  it('does not restore focus the app moved away before the tour ended', async () => {
+    mount(<><button data-testid="opener">Open</button><button data-testid="confirm">OK</button><GuidePopover /></>)
+    const opener = screen.getByTestId('opener')
+    opener.focus()
+    await startTour()
+
+    // The app opens its own dialog in response to the step's action.
+    const confirm = screen.getByTestId('confirm')
+    confirm.focus()
+    await settle(() => { gf().stop() })
+
+    // Yanking focus back to a control captured before the tour began is
+    // WCAG 2.4.3 — the tour did not have focus, so it does not get to give it.
+    expect(document.activeElement).toBe(confirm)
+  })
+
+  it('restores the control the tour opened from, not one focused mid-tour', async () => {
+    mount(<><button data-testid="opener">Open</button><button data-testid="mid">Other</button><GuidePopover /></>)
+    const opener = screen.getByTestId('opener')
+    opener.focus()
+    await startTour()
+
+    screen.getByTestId('mid').focus()
+    await settle(() => { void gf().next() })
+    // Focus comes back to the tour before it ends.
+    popoverButtons()[0]!.focus()
+
+    await settle(() => { gf().stop() })
+
+    // The restore target is captured once, when the tour opens.
+    expect(document.activeElement).toBe(opener)
+  })
+})
+
+// ── Media and target forms ──────────────────────────────────────────────────
+
+describe('GuidePopover — media and target forms', () => {
+  it('renders a video with controls', async () => {
+    mount(<GuidePopover />)
+    await act(async () => {
+      await gf().start({
+        id: 'video',
+        initial: 'a',
+        states: {
+          a: {
+            steps: [{
+              id: 'v1',
+              content: { title: 'Watch' },
+              media: { type: 'video', src: '/clip.mp4' },
+            }],
+            final: true,
+          },
+        },
+      })
+    })
+
+    const video = document.querySelector<HTMLVideoElement>('video.gf-popover-media')
+    expect(video?.getAttribute('src')).toBe('/clip.mp4')
+    expect(video?.controls).toBe(true)
+  })
+
+  it('gives an image with no alt an empty alt, marking it decorative', async () => {
+    mount(<GuidePopover />)
+    await act(async () => {
+      await gf().start({
+        id: 'noalt',
+        initial: 'a',
+        states: {
+          a: {
+            steps: [{
+              id: 'n1',
+              content: { title: 'Look' },
+              media: { type: 'image', src: '/shot.png' },
+            }],
+            final: true,
+          },
+        },
+      })
+    })
+
+    // A missing alt would make a screen reader read the file name.
+    expect(document.querySelector('img.gf-popover-media')?.getAttribute('alt')).toBe('')
+  })
+
+  it('positions against a target passed as an Element', async () => {
+    const anchor = makeRectElement('div', 'element-anchor')
+    mount(<GuidePopover />)
+    await act(async () => {
+      await gf().start({
+        id: 'el-target',
+        initial: 'a',
+        states: {
+          a: {
+            steps: [{
+              id: 'e1',
+              target: anchor,
+              placement: 'bottom',
+              scrollIntoView: false,
+              content: { title: 'Anchored' },
+            }],
+            final: true,
+          },
+        },
+      })
+    })
+
+    expect(dialogEl().style.top).toBe('262px')
+    expect(dialogEl().getAttribute('data-placement')).toBe('bottom')
+  })
+
+  it('centres a step whose target is a function', async () => {
+    makeRectElement('div', 'fn-anchor')
+    mount(<GuidePopover />)
+    await act(async () => {
+      await gf().start({
+        id: 'fn-target',
+        initial: 'a',
+        states: {
+          a: {
+            steps: [{
+              id: 'fn1',
+              target: () => document.querySelector('#fn-anchor'),
+              placement: 'bottom',
+              scrollIntoView: false,
+              content: { title: 'Anchored' },
+            }],
+            final: true,
+          },
+        },
+      })
+    })
+
+    // Documented limitation: the component resolves string and Element targets
+    // only, so a function target falls back to the centred placement.
+    expect(dialogEl().getAttribute('data-placement')).toBe('center')
+  })
+
+  it('defaults an unplaced step to bottom', async () => {
+    makeRectElement('div', 'plain-anchor')
+    mount(<GuidePopover />)
+    await act(async () => {
+      await gf().start({
+        id: 'unplaced',
+        initial: 'a',
+        states: {
+          a: {
+            steps: [{
+              id: 'p1',
+              target: '#plain-anchor',
+              scrollIntoView: false,
+              content: { title: 'Anchored' },
+            }],
+            final: true,
+          },
+        },
+      })
+    })
+
+    expect(dialogEl().getAttribute('data-placement')).toBe('bottom')
+    expect(dialogEl().style.top).toBe('262px')
+  })
+
+  it('mirrors a logical placement when the popover inherits direction: rtl', async () => {
+    makeRectElement('div', 'rtl-anchor')
+    const flow: FlowDefinition = {
+      id: 'rtl',
+      initial: 'a',
+      states: {
+        a: {
+          steps: [{
+            id: 'r1',
+            target: '#rtl-anchor',
+            placement: 'bottom-start',
+            scrollIntoView: false,
+            content: { title: 'Anchored' },
+          }],
+          final: true,
+        },
+      },
+    }
+
+    mount(<GuidePopover />)
+    await act(async () => { await gf().start(flow) })
+    // Anchor spans x 100..300; `-start` is its leading edge.
+    expect(dialogEl().getAttribute('data-placement')).toBe('bottom-start')
+    expect(dialogEl().style.left).toBe('100px')
+
+    // The portal mounts into document.body, so `direction` reaches the popover
+    // by inheritance exactly as it would in a real RTL app.
+    document.body.style.direction = 'rtl'
+    await settle(() => { window.dispatchEvent(new Event('resize')) })
+
+    expect(dialogEl().getAttribute('data-placement')).toBe('bottom-end')
+    expect(dialogEl().style.left).toBe('300px')
   })
 })

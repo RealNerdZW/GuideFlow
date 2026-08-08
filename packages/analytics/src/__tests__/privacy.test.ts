@@ -99,6 +99,19 @@ describe('PrivacyPolicy — redaction', () => {
     // `plan` removed, and `email` kept — the list replaces rather than extends.
     expect(out).toEqual({ email: 'a@b.com' });
   });
+
+  it('passes arrays and null through instead of walking them as objects', () => {
+    // `typeof null === 'object'` and so is an array; recursing into either
+    // turns it into `{}` / `{0: …}` and quietly changes the payload shape a
+    // transport receives.
+    const out = new PrivacyPolicy().scrubProperties({
+      tags: ['onboarding', 'beta'],
+      parent: null,
+      count: 3,
+    });
+    expect(out).toEqual({ tags: ['onboarding', 'beta'], parent: null, count: 3 });
+    expect(Array.isArray(out['tags'])).toBe(true);
+  });
 });
 
 describe('PrivacyPolicy — consent and DNT', () => {
@@ -133,6 +146,68 @@ describe('PrivacyPolicy — consent and DNT', () => {
 
   it('blocks everything at sampleRate 0', () => {
     expect(new PrivacyPolicy({ sampleRate: 0 }).allows()).toBe(false);
+  });
+
+  it('accepts the "yes" spelling of Do Not Track', () => {
+    vi.stubGlobal('navigator', { doNotTrack: 'yes' });
+    expect(new PrivacyPolicy().allows()).toBe(false);
+  });
+
+  it('reads the window spelling when navigator carries none', () => {
+    // Historically spelled three different ways; a stream that only checked
+    // navigator.doNotTrack would silently ignore the preference in the browsers
+    // that used the other two.
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('window', { doNotTrack: '1' });
+    expect(new PrivacyPolicy().allows()).toBe(false);
+  });
+
+  it('reads the legacy msDoNotTrack spelling', () => {
+    vi.stubGlobal('navigator', { msDoNotTrack: '1' });
+    vi.stubGlobal('window', {});
+    expect(new PrivacyPolicy().allows()).toBe(false);
+  });
+
+  it('still reads navigator DNT where there is no window object', () => {
+    // A worker or a non-DOM runtime has `navigator` but no `window`. Touching
+    // `window.doNotTrack` unguarded there throws.
+    vi.stubGlobal('navigator', { doNotTrack: '1' });
+    vi.stubGlobal('window', undefined);
+    expect(new PrivacyPolicy().allows()).toBe(false);
+  });
+
+  it('treats an unset Do Not Track as no stated preference', () => {
+    vi.stubGlobal('navigator', {});
+    vi.stubGlobal('window', {});
+    expect(new PrivacyPolicy().allows()).toBe(true);
+  });
+
+  it('collects on a server, where there is no navigator to ask', () => {
+    // The collector is imported by Nuxt/Next/SvelteKit users. Reading
+    // `navigator` unguarded there is a ReferenceError, not a false.
+    vi.stubGlobal('navigator', undefined);
+    vi.stubGlobal('window', undefined);
+    expect(() => new PrivacyPolicy().allows()).not.toThrow();
+    expect(new PrivacyPolicy().allows()).toBe(true);
+  });
+
+  it('decides sampling once, so a session is in or out for its whole life', () => {
+    const rnd = vi.spyOn(Math, 'random').mockReturnValue(0.1);
+    const p = new PrivacyPolicy({ sampleRate: 0.5 });
+    // A later roll must not change the verdict, or a sampled-in session would
+    // emit a partial funnel rather than a whole one.
+    rnd.mockReturnValue(0.99);
+    expect(p.allows()).toBe(true);
+    expect(p.allows()).toBe(true);
+    rnd.mockRestore();
+  });
+
+  it('samples a session out on the single roll it makes', () => {
+    const rnd = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+    const p = new PrivacyPolicy({ sampleRate: 0.5 });
+    rnd.mockReturnValue(0.01);
+    expect(p.allows()).toBe(false);
+    rnd.mockRestore();
   });
 });
 

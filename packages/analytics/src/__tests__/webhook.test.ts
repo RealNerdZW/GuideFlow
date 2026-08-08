@@ -22,6 +22,7 @@ describe('WebhookTransport', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -115,5 +116,155 @@ describe('WebhookTransport', () => {
     const transport = new WebhookTransport({ url: 'https://example.com', batchIntervalMs: 100 })
     transport.destroy()
     // No way to directly assert timer cleared, but no errors = success
+  })
+
+  it('flushes queued events on beforeunload', async () => {
+    // The last batch of a session is the one that says how the tour ended. With
+    // a batch interval set, nothing else sends it before the tab goes away.
+    const transport = new WebhookTransport({
+      url: 'https://example.com',
+      batchIntervalMs: 60_000,
+      maxQueueSize: 50,
+    })
+    transport.track(makeEvent('last-event'))
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    window.dispatchEvent(new Event('beforeunload'))
+
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+    const body = JSON.parse((fetchSpy.mock.calls[0] as [string, RequestInit])[1].body as string) as AnalyticsEvent[]
+    expect(body[0]!.event).toBe('last-event')
+
+    transport.destroy()
+  })
+
+  it('destroy() removes the beforeunload listener', async () => {
+    const transport = new WebhookTransport({
+      url: 'https://example.com',
+      batchIntervalMs: 60_000,
+      maxQueueSize: 50,
+    })
+    transport.destroy()
+    fetchSpy.mockClear()
+
+    transport.track(makeEvent('orphan'))
+    window.dispatchEvent(new Event('beforeunload'))
+    await new Promise((r) => setTimeout(r, 20))
+
+    // A destroyed transport that still answered beforeunload would resurrect
+    // itself on every page the host ever navigates away from.
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('flushes on the batch interval without being tracked into', async () => {
+    // The whole point of batchIntervalMs: an event sits in the queue and the
+    // timer, not the next track(), is what sends it. Without this the interval
+    // callback never runs in any test and a broken timer looks green.
+    vi.useFakeTimers()
+    const transport = new WebhookTransport({
+      url: 'https://example.com',
+      batchIntervalMs: 1000,
+      maxQueueSize: 50,
+    })
+    transport.track(makeEvent('e1'))
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const body = JSON.parse((fetchSpy.mock.calls[0] as [string, RequestInit])[1].body as string) as AnalyticsEvent[]
+    expect(body[0]!.event).toBe('e1')
+
+    transport.destroy()
+  })
+
+  it('stops flushing on the interval once destroyed', async () => {
+    vi.useFakeTimers()
+    const transport = new WebhookTransport({
+      url: 'https://example.com',
+      batchIntervalMs: 1000,
+      maxQueueSize: 50,
+    })
+    transport.destroy()
+    transport.track(makeEvent('after-destroy'))
+    // track() with a non-zero interval only queues, and the timer is gone.
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('treats a non-2xx response as a failure and keeps the batch', async () => {
+    // `fetch` resolves for a 500 — only a network error rejects. Without the
+    // `response.ok` check the batch would be dropped and counted as delivered.
+    fetchSpy.mockResolvedValueOnce({ ok: false, status: 500 })
+    const transport = new WebhookTransport({
+      url: 'https://example.com',
+      batchIntervalMs: 60_000,
+      maxQueueSize: 50,
+    })
+    transport.track(makeEvent('e1'))
+
+    await transport.flush()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    await transport.flush()
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    const retried = JSON.parse((fetchSpy.mock.calls[1] as [string, RequestInit])[1].body as string) as AnalyticsEvent[]
+    expect(retried[0]!.event).toBe('e1')
+
+    transport.destroy()
+  })
+
+  it('drops the batch and warns once the retry budget is exhausted', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    fetchSpy.mockRejectedValue(new Error('Network error'))
+    const transport = new WebhookTransport({
+      url: 'https://example.com',
+      batchIntervalMs: 60_000,
+      maxQueueSize: 50,
+      maxRetries: 2,
+    })
+    transport.track(makeEvent('e1'))
+
+    await transport.flush() // failure 1 — re-queued
+    expect(warn).not.toHaveBeenCalled()
+    await transport.flush() // failure 2 — budget spent, batch dropped
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]![0])).toContain('dropping 1 event(s)')
+
+    // Dropped means gone: a later successful flush has nothing left to send.
+    fetchSpy.mockResolvedValue({ ok: true })
+    await transport.flush()
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+
+    transport.destroy()
+  })
+
+  it('resets the failure count after a success, so the budget is consecutive', async () => {
+    // A count that never reset would drop a batch after N failures spread over
+    // an entire session, however many successes sat between them.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const transport = new WebhookTransport({
+      url: 'https://example.com',
+      batchIntervalMs: 60_000,
+      maxQueueSize: 50,
+      maxRetries: 2,
+    })
+
+    fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+    transport.track(makeEvent('e1'))
+    await transport.flush() // failure 1
+    await transport.flush() // succeeds — counter back to 0
+
+    fetchSpy.mockRejectedValueOnce(new Error('Network error'))
+    transport.track(makeEvent('e2'))
+    await transport.flush() // failure 1 again, not 2 — so nothing is dropped
+    expect(warn).not.toHaveBeenCalled()
+
+    await transport.flush()
+    const last = JSON.parse(
+      (fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1] as [string, RequestInit])[1].body as string,
+    ) as AnalyticsEvent[]
+    expect(last[0]!.event).toBe('e2')
+
+    transport.destroy()
   })
 })
