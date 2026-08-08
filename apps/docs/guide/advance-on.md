@@ -1,5 +1,5 @@
 ---
-description: Advance a GuideFlow tour when the user actually interacts with the highlighted element, instead of only when they press Next. Covers clickThrough, branching with send(), and the keyboard limitation.
+description: Advance a GuideFlow tour when the user actually interacts with the highlighted element, instead of only when they press Next. Covers clickThrough, branching with send(), and keyboard access.
 keywords: GuideFlow advanceOn, advance tour on click, interactive product tour, clickThrough, driver.js onNextClick, Shepherd advanceOn
 ---
 
@@ -41,14 +41,21 @@ following the instruction. `advanceOn` warns once per step id when it sees this.
 
 ## Keyboard and screen-reader users
 
-::: warning A `click` rule is currently mouse-only
-The renderer traps focus inside the popover and sets `aria-modal="true"` on every step, including
-`clickThrough` ones, so <kbd>Tab</kbd> never reaches the highlighted element. A keyboard user cannot
-perform the action the step is asking for.
+On a `clickThrough` step the focus trap widens to include the highlighted element, so
+<kbd>Tab</kbd> reaches it and <kbd>Shift</kbd>+<kbd>Tab</kbd> comes back — the same hole the
+`clip-path` cuts for the mouse, cut in the tab order. `aria-modal` is dropped on those steps too,
+because the page provably is not inert.
 
-Widening the focus trap for `clickThrough` steps is tracked as Phase 8.1b. Until it lands, **use the
-custom-event form below for anything that has to be accessible** — it fires whatever the input
-modality, so mouse, keyboard and assistive-technology users all advance the same way.
+Everything else stays trapped: the widening is exactly one element, not an escape hatch.
+
+::: tip For a custom control, dispatch your own event
+<kbd>Enter</kbd> on a native `<button>` or `<a href>` synthesises a `click`, so those work from the
+keyboard for free. A `<div role="button" tabindex="0">` with an `onKeyDown` handler does **not** —
+the app saves and the tour never notices.
+
+The robust integration for those is the custom-event form below: it fires whatever the input
+modality, and it advances on real application state rather than on a guess about which node the user
+poked.
 :::
 
 ```ts
@@ -59,9 +66,6 @@ document.dispatchEvent(new CustomEvent('app:saved'))
 // In your tour:
 advanceOn(gf, { save: { event: 'app:saved', selector: 'body' } })
 ```
-
-This is the more robust integration in general: it advances on real application state rather than on
-a guess about which DOM node the user poked.
 
 ## Rules
 

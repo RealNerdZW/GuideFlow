@@ -1422,3 +1422,61 @@ help launcher. Zero new packages, zero core bytes, no fourth dock-drift copy, no
   library's user has 3–15 flows; a search box over eight items is furniture.
 - A host with sixty resources should build its own list from `controller.getSnapshot()`. That is a
   help centre, not a widget.
+
+---
+
+## ADR-024 — A `clickThrough` step cuts the same hole in the tab order that it cuts in the overlay
+
+**Status.** Accepted (Phase 8.1b).
+
+**Context.** ADR-004 spent ~1.3 kB carving a `clip-path` hole in the overlay so exactly one element
+stays live to the **mouse** on a `clickThrough` step. The renderer meanwhile trapped `Tab` inside
+the popover and set `aria-modal="true"` on **every** step, including those ones. So a step saying
+"click Save" was followable with a mouse and impossible with a keyboard: the trap force-returned
+focus, and `aria-modal` told a screen reader the rest of the page was inert — hiding the very
+control the step was asking the user to operate.
+
+`apps/docs/guide/accessibility.md` had been instructing authors to "make sure the thing they are
+meant to interact with is reachable by Tab", which was not achievable.
+
+ADR-020's `advanceOn` turned this from a wart into a defect. Once the tour advances *because* the
+user acted, a user who cannot act is a user the tour strands.
+
+**Decision.** When `step.clickThrough === true`:
+
+1. **Drop `aria-modal`.** It is a promise that the rest of the page is inert, and ADR-004 makes that
+   promise false by construction. Asserting it anyway is a lie an assistive technology acts on.
+2. **Widen the focus trap to popover ∪ target.** The symmetry is the whole argument: the hole
+   exposes one element to the mouse, so the tab order exposes the same one to the keyboard. The
+   target goes **last**, after the popover's own controls — the user reads the instruction before
+   reaching the action.
+
+The widening is exactly one element. Everything else behind the overlay stays out of the tab order,
+so the step keeps its modality against the page and loses it only where it already had.
+
+**The implementation detail that matters, found by e2e.** The first version only wrapped at the
+ends, which is all a contiguous popover needs. A widened scope is **discontiguous** — the target
+sits elsewhere in the document, usually before the popover, which is appended to `body` — so native
+Tab from the last popover control walked into the page and the target was never reached. Tab is now
+driven explicitly whenever the scope is widened: find the active index, move one, wrap. Ordinary
+steps keep the cheap wrap-only path.
+
+**Consequences.**
+
+- Mirrored in `@guideflow/react`'s `GuidePopover`, which had both defects identically. It reuses the
+  existing `resolveTarget`, so a **function** target — async, not synchronously resolvable — keeps
+  the popover-only trap. Same limitation as `DefaultRenderer`; documented, not hidden.
+- **None of this is observable in happy-dom.** `_focusables` filters on `offsetParent !== null`,
+  which is null for everything there, so the trap has nothing to iterate and a unit test proves
+  nothing. Five e2e cases carry it, including the negative: an ordinary step must keep `aria-modal`
+  and the tight trap.
+- The `advanceOn` e2e case that used programmatic focus — the closest a spec could get while the
+  limitation stood — is now a real `Tab` walk ending in `Enter`. That test is the payoff.
+- **One thing the library still cannot fix.** `Enter` on a native `<button>` or `<a href>`
+  synthesises a click; a `<div role="button" tabindex="0">` with an `onKeyDown` handler does not, so
+  an `advanceOn` click rule will not notice it. The answer is the app-dispatched `CustomEvent` form,
+  which fires whatever the input modality. Now the *recommended* shape rather than a workaround.
+- Three related defects from the same review remain open and are **not** fixed here: `renderStep`
+  focuses the first control on every render (so advancing mid-`input` can send the next keystroke to
+  the close button), `hideStep` restores focus unconditionally, and completion is announced by
+  nothing. They are their own change.

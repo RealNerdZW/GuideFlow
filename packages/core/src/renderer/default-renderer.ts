@@ -20,6 +20,12 @@ import { injectStyles, gfId } from '../utils/styles.js'
 
 const POPOVER_CSS_ID = 'gf-popover-renderer'
 
+/** Tabbable elements, in document order. `:not([disabled])` matters — a disabled
+ *  Back button on step 1 would otherwise become the trap's first stop. */
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]),' +
+  ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 // Inline popover CSS for the renderer — a subset of styles/index.css, so a
 // consumer who never imports the stylesheet still gets a usable popover.
 // Keep the two in step: the opacity tokens, the reduced-motion block and the
@@ -81,6 +87,14 @@ export class DefaultRenderer implements RendererContract {
   private _popoverId = gfId('gf-popover')
   /** Target + placement of the step currently on screen, for re-positioning. */
   private _currentTarget: Element | null = null
+  /**
+   * The highlighted element, when the step is `clickThrough`.
+   *
+   * Separate from `_currentTarget`, which every step has: this one is the
+   * narrow "Tab may also reach here" permission, and conflating them would let
+   * the keyboard out of the dialog on ordinary steps.
+   */
+  private _clickThroughEl: HTMLElement | null = null
   private _currentPlacement: PopoverPlacement = 'bottom'
   private _repositionHandler: (() => void) | null = null
   /** Keeps Tab inside the dialog while a step is on screen. */
@@ -165,7 +179,13 @@ export class DefaultRenderer implements RendererContract {
     // Build inner HTML
     el.innerHTML = this._buildHTML(step, content, index, total, chapter)
     el.setAttribute('role', 'dialog')
-    el.setAttribute('aria-modal', 'true')
+    // `aria-modal` is a promise that the rest of the page is inert. On a
+    // `clickThrough` step that promise is false by construction — ADR-004 cut a
+    // hole in the overlay precisely so one element stays live — and asserting
+    // it anyway tells a screen reader to confine its virtual cursor to the
+    // dialog, hiding the very control the step is asking the user to operate.
+    if (step.clickThrough === true) el.removeAttribute('aria-modal')
+    else el.setAttribute('aria-modal', 'true')
 
     // Only reference ids that exist. `-title` is emitted when content.title is
     // set and `-body` when content.body/html is; pointing at a missing element
@@ -209,6 +229,8 @@ export class DefaultRenderer implements RendererContract {
         : null
 
     this._currentTarget = targetEl
+    this._clickThroughEl =
+      step.clickThrough === true && targetEl instanceof HTMLElement ? targetEl : null
     this._currentPlacement = step.placement ?? 'bottom'
     this._position(el, targetEl, this._currentPlacement)
     this._attachReposition()
@@ -231,12 +253,38 @@ export class DefaultRenderer implements RendererContract {
    * otherwise become the trap's first stop and swallow focus.
    */
   private _focusables(root: HTMLElement): HTMLElement[] {
-    return Array.from(
-      root.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]),' +
-        ' textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
-    ).filter((node) => node.offsetParent !== null || node === document.activeElement)
+    return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE))
+      .filter((node) => node.offsetParent !== null || node === document.activeElement)
+  }
+
+  /**
+   * Everything Tab may reach while a step is on screen.
+   *
+   * For an ordinary step that is the popover, and nothing else — `aria-modal`
+   * promises the rest of the page is inert and the trap has to keep that
+   * promise.
+   *
+   * For a `clickThrough` step it is the popover **plus the highlighted
+   * element**, and the symmetry with ADR-004 is the whole argument: that hole
+   * carved in the overlay exposes exactly one element to the mouse, so the tab
+   * order should expose exactly the same one to the keyboard. Without this a
+   * step that says "click Save" is followable with a mouse and impossible with
+   * a keyboard — and `advanceOn` made that gap matter, because the tour now
+   * waits for an interaction the keyboard user cannot perform.
+   *
+   * The target goes last, after the popover's own controls: the user reads the
+   * instruction first, and a target that grabbed the first tab stop would put
+   * the action before the sentence explaining it.
+   */
+  private _trapScope(): HTMLElement[] {
+    const popover = this._popoverEl ? this._focusables(this._popoverEl) : []
+    const target = this._clickThroughEl
+    if (!target) return popover
+    // The target may itself be the control (a spotlit `<button>`), or may
+    // contain them (a spotlit toolbar). Both, in document order, and never the
+    // same node twice.
+    const own = target.matches(FOCUSABLE) ? [target] : []
+    return [...popover, ...own, ...this._focusables(target)]
   }
 
   /**
@@ -251,18 +299,38 @@ export class DefaultRenderer implements RendererContract {
     if (this._focusTrapHandler) return
     this._focusTrapHandler = (e: KeyboardEvent): void => {
       if (e.key !== 'Tab' || !this._popoverEl) return
-      const focusables = this._focusables(this._popoverEl)
+      const focusables = this._trapScope()
       if (focusables.length === 0) return
 
       const first = focusables[0]!
       const last = focusables[focusables.length - 1]!
       const active = document.activeElement
 
-      // Focus outside the dialog entirely (the page stole it, or the dialog
-      // just opened) — pull it back to the appropriate end.
-      if (!this._popoverEl.contains(active)) {
+      // Focus outside the scope entirely (the page stole it, or the dialog just
+      // opened) — pull it back to the appropriate end. On a clickThrough step
+      // the scope includes the highlighted element, so tabbing INTO it is not
+      // an escape and must not be yanked back.
+      const inScope =
+        this._popoverEl.contains(active) || (this._clickThroughEl?.contains(active) ?? false)
+      if (!inScope) {
         e.preventDefault()
         ;(e.shiftKey ? last : first).focus()
+        return
+      }
+
+      // A widened scope is DISCONTIGUOUS — the target sits elsewhere in the
+      // document, usually before the popover, which is appended to body. So the
+      // cheap wrap-at-the-ends trick below is not enough: native Tab from the
+      // last popover control would walk into the page rather than into the
+      // target, and the target would never be reached. Drive every step
+      // explicitly instead.
+      if (this._clickThroughEl) {
+        const at = focusables.indexOf(active as HTMLElement)
+        if (at !== -1) {
+          e.preventDefault()
+          const next = (at + (e.shiftKey ? -1 : 1) + focusables.length) % focusables.length
+          focusables[next]?.focus()
+        }
         return
       }
       if (e.shiftKey && active === first) {
@@ -355,6 +423,7 @@ export class DefaultRenderer implements RendererContract {
     this._detachReposition()
     this._detachFocusTrap()
     this._currentTarget = null
+    this._clickThroughEl = null
     if (this._popoverEl) {
       this._popoverEl.parentNode?.removeChild(this._popoverEl)
       this._popoverEl = null

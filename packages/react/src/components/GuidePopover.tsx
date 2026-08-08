@@ -173,21 +173,53 @@ function ReactPopover({
   // Keep Tab inside the dialog. `aria-modal="true"` tells assistive technology
   // the rest of the page is inert; without a trap Tab walked straight out of it
   // into the page behind the overlay (AUDIT `no-focus-trap-or-restore`).
+  //
+  // On a `clickThrough` step the scope widens to the popover PLUS the
+  // highlighted element, mirroring `DefaultRenderer`. ADR-004 cut a hole in the
+  // overlay so exactly one element stays live to the mouse; the tab order
+  // exposes exactly the same one. Without it a step saying "click Save" is
+  // followable with a mouse and impossible with a keyboard.
   useEffect(() => {
     if (!state) return undefined
     const onKeyDown = (e: KeyboardEvent): void => {
       const el = popoverRef.current
       if (e.key !== 'Tab' || !el) return
-      const focusables = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+
+      // A function target is async and so is not resolvable here — same
+      // limitation as `DefaultRenderer`, which resolves the string and Element
+      // forms only. Such a step keeps the plain popover-only trap.
+      const resolved = state.step.clickThrough === true
+        ? resolveTarget(state.step.target)
+        : null
+      const target = resolved instanceof HTMLElement ? resolved : null
+      const focusables = [
+        ...Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)),
+        ...(target
+          ? [
+              ...(target.matches(FOCUSABLE_SELECTOR) ? [target] : []),
+              ...Array.from(target.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)),
+            ]
+          : []),
+      ]
       if (focusables.length === 0) return
 
       const first = focusables[0]!
       const last = focusables[focusables.length - 1]!
       const active = document.activeElement
 
-      if (!el.contains(active)) {
+      const inScope = el.contains(active) || (target?.contains(active) ?? false)
+      if (!inScope) {
         e.preventDefault()
         ;(e.shiftKey ? last : first).focus()
+      } else if (target) {
+        // Discontiguous scope: the target is elsewhere in the document, so
+        // native Tab would walk into the page instead of into it. Drive every
+        // step rather than only wrapping at the ends.
+        const at = focusables.indexOf(active as HTMLElement)
+        if (at !== -1) {
+          e.preventDefault()
+          focusables[(at + (e.shiftKey ? -1 : 1) + focusables.length) % focusables.length]?.focus()
+        }
       } else if (e.shiftKey && active === first) {
         e.preventDefault()
         last.focus()
@@ -253,7 +285,11 @@ function ReactPopover({
     <div
       ref={popoverRef}
       role="dialog"
-      aria-modal="true"
+      // Omitted on a clickThrough step: `aria-modal` promises the rest of the
+      // page is inert, which ADR-004's hole makes false, and asserting it
+      // confines a screen reader's virtual cursor away from the very control
+      // the step is asking the user to operate.
+      aria-modal={step.clickThrough === true ? undefined : true}
       // A dialog with neither name falls back to "dialog" in a screen
       // reader's landmark list (AUDIT `dangling-aria-labelledby`).
       aria-labelledby={content.title ? titleId : undefined}

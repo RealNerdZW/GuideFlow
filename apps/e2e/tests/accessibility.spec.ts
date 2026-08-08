@@ -255,3 +255,77 @@ test.describe('Accessibility', () => {
     expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   });
 });
+
+test.describe('clickThrough steps are keyboard-reachable', () => {
+  // Phase 8.1b. ADR-004 cut a hole in the overlay so exactly one element stays
+  // live to the mouse; this is the same hole in the tab order. Before it, a
+  // step saying "click Save" was followable with a mouse and impossible with a
+  // keyboard — and `advanceOn` (ADR-020) made that gap matter, because the tour
+  // then waits for an interaction the keyboard user cannot perform.
+  //
+  // None of this is observable in happy-dom: `_focusables` filters on
+  // `offsetParent !== null`, which is null for everything there, so the trap
+  // has nothing to iterate and a unit test proves nothing about it.
+
+  test('Tab reaches the highlighted control', async ({ page }) => {
+    await page.click('#start-clickthrough-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    // More presses than the popover has controls, so an unwidened trap would
+    // have cycled back to the start and never landed on the target.
+    let reached = false;
+    for (let i = 0; i < 10 && !reached; i++) {
+      await page.keyboard.press('Tab');
+      reached = await page.evaluate(() => document.activeElement?.id === 'clickable-target');
+    }
+    expect(reached).toBe(true);
+  });
+
+  test('Shift+Tab comes back out of it, into the popover', async ({ page }) => {
+    await page.click('#start-clickthrough-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await page.locator('#clickable-target').focus();
+    await page.keyboard.press('Shift+Tab');
+
+    const inPopover = await page.evaluate(() =>
+      !!document.querySelector('.gf-popover')?.contains(document.activeElement));
+    expect(inPopover).toBe(true);
+  });
+
+  test('the rest of the page is still unreachable', async ({ page }) => {
+    // The widening is exactly one element, not an escape hatch. Everything
+    // else behind the overlay stays out of the tab order.
+    await page.click('#start-clickthrough-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    for (let i = 0; i < 14; i++) await page.keyboard.press('Tab');
+
+    const where = await page.evaluate(() => {
+      const active = document.activeElement;
+      const popover = document.querySelector('.gf-popover');
+      if (popover?.contains(active)) return 'popover';
+      if (active?.id === 'clickable-target') return 'target';
+      return active?.tagName === 'BODY' ? 'body' : `escaped:${active?.id || active?.tagName}`;
+    });
+    expect(['popover', 'target']).toContain(where);
+  });
+
+  test('aria-modal is dropped, because the page is provably not inert', async ({ page }) => {
+    await page.click('#start-clickthrough-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+    await expect(page.locator('.gf-popover')).not.toHaveAttribute('aria-modal', 'true');
+  });
+
+  test('an ordinary step keeps aria-modal and the tight trap', async ({ page }) => {
+    // The other half: widening must not leak into steps that never asked for it.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+    await expect(page.locator('.gf-popover')).toHaveAttribute('aria-modal', 'true');
+
+    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab');
+    const stillInside = await page.evaluate(() =>
+      !!document.querySelector('.gf-popover')?.contains(document.activeElement));
+    expect(stillInside).toBe(true);
+  });
+});

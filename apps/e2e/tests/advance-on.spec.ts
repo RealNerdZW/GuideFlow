@@ -105,17 +105,22 @@ test.describe('advanceOn', () => {
     await expect(page.locator('#click-count')).toHaveText('0');
   });
 
-  test('a keyboard user can activate the control — but only because it is a real button', async ({ page }) => {
-    // Documented limitation, pinned so it cannot regress silently in either
-    // direction. The renderer traps focus inside the popover, so Tab does not
-    // reach the target; focusing it programmatically is the closest a spec can
-    // get to the keyboard path today. Enter on a native <button> synthesises a
-    // click, which is why `click` rules work at all for keyboard users who can
-    // reach the control.
+  test('a keyboard user can Tab to the control and advance with it', async ({ page }) => {
+    // The payoff for 8.1b, and the reason it was worth doing. Before it the
+    // renderer trapped focus inside the popover and set `aria-modal` on every
+    // step, so Tab never reached the target — a `click` rule was mouse-only,
+    // and `advanceOn` left the keyboard user waiting for an interaction they
+    // could not perform. Nothing here is programmatic focus: it is Tab.
     await page.click('#start-advance-btn');
     await expect(page.locator('.gf-popover')).toBeVisible();
 
-    await page.locator('#clickable-target').focus();
+    let reached = false;
+    for (let i = 0; i < 10 && !reached; i++) {
+      await page.keyboard.press('Tab');
+      reached = await page.evaluate(() => document.activeElement?.id === 'clickable-target');
+    }
+    expect(reached).toBe(true);
+
     await page.keyboard.press('Enter');
 
     await expect(page.locator('#click-count')).toHaveText('1');

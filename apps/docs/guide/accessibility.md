@@ -147,11 +147,19 @@ has to say what the user is looking at.
 **Write step text that stands on its own.** "Click here" is meaningless to someone who cannot see
 where "here" is. Name the control.
 
-**Test `clickThrough` steps by keyboard.** If a step asks the user to interact with the page, make
-sure the thing they are meant to interact with is reachable by `Tab` from where focus is.
+**`clickThrough` steps are keyboard-reachable.** The focus trap widens to include the highlighted
+element, so `Tab` reaches it and `Shift`+`Tab` returns — the same hole the `clip-path` cuts for the
+mouse, cut in the tab order — and `aria-modal` is dropped, because on those steps the page provably
+is not inert. The widening is exactly one element: everything else stays trapped.
+
+Still worth testing by keyboard, for one reason the library cannot fix for you. `Enter` on a native
+`<button>` or `<a href>` synthesises a click; a `<div role="button" tabindex="0">` with an
+`onKeyDown` handler does not, so an `advanceOn` click rule will not notice it. Give those steps an
+app-dispatched `CustomEvent` instead — see [Advancing on interaction](./advance-on).
 
 **The overlay is not `inert`.** Background content stays focusable and in the accessibility tree.
-This is a deliberate trade: making it inert would break `clickThrough` entirely. If your tour never
+This is a deliberate trade: making it inert would break `clickThrough` entirely. The focus trap is
+what keeps `Tab` out of it — belt to that brace. If your tour never
 uses `clickThrough` and you want stricter isolation, apply `inert` to your app root yourself while
 a tour is running.
 

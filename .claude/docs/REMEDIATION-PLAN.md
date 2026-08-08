@@ -843,7 +843,7 @@ transfers to an embedded tour library.
       20 unit tests + **32 e2e across four browsers**. Core entry unchanged; navigation subpath
       2 → **2.5 kB** gate, measured 2.19 kB — **ADR-020**, following ADR-016's pattern.
       Known limitation registered as **8.1b**, not hidden: a `click` rule is mouse-only today.
-- [ ] **8.1b `clickThrough` steps are keyboard-unreachable** — surfaced by 8.1's adversarial pass,
+- [x] **8.1b `clickThrough` steps are keyboard-unreachable** — fixed — surfaced by 8.1's adversarial pass,
       and **pre-existing**: `advanceOn` makes it matter, it does not cause it. The default renderer
       force-returns focus into the popover on Tab and sets `aria-modal="true"` on **every** step,
       including `clickThrough` ones, so a keyboard or AT user cannot reach the control the step is
@@ -856,6 +856,21 @@ transfers to an embedded tour library.
       abandons the tour); `hideStep` restores focus unconditionally (so finishing a tour by acting
       rips focus out of whatever the app just opened); and completion is announced by nothing at all.
       All four are invisible to `pnpm test` — happy-dom returns `[]` from `_focusables`.
+      **Done for the first two — ADR-024.** `aria-modal` is dropped on a `clickThrough` step, and
+      the trap widens to *popover ∪ target*: the same hole ADR-004 cuts in the overlay for the
+      mouse, cut in the tab order. Exactly one element; everything else stays trapped. Mirrored in
+      `@guideflow/react`, which had both defects identically.
+      **e2e found the real bug in the first version.** Wrapping at the ends is all a contiguous
+      popover needs, but a widened scope is *discontiguous* — the target sits elsewhere in the
+      document, and the popover is appended to `body` — so native Tab from the last popover control
+      walked into the page and never reached the target. Tab is now driven explicitly whenever the
+      scope is widened.
+      The `advanceOn` spec that used programmatic focus is now a real Tab walk ending in Enter.
+      Five new a11y cases including the negative. `accessibility.spec.ts`'s existing trap assertions
+      needed no scoping after all — they drive `flows.basic`, which sets no `clickThrough`.
+      **Still open, and now their own item:** `renderStep` focuses the first control on every render
+      (so advancing mid-`input` can send the next keystroke to the close button), `hideStep`
+      restores focus unconditionally, and completion is announced by nothing.
 - [x] **8.5 `?gf_tour=` deep-link start** — the only survivor of the teardown's distribution layer,
       and the answer to §6.4 "reply to the ticket with a clickable walkthrough". `StartTrigger` has
       no URL form and `URLSearchParams` appears nowhere in `packages/core/src`. Lands on the

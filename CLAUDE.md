@@ -102,8 +102,8 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1376 unit tests pass**, 1 skipped
-(core 572, ai 153, analytics 118, react 114, survey 79, checklist 73, banner 62, devtools 54,
+Build, type-check, lint and unit tests are **all green**: **1391 unit tests pass**, 1 skipped
+(core 572, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.3 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
@@ -111,7 +111,7 @@ vue 47, mcp 37, svelte 34, cli 33).
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 487 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 507 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
@@ -583,9 +583,13 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   **Forgetting `clickThrough` on an `advanceOn` step does not no-op — it DISMISSES the tour.**
   `dismissOnBackdropClick` defaults true, so the click lands on the overlay and calls `skip()`; the
   user's first attempt to follow the instruction destroys the tour. The helper warns once.
-  **And a `click` rule is mouse-only today** — the renderer traps focus in the popover and sets
-  `aria-modal` on every step, so Tab never reaches the target (8.1b). The accessible integration is
-  an app-dispatched `CustomEvent`, which fires whatever the input modality.
+  **A `clickThrough` step cuts the same hole in the TAB ORDER that it cuts in the overlay** — the
+  trap widens to *popover ∪ target* and `aria-modal` is dropped, because on those steps the page
+  provably is not inert (ADR-024). Exactly one element; everything else stays trapped. The widened
+  scope is **discontiguous**, so Tab is driven explicitly there — wrapping only at the ends lets
+  native Tab walk from the last popover control into the page, which is what the first version did.
+  Still true: `Enter` synthesises a click on a native `<button>`/`<a href>` and NOT on a
+  `<div role="button" tabindex="0">`, so those steps need an app-dispatched `CustomEvent`.
 - **The content pipeline is `content → locale catalogue → {{token}} → renderer`, in that order,
   in `_resolveContent`.** The order is the whole reason 8.3 and 8.4 shipped together: a *translated*
   string containing `{{firstName}}` only resolves if the catalogue is applied first. It lives in the
