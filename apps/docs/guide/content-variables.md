@@ -56,7 +56,10 @@ worse failure, because nobody notices it and it ships.
 `0` and `false` are values, not misses — they render.
 
 Change the context at runtime with `gf.configure({ context })`; the next render
-picks it up, and `await gf.rerender()` moves the step already on screen.
+picks it up, and `await gf.repaint()` moves the step already on screen.
+
+Use `repaint()` rather than `rerender()` — the latter re-emits `step:enter`, so
+your analytics would record a second view of a step the user never left.
 
 ### Safety
 

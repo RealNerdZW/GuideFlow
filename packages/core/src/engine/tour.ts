@@ -504,17 +504,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // the first step of a multi-state tour.
       // The chapter label, translated if a catalogue supplies one. Falls back to
       // the flow's own `label`, exactly as step content falls back to its own.
-      const stateId = this._machine.state
-      const chapter = this._options.i18n?.stateLabel(stateId)
-        ?? this._machine.currentStateNode?.label
-
-      this._renderer.renderStep(
-        step as Step,
-        content,
-        this._machine.flowStepIndex,
-        this._machine.flowTotalSteps,
-        chapter,
-      )
+      this._paint(step, content)
     } catch (err) {
       // Error boundary — log, emit, and clean up so the page is not left in a broken state
       const flowId = this._flow?.id ?? 'unknown'
@@ -522,6 +512,67 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       this._log('Error rendering step:', stepId, err)
       this.emit('tour:error', { flowId, stepId, error: err })
       this._doEnd(false)
+    }
+  }
+
+  /**
+   * Hand a resolved step to the renderer.
+   *
+   * Shared by the render pipeline and `repaint()` so the chapter lookup and the
+   * flow-wide counters cannot drift between them — per-state numbers put a Done
+   * button on step one of a multi-state tour, and that bug cost 1.3 kB once.
+   */
+  private _paint(step: Step<TContext>, content: StepContent): void {
+    const machine = this._machine
+    if (!machine) return
+    this._renderer.renderStep(
+      step as Step,
+      content,
+      machine.flowStepIndex,
+      machine.flowTotalSteps,
+      this._options.i18n?.stateLabel(machine.state) ?? machine.currentStateNode?.label,
+    )
+  }
+
+  /**
+   * Re-resolve the current step's content and repaint it, emitting nothing.
+   *
+   * The counterpart to `rerender()`, and the difference is the whole point:
+   * `rerender()` re-runs the render pipeline and re-emits `step:enter`, which
+   * `@guideflow/analytics` maps to `guideflow.step.viewed`. So the documented
+   * way to move a live step into a new language — `i18n.use('es')` then
+   * `rerender()` — recorded a second view of that step and inflated its
+   * `reached` count in `computeFunnel`. Three toggles produced four views.
+   *
+   * Use this after anything that changes what the current step *says* rather
+   * than which step it is: `i18n.use()`, `i18n.registerContent()`, or a
+   * `configure({ context })` that feeds `{{token}}` values.
+   *
+   * No machine movement, no `showIf`, no target re-resolution, no events. It
+   * deliberately does **not** bump `_renderGeneration` — bumping would cancel a
+   * step render that is legitimately in flight — so it defers to one instead,
+   * via the two guards across its single `await`.
+   */
+  async repaint(): Promise<void> {
+    const step = this._currentStep
+    if (!step || !this._machine || !this._active || this._paused || this._waiting !== null) {
+      return
+    }
+    const gen = this._renderGeneration
+    try {
+      const content = await this._resolveContent(step)
+      // A navigation started while we were resolving, or one finished and has
+      // already painted the new step in the new locale — the registry is read
+      // live, so that render is not stale and this repaint is.
+      if (gen !== this._renderGeneration || this._currentStep !== step) return
+      this._currentContent = content
+      this._paint(step, content)
+    } catch (err) {
+      // Its own boundary, and unlike `_renderCurrentStep` it must NOT end the
+      // tour: a translation that throws is not a reason to destroy a running
+      // one. Callers are fire-and-forget, so an unhandled rejection here would
+      // surface as a console error rather than as `tour:error`.
+      this._log('repaint failed; keeping the rendered step', err)
     }
   }
 

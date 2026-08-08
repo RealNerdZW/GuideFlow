@@ -105,7 +105,7 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 Build, type-check, lint and unit tests are **all green**: **1399 unit tests pass**, 1 skipped
 (core 580, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
-**Seven** bundles, each gated independently: `@guideflow/core` **15.46 kB / 15.5 kB**, `./authoring`
+**Seven** bundles, each gated independently: `@guideflow/core` **15.54 kB / 16 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
 `./selector` **1.76 kB / 2.5 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
@@ -149,7 +149,7 @@ default" marketing claim until someone has run it.
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
 > accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
-> completion). Core measures **15.11 kB with ~390 B of headroom** — it got *smaller* while gaining
+> completion) → **16 kB** (ADR-026, `repaint`). Core measures **15.54 kB with ~460 B of headroom** — it got *smaller* while gaining
 > the content pipeline, because ADR-022 minified the four injected CSS literals at build time
 > (−570 B, for the gate **and** for a real consumer).
 >
@@ -597,6 +597,12 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   out of whatever the app had just opened. Both guards read `document.activeElement` **before** the
   DOM changes — replacing `innerHTML`, or removing the popover, resets it to `body` and destroys the
   distinction. `body` deliberately counts as "the tour had it". ADR-025.
+- **`repaint()` is for "the content changed"; `rerender()` is for "the DOM changed".** `rerender()`
+  re-emits `step:enter`, which `@guideflow/analytics` counts as a step view — so using it for a
+  locale switch or a `configure({ context })` inflates that step's `reached` in `computeFunnel`.
+  `repaint()` emits nothing. It deliberately does NOT bump `_renderGeneration` (that would cancel a
+  render legitimately in flight) and defers to one instead, and its `catch` does NOT end the tour,
+  because a bad translation must not destroy a running one. ADR-026.
 - **`hideStep(reason?)` is called on pause and on every ending, so an announcement there needs the
   reason.** Only `'complete'` is passed. The live region is kept alive ~1 s afterwards, because
   `_announce` writes on the next frame and removing it in the same tick — which is what used to

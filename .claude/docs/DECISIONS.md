@@ -1544,3 +1544,62 @@ which is why a boolean "did it end" would not have been enough.
   like versus a bookkeeping one.
 - Five e2e cases carry what happy-dom cannot see, including both negatives: a Next press must still
   move focus in, and an abandoned tour must stay silent.
+
+---
+
+## ADR-026 — `repaint()`, and the seventh raise taken on its own terms
+
+**Status.** Accepted (Phase 8.4b).
+
+**Context.** `rerender()` re-runs the render pipeline and re-emits `step:enter`.
+`@guideflow/analytics` maps that to `guideflow.step.viewed`, and `computeFunnel` counts those into
+each step's `reached`. So the recipe `apps/docs/guide/i18n.md` documented for moving a live step into
+another language — `i18n.use('es')` then `rerender()` — recorded a second view of that step. Three
+toggles produced four views and a skewed funnel. Two things that shipped in the same phase,
+interacting badly.
+
+**Decision 1 — a public `repaint()`, not an `I18nRegistry.onChange` subscription.** The design panel
+proposed the registry notifying the engine. A public method is cheaper (no listener set, no notify
+calls) and covers strictly more: `configure({ context })` mid-tour changes what `{{token}}` values
+resolve to and has exactly the same problem, which an i18n-only subscription would not have touched.
+The rule is "call it when what the step *says* changed, but not which step it is".
+
+It re-resolves content and repaints. No machine movement, no `showIf`, no target re-resolution, no
+events. It deliberately does **not** bump `_renderGeneration` — that would cancel a step render
+legitimately in flight — so it defers to one instead, with two guards across its single `await`: the
+generation, and whether `_currentStep` is still the step it started for. And it carries its own
+`catch` that does **not** end the tour: callers are fire-and-forget, and a translation that throws is
+not a reason to destroy a running tour.
+
+`_paint()` is extracted and shared with `_renderCurrentStep`, so the chapter lookup and the
+flow-wide counters cannot drift between the two paths — per-state numbers put a Done button on step
+one of a multi-state tour, and that cost 1.3 kB to fix once.
+
+**Decision 2 — take the seventh raise, 15.5 → 16 kB. Measured 15.54.**
+
+The feature is ~80 B net after the `_paint` extraction. There were 40 B of headroom. So this needed
+the conversation CLAUDE.md asks for, and the answer is not the one ADR-022 reached.
+
+**A real saving does exist, and it was measured, not estimated: removing `HotspotManager` from the
+default entry takes it to 14.73 kB — 810 B.** Real in ADR-022's sense, too: `createGuideFlow`
+constructs it unconditionally, so every consumer ships it today whether or not they ever call
+`gf.hotspot()`. `HintSystem` (~510 B) and `BroadcastSync` (~175 B) are the same shape.
+
+**It was not taken here, deliberately.** All three are breaking API changes — `gf.hotspot()`,
+`gf.hints()`, the `HotspotManager` and `HintSystem` exports, and `useHotspot` in `@guideflow/react`.
+Spending a breaking change to fund an 80 B method is opportunistic, and it is the mirror image of
+what ADR-022 refused: there a *fake* saving would have laundered 380 real bytes; here a *real* one
+would launder a decision nobody made. Those moves are worth doing on their own merits, in their own
+changeset, where the trade is visible. Tracked separately.
+
+**Consequences.**
+
+- Seventh raise: 12 → 12.5 → 13 → 14.5 → 15 → 15.5 → **16 kB**, measured **15.54** with ~460 B of
+  headroom. Every docs figure quoting a bundle size says **~15.5 kB**.
+- **`repaint()` is the answer to "the content changed", `rerender()` to "the DOM changed".** Both are
+  on the `TourEngine` prototype and neither is shadowed by the `Object.assign` literal, so declaring
+  them on `GuideFlowInstance` costs zero runtime bytes.
+- Pinned in **both** directions: a test asserts `repaint()` emits nothing and a sibling asserts
+  `rerender()` still emits `step:enter`. The distinction is the whole feature and could otherwise
+  collapse quietly.
+- The i18n docs no longer carry the funnel-distortion warning, because the distortion is gone.

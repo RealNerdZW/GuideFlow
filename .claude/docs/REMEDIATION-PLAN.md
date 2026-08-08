@@ -949,6 +949,22 @@ transfers to an embedded tour library.
       alternative — moving the token-adapter and intro-compat re-exports off the entry — was
       measured at **three bytes** for an actual `import { createGuideFlow }`, because `sideEffects`
       is CSS-only and every bundler already shakes them away. ADR-022 is the worked example.
+- [x] **8.4b `gf.repaint()`** — the locale switch no longer inflates the funnel. `rerender()`
+      re-emits `step:enter`, `@guideflow/analytics` maps that to `guideflow.step.viewed`, and
+      `computeFunnel` counts it into `reached` — so the recipe the i18n docs gave for moving a live
+      step into another language recorded a phantom view. Three toggles, four views.
+      A **public method**, not the panel's `I18nRegistry.onChange` subscription: cheaper, and it
+      covers `configure({ context })` mid-tour, which changes what `{{token}}` resolves to and has
+      exactly the same problem.
+      Emits nothing; does NOT bump `_renderGeneration` (that would cancel a render legitimately in
+      flight) and defers to one instead; its `catch` does not end the tour, because a bad
+      translation must not destroy a running one. `_paint` extracted and shared so the chapter
+      lookup and flow-wide counters cannot drift between the two paths.
+      10 tests, pinning **both** directions — `repaint()` emits nothing AND `rerender()` still does.
+      **Seventh raise, 15.5 → 16 kB, measured 15.54 — ADR-026.** An 810 B saving was measured
+      (`HotspotManager` off the entry, constructed unconditionally today so every consumer ships it)
+      and deliberately **not** taken: it is breaking, and spending a breaking change to fund an 80 B
+      method is the mirror of what ADR-022 refused. Tracked on its own.
       Also measured, and now a standing trap: **happy-dom does not re-escape text nodes when it
       serialises `innerHTML`**, so an escaping assertion written that way tests its serialiser and
       reads as a vulnerability that is not there.

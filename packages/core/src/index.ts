@@ -188,6 +188,22 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
    */
   rerender(): Promise<void>
   /**
+   * Re-resolve and repaint the current step's **content**, emitting nothing.
+   *
+   * The counterpart to `rerender()`. That one re-runs the render pipeline and
+   * re-emits `step:enter`, which `@guideflow/analytics` counts as another step
+   * view — so using it to move a live step into a new language inflated that
+   * step's `reached` count in `computeFunnel`.
+   *
+   * Call this after anything that changes what the step *says* rather than
+   * which step it is: `i18n.use()`, `i18n.registerContent()`, or a
+   * `configure({ context })` that feeds `{{token}}` values.
+   *
+   * Also on the `TourEngine` prototype and never shadowed by the `Object.assign`
+   * literal, so declaring it costs zero runtime bytes.
+   */
+  repaint(): Promise<void>
+  /**
    * Id of the running flow, or null when no tour is active.
    *
    * Reachable on the instance because `TourEngine` declares it on the
