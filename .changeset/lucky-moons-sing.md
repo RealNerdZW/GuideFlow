@@ -46,7 +46,8 @@ where data came from, not which field it is in.
 `RendererContract.renderStep` gains an optional fifth argument, the chapter label. Additive — a
 renderer that ignores it still satisfies the interface.
 
-Seventh size raise, 15.5 → 16 kB, measured **15.68 kB** (ADR-022). A 330 B "saving" was available by
-moving the `fromTailwind`/`fromRadix`/`fromShadcn` re-exports off the entry, and was declined: real
-consumers already tree-shake those, so it would have changed the number without changing what
-anyone downloads.
+**Core got smaller, not bigger: 15.3 → 15.11 kB.** The pipeline costs ~380 B; minifying the four
+injected CSS blocks at build time gives ~570 B back — for the size gate *and* for every consumer's
+bundle. The stylesheets stay readable in source; only the emitted bytes shrink. No budget raise
+(ADR-022, which also records the ~1 kB "saving" that was measured, found to be worth three bytes to
+a real consumer, and declined).

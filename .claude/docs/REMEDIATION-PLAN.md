@@ -912,10 +912,12 @@ transfers to an embedded tour library.
       The catalogue is `{ steps, states }` rather than one flat map because step ids and state ids
       are **separate namespaces** — `duplicate-step-id` makes step ids unique within a flow, and
       nothing stops a state sharing a name with one.
-      28 unit tests. **Seventh raise, 15.5 → 16 kB, measured 15.68 — ADR-022.** A 330 B saving was
-      found and **declined**: moving the token-adapter re-exports off the entry changes the measured
-      figure without changing what a tree-shaking consumer downloads. Trimming dotted-path tokens
-      would have saved 30 B and cost `{{user.name}}`; there is no other fat.
+      28 unit tests. **No size raise, and core got smaller: 15.3 → 15.11 kB.** A seventh raise was
+      written, taken and withdrawn. The pipeline costs ~380 B; minifying the four injected CSS
+      literals at build time gives **570 B** back, for the gate *and* for a real consumer. The ~1 kB
+      alternative — moving the token-adapter and intro-compat re-exports off the entry — was
+      measured at **three bytes** for an actual `import { createGuideFlow }`, because `sideEffects`
+      is CSS-only and every bundler already shakes them away. ADR-022 is the worked example.
       Also measured, and now a standing trap: **happy-dom does not re-escape text nodes when it
       serialises `innerHTML`**, so an escaping assertion written that way tests its serialiser and
       reads as a vulnerability that is not there.

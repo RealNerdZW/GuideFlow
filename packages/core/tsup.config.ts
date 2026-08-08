@@ -1,4 +1,54 @@
-import { defineConfig } from 'tsup'
+import { readFile } from 'node:fs/promises'
+
+import { defineConfig, type Options } from 'tsup'
+
+/**
+ * Minify the injected CSS template literals at build time.
+ *
+ * Four modules carry a `const *_CSS = \`…\`` block that `injectStyles` puts in a
+ * `<style>` tag: the popover, the spotlight, hotspots and hints. They are
+ * written readably, with comments and indentation, because they are read far
+ * more often than they are changed — and every one of those bytes shipped.
+ *
+ * This is the rare saving that is real rather than bookkeeping: it shrinks what
+ * an actual consumer downloads by the same amount it shrinks the gate, and it
+ * removes no API. **~580 B gzip**, measured, which is more than the whole
+ * content pipeline cost (ADR-022).
+ *
+ * The source stays exactly as it is. Only the emitted bytes change.
+ *
+ * Safe because none of the four interpolates: a `${…}` inside would be a
+ * JavaScript expression, and handing that to a CSS parser would mangle it.
+ * The guard below refuses those rather than silently corrupting them.
+ */
+const CSS_LITERAL = /const (\w*CSS) = `([^`]*)`/g
+
+const minifyInjectedCss: NonNullable<Options['esbuildPlugins']>[number] = {
+  name: 'gf-minify-injected-css',
+  setup(build) {
+    // Both separators. `args.path` is absolute and native, so on Windows this
+    // is `…\src\renderer\default-renderer.ts` — a forward-slash-only filter
+    // silently matches nothing there and the plugin looks like it did no work.
+    build.onLoad({ filter: /[\\/]src[\\/].*\.ts$/ }, async (args) => {
+      const source = await readFile(args.path, 'utf8')
+      if (!source.includes('CSS = `')) return null
+
+      let out = source
+      let touched = false
+      for (const [whole, name, body] of source.matchAll(CSS_LITERAL)) {
+        // An interpolated block is a JS expression, not CSS. Leave it alone.
+        if (body.includes('${')) continue
+        // `build.esbuild`, not a top-level import: esbuild is tsup's dependency,
+        // not this package's, and pnpm's strict layout means importing it here
+        // fails to resolve. The plugin API hands us the same instance.
+        const { code } = await build.esbuild.transform(body, { loader: 'css', minify: true })
+        out = out.replace(whole, `const ${name} = \`${code.trim()}\``)
+        touched = true
+      }
+      return touched ? { contents: out, loader: 'ts' } : null
+    })
+  },
+}
 
 /**
  * Several config objects, not several entries in one.
@@ -25,6 +75,7 @@ export default defineConfig([{
   target: 'es2020',
   outDir: 'dist',
   platform: 'browser',
+  esbuildPlugins: [minifyInjectedCss],
   banner: {
     js: '/* GuideFlow core — MIT License — https://guideflow.dev */',
   },

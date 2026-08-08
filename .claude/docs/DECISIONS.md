@@ -1296,33 +1296,44 @@ reintroduces the per-state counter bug ADR-008 paid 1.3 kB to fix. It ships **wi
 hardcoded English chapter label would be the one untranslatable string in an otherwise fully
 translatable flow file.
 
-**Decision 4 — take the seventh raise, 15.5 → 16 kB. Measured 15.68 kB, from 15.3.**
+**Decision 4 — NO seventh raise. The budget stays at 15.5 kB, and core got *smaller*.**
 
-CLAUDE.md asks for a real saving before a seventh raise. I looked, and found one — and declined it.
+The feature costs ~380 B and took the entry to 15.68 against a 15.5 kB gate. A raise was written,
+taken, and then **withdrawn**, because a genuine saving turned up that is larger than the feature.
 
-Removing the `fromTailwind` / `fromRadix` / `fromShadcn` re-export from the entry drops the measured
-figure by **330 B**, more than this whole feature costs. But `size-limit` bundles `./dist/index.js`
-with every export live, whereas `sideEffects` is `["**/*.css"]` — so a real consumer importing only
-`createGuideFlow` **already tree-shakes those helpers away and pays none of it**. Moving them would
-change the number without changing what anybody downloads. That is papering over a gate, not
-respecting it.
+**Two candidate savings, and the difference between them is the whole point.**
 
-*(The move may still be right on design grounds — theme adapters for three specific design systems
-are exactly the "opt-in thing most consumers never need" category that `/html`, `/selector`,
-`/authoring` and `/versioning` all live in. Worth doing on its own merits, in its own changeset,
-where it cannot launder 380 real bytes.)*
+*Rejected — moving `fromTailwind`/`fromRadix`/`fromShadcn` (and the intro-compat exports) off the
+entry.* It drops the measured figure by 330 B, or 1070 B with compat included. But `size-limit` has
+no `import` key, so it bundles `dist/index.js` with every export live, whereas `sideEffects` is
+`["**/*.css"]`. Measured against a real `import { createGuideFlow }`: **14167 B before, 14170 B
+after — three bytes worse**, and the esbuild metafile lists neither module as an input. Every
+bundler already shakes them away. That is a bookkeeping change dressed as a saving, and taking it
+would have laundered 380 real bytes behind it.
 
-Genuine trims inside the feature were measured and mostly rejected: dropping dotted-path tokens
-saves **30 B** and costs `{{user.name}}`, which is not a good trade. There is no other fat.
+*Taken — minifying the four injected CSS template literals at build time.* `POPOVER_CSS`,
+`SPOTLIGHT_CSS` and the hotspot and hint blocks are written readably, with comments and indentation,
+because they are read far more often than they are changed — and every one of those bytes shipped.
+A ~20-line `onLoad` plugin in `tsup.config.ts` runs each through esbuild's CSS loader. The source is
+untouched; only the emitted bytes shrink. **−570 B at the gate and −570 B for a real consumer**,
+which is the test the other candidate failed.
 
-So the honest accounting is: **this feature costs ~380 B and the budget moves.** The bar ADR-014 set
-for a raise was "the difference between republishing a tour working and silently reaching nobody".
-This clears it — it is the difference between the static-asset authoring model being usable by a
-non-engineer and not.
+**Net: 15.3 → 15.11 kB.** The content pipeline ships and the entry is *smaller than before it*.
+
+Genuine trims inside the feature were measured and rejected: dropping dotted-path tokens saves 30 B
+and costs `{{user.name}}`. There is no other fat.
 
 **Consequences.**
-- Seventh raise: 12 → 12.5 → 13 → 14.5 → 15 → 15.5 → **16 kB**. Measured 15.68, ~320 B of headroom.
-  Every docs figure quoting a bundle size must now say **~15.7 kB**.
+- **Still six raises, not seven.** 12 → 12.5 → 13 → 14.5 → 15 → 15.5, measured **15.11 kB** with
+  ~390 B of headroom. Every docs figure quoting a bundle size should say **~15.1 kB**.
+- The CSS plugin's `onLoad` filter must match **both** path separators. A forward-slash-only filter
+  matches nothing on Windows and the plugin silently does no work — which is exactly what the first
+  version did, measuring a 20 B saving instead of 570 B and looking like the idea had simply failed.
+- Three larger savings were measured and **not** taken, because each removes something from the
+  default entry and is a breaking change deserving its own decision: `HotspotManager` (−1073 B for a
+  real consumer, constructed unconditionally in `createGuideFlow`), `HintSystem` (−513 B, same
+  shape), `BroadcastSync` (−174 B). Worth revisiting deliberately; not as budget-clearing for an
+  unrelated feature.
 - `RendererContract.renderStep` gains an optional fifth argument. Additive: an existing renderer
   that ignores it still satisfies the interface.
 - **Do not assert escaping through `innerHTML` in happy-dom.** MEASURED: it parses `&lt;img&gt;`

@@ -149,11 +149,16 @@ default" marketing claim until someone has run it.
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
 > accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
-> completion) → **16 kB** (ADR-022, the content pipeline). Core measures **15.68 kB with ~320 B of
-> headroom**. Seven raises is a lot, and ADR-022 records a 330 B "saving" that was found and
-> **declined**: moving the token-adapter re-exports off the entry changes the measured figure
-> without changing what a tree-shaking consumer downloads, which is papering over the gate rather
-> than respecting it. Look for a real saving before an eighth.
+> completion). Core measures **15.11 kB with ~390 B of headroom** — it got *smaller* while gaining
+> the content pipeline, because ADR-022 minified the four injected CSS literals at build time
+> (−570 B, for the gate **and** for a real consumer).
+>
+> **ADR-022 is the worked example of a real saving versus a fake one.** Moving the token-adapter
+> and intro-compat re-exports off the entry drops the gate figure by ~1 kB and changes what an
+> actual consumer downloads by **three bytes** — `sideEffects` is CSS-only, so every bundler
+> already shakes them away, and `size-limit` has no `import` key so it over-measures the entry.
+> A seventh raise was written, taken and withdrawn once the CSS saving landed. Measure what a
+> consumer downloads, not what the gate prints.
 >
 > **ADR-020 did the same for the *navigation* subpath, 2 → 2.5 kB**, to land `advanceOn`: measured
 > 2.19 kB, core entry unchanged. **ADR-021 took *targeting* 2.75 → 3 kB** for the deep-link start,
