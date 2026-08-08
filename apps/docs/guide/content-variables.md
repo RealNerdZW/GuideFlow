@@ -20,7 +20,7 @@ the [devtools recorder](/packages/devtools), the [MCP server](./mcp) and
 on — its copy is frozen in one language with no personalisation, and changing a
 word needs a deploy.
 
-`{{tokens}}` are the serialisable half.
+<code v-pre>{{tokens}}</code> are the serialisable half.
 
 ## Tokens
 
@@ -43,12 +43,14 @@ const gf = createGuideFlow({
 })
 ```
 
+::: v-pre
 | Form | Meaning |
 |---|---|
 | `{{plan}}` | the value at `context.plan` |
 | `{{user.name}}` | a dotted path, for a nested context |
 | `{{plan\|free}}` | a fallback, used when the value is `null` or `undefined` |
 | `{{nope}}` with no value | **left as written** |
+:::
 
 An unresolved token stays visible on purpose. A blank gap in a sentence is the
 worse failure, because nobody notices it and it ships.
@@ -69,10 +71,11 @@ leaves through the same escaping every other string does. A context value of
 
 ::: warning `content.html` is not interpolated
 Deliberately. "Interpolate then sanitise" is safe for element content but not for
-attribute context — in `<a href="/r?next={{to}}">` a value carrying a quote closes
+attribute context — in <code v-pre>&lt;a href="/r?next={{to}}"&gt;</code> a value carrying a quote closes
 the attribute *before* the sanitiser parses anything, so untrusted data would
-shape the parse tree. And [`sanitizeHTML` is opt-in](./security), which would make
-the exposed configuration the one you chose believing it was the hardened one.
+shape the parse tree. And [`sanitizeHTML` is opt-in](./flows-and-steps#html-needs-an-opt-in-import),
+which would make the exposed configuration the one you chose believing it was the
+hardened one.
 
 Tokens in `content.html` are left as written. Put personalised text in `title` or
 `body`.
@@ -125,5 +128,5 @@ gf.createFlow(parseFlowFile(flow))
 ```
 
 The catalogue is applied first and tokens second, so a translated string
-containing `{{firstName}}` resolves correctly. See [i18n](./i18n) for the
+containing <code v-pre>{{firstName}}</code> resolves correctly. See [i18n](./i18n) for the
 catalogue format.

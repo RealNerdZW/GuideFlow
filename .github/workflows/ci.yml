@@ -51,6 +51,46 @@ jobs:
       - name: Test
         run: pnpm turbo run test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
+  # ── Docs gate ──────────────────────────────────────────────────────────────
+  # Every task above passes `--filter=!docs`, and `docs.yml` only fires on push
+  # to master — so until this job existed the docs site was built for the FIRST
+  # time after merge, at deploy. Two breaks reached master that way and were
+  # found by hand during the 0.2.0 release:
+  #
+  #   1. A dead link (`./security`, a page that does not exist). VitePress fails
+  #      the build on it, at `renderStart` — which ABORTS BEFORE SSR and so
+  #      masked the second one entirely.
+  #   2. `{{user.name}}` in a markdown table. Vue compiles `{{ }}` in markdown
+  #      as a real expression, so it evaluated `user.name` against an undefined
+  #      `user` and died with "Cannot read properties of undefined".
+  #
+  # The scan below catches what a build CANNOT: a token like `{{plan}}` that
+  # does not crash and instead renders as an empty string. Five of those were
+  # live on the two pages documenting token syntax, including the security
+  # example, where `<a href="/r?next={{to}}">` rendered as `href="/r?next="` —
+  # erasing the exact thing the passage warns about.
+  docs:
+    name: Docs site builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The docs import the packages, so they must exist first.
+      - run: pnpm turbo run build --filter='@guideflow/core' --filter='@guideflow/react' --filter='@guideflow/ai' --filter='@guideflow/analytics'
+
+      - name: Guard against unescaped Vue interpolation
+        run: node scripts/check-docs-interpolation.mjs
+
+      - name: Build docs
+        run: pnpm docs:build
+
   # ── Coverage gate ──────────────────────────────────────────────────────────
   # Per-package thresholds are ratchets set just below what each suite achieves
   # today (see each vitest.config.ts), so a regression fails rather than

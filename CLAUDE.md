@@ -133,9 +133,18 @@ packages carry coverage thresholds set as **ratchets** just below measured cover
 coverage improves, never lower them to make a build pass. The one remaining hole is
 `@guideflow/devtools`, which still has no tests (needs an extension harness).
 
-**The Phase 3 devtools hardening has still not been exercised in a browser** — the nonce handshake,
-the relay allowlist and `optional_host_permissions` were reasoned about by reading. A mismatch would
-present as *silence*, not an error. Run `/gf-extension-dev` before trusting the extension.
+**Correction (0.2.0 release check).** This section used to say the Phase 3 devtools hardening "has
+still not been exercised in a browser". **That stopped being true in 7.9b** and the sentence outlived
+the fix — it then propagated into a release PR description before a fact-check caught it.
+`apps/e2e/tests-extension` loads the real unpacked extension in full Chromium (10 specs, its own
+`{ project: extension, browser: chromium }` entry in `ci.yml`), so the nonce handshake and the relay
+allowlist are exercised on the **happy** path: the four-hop detection assertion goes red if the
+per-load nonce desyncs or a type leaves `RELAYABLE`. `optional_host_permissions` was retired in 7.9b
+and is asserted *absent* off a live manifest.
+
+**What is still untested is the negative path.** Nothing forges a page message and asserts it cannot
+reach `chrome.storage` — which is item 3.4's actual acceptance criterion. A hole there would present
+as *silence*, not an error, so it needs a spec rather than another reading.
 
 **No manual screen-reader pass has been run.** Phase 6's a11y work is verified by axe, by
 assertion, and now by an announcement audit — `apps/e2e/tests/a11y-announcements.spec.ts` captures
@@ -144,8 +153,18 @@ every live-region utterance in order with all four regions on one page, plus the
 twice; a tour step announced doubled punctuation) and measured a third it did not fix (two surfaces
 release held announcements in the same millisecond when a tour ends).
 It still is not a manual pass: pacing, verbosity and whether the result is pleasant need ears.
-`.claude/docs/SCREEN-READER-PASS.md` is the session script. Do not restore the "accessible by
-default" marketing claim until someone has run it.
+`.claude/docs/SCREEN-READER-PASS.md` is the session script.
+
+**The "Accessible by Default" claim was never actually retracted, despite this line telling you not
+to restore it.** It sat on the canonical docs homepage (`apps/docs/index.md`) untouched from the
+initial scaffold through every phase of a11y work — and `.claude/docs/audit-findings.json` had
+flagged it by file and line the whole time, saying it had "zero automated backing". The a11y work
+got done and the marketing sentence that motivated it never got read again. It is now
+"Accessibility, Tested Not Assumed", stating what is verified and linking to
+`apps/docs/guide/accessibility.md`, whose warning block has always been honest.
+Do not put the unqualified claim back until someone has run the pass.
+
+The general lesson: a "do not restore X" note assumes X was removed. Check that it was.
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
 > accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
@@ -556,6 +575,23 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
 - **Two documentation sites exist.** `.github/workflows/docs.yml` publishes
   `apps/docs/.vitepress/dist` to GitHub Pages. The root `docs/*.html` files are stale leftovers that
   nothing builds — yet `docs.yml` still *triggers* on `docs/**`. Edit `apps/docs/`, never `docs/`.
+- **Vue compiles `{{ }}` in a markdown page, and inline backticks do NOT stop it.** A page about
+  `{{token}}` syntax is therefore a minefield. Two failure modes, and the quiet one is worse:
+  `{{user.name}}` **throws** during SSR ("Cannot read properties of undefined") because `user` is
+  undefined, while `{{plan}}` compiles fine and renders as an **empty string** — the page ships with
+  a blank where you wrote a token and nothing reports it. Five of those were live, including
+  `<a href="/r?next={{to}}">` in the security section, which rendered as `href="/r?next="` and
+  deleted the exact token the paragraph was warning about. Use a fenced block, a `::: v-pre`
+  container, or `<code v-pre>{{token}}</code>` for a single inline mention.
+  `scripts/check-docs-interpolation.mjs` fails CI on all of it — the build cannot, because the
+  empty-string case is not an error.
+- **A VitePress dead link aborts the build at `renderStart`, BEFORE SSR — so it masks every later
+  error.** Fixing one dead link surfaced a second, unrelated break that had been invisible behind it.
+  When a docs build fails, fix and re-run rather than assuming the first error was the only one.
+- **The docs site was never built before merge until 8.x.** Every `ci.yml` task passes
+  `--filter=!docs`, and `docs.yml` only fires on push to `master`, so a broken docs build failed at
+  *deploy* — after review, after merge, with the published site left stale. The `docs` job in
+  `ci.yml` closes that. Do not "simplify" it away; it is 20 seconds and it caught two real breaks.
 - **`repo.config.json` is the only source of identity truth.** Owner, author, and URLs are
   propagated by `scripts/sync-repo-meta.mjs`, which now also rewrites the `@author` / `@github` /
   copyright lines in `packages/*/src/**` and the `LICENSE` copyright holder. Never hand-edit those
