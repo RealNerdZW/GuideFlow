@@ -23,6 +23,14 @@ export interface ChecklistStrings {
   dismiss: string
   /** Visually-hidden suffix on a done row. */
   completed: string
+  /**
+   * Visually-hidden suffix on a done, flow-backed row — it can be replayed.
+   *
+   * Separate from `completed` because the two rows differ: a manually-ticked
+   * item has nothing to re-run, and promising one an action would be the exact
+   * dead-button problem this string exists to avoid.
+   */
+  replay: string
   /** Template with {title} — the aria-describedby text on a blocked row. */
   blocked: string
 }
@@ -35,6 +43,7 @@ export const DEFAULT_STRINGS: ChecklistStrings = {
   collapse: 'Hide checklist',
   dismiss: 'Dismiss checklist',
   completed: 'Completed',
+  replay: 'Completed — select to do it again',
   blocked: 'Complete {title} first',
 }
 
@@ -216,13 +225,22 @@ function updateRow(
   // A glyph plus visually-hidden text — never colour alone, which forced-colors
   // and colour-blind users would both lose.
   refs.mark.textContent = item.done ? '✓' : ''
-  refs.status.textContent = item.done ? strings.completed : ''
 
   const control = refs.control
-  if (item.done) {
-    // A done item is not a dead button: it is not a button at all. Core has no
-    // clearCompleted, so a completed flow cannot be replayed, and rendering an
-    // inert control would promise an action that silently does nothing.
+  // A done row used to be inert, and the reason was true when it was written:
+  // "core has no clearCompleted, so a completed flow cannot be replayed, and
+  // rendering an inert control would promise an action that silently does
+  // nothing". Both halves have since stopped being true — `clearCompleted`
+  // landed in 7.10b, and `start(flow, ctx, { force: true })` in ADR-021 is the
+  // better mechanism because it writes nothing and so cannot un-tick this very
+  // row. So a flow-backed done item is a live control again.
+  //
+  // A MANUALLY ticked item still is not: there is no flow to re-run, and that
+  // is the dead button the original comment was right about.
+  const replayable = item.done && item.flowId !== null
+  refs.status.textContent = item.done ? (replayable ? strings.replay : strings.completed) : ''
+
+  if (item.done && !replayable) {
     control.setAttribute('aria-disabled', 'true')
     control.tabIndex = -1
   } else {

@@ -98,8 +98,10 @@ describe('createChecklist', () => {
     expect(controller.getSnapshot().items[1]?.done).toBe(false)
 
     await controller.uncomplete('profile')
-    // Core has no clearCompleted, and reaching into the completed-flows array
-    // to fake one is deliberately rejected.
+    // `uncomplete` clears a MANUAL tick and deliberately does not touch the
+    // completed-flows array — reaching into another subsystem's data to fake an
+    // un-completion stays rejected. Replaying a flow-backed item goes through
+    // `start(…, { force: true })` instead, which writes nothing at all.
     expect(controller.getSnapshot().items[0]?.done).toBe(true)
     controller.destroy()
   })
@@ -336,5 +338,47 @@ describe('createChecklist', () => {
 
     expect(listener).not.toHaveBeenCalled()
     expect(controller.getSnapshot().items[0]?.done).toBe(false)
+  })
+})
+
+describe('replaying a completed item', () => {
+  it('starts the flow again, and does NOT un-tick the row', async () => {
+    // The whole reason it uses `start(…, { force: true })` rather than
+    // `progress.clearCompleted()`: clearing would make the user's reward for
+    // re-reading a guide be losing the tick they earned, because this widget
+    // is a projection of exactly that array.
+    const { gf } = make()
+    gf.createFlow({
+      id: 'profile-tour',
+      initial: 'm',
+      states: { m: { steps: [{ id: 'p1', content: { title: 'Profile' } }], final: true } },
+    })
+    await gf.progress.markCompleted('u1', 'profile-tour')
+
+    const c = createChecklist(gf, definition)
+    await flush()
+    expect(c.getSnapshot().items.find((i) => i.id === 'profile')?.done).toBe(true)
+
+    await c.activate('profile')
+
+    expect(gf.isActive).toBe(true)
+    expect(await gf.progress.getCompletedFlows('u1')).toContain('profile-tour')
+    expect(c.getSnapshot().items.find((i) => i.id === 'profile')?.done).toBe(true)
+
+    c.destroy()
+    gf.destroy()
+  })
+
+  it('does nothing for a done item with no flow behind it', async () => {
+    const { gf } = make()
+    const c = createChecklist(gf, definition)
+    await c.complete('data')
+    await flush()
+
+    await c.activate('data')
+    expect(gf.isActive).toBe(false)
+
+    c.destroy()
+    gf.destroy()
   })
 })

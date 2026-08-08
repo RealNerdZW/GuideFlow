@@ -177,11 +177,10 @@ can lose one. This is the same class of race as `markCompleted` itself.
 
 ## Things it deliberately does not do
 
-- **A completed tour cannot be replayed from the checklist.** `isCompleted` is keyed on flow id
-  alone with no version and there is no `clearCompleted`, so shipping v2 of a flow never un-ticks
-  the item for anyone who finished v1 — inherited from core, and not papered over. A done row is
-  rendered non-actionable with a visible "Completed" marker rather than as a button that silently
-  refuses.
+- **A manually ticked item cannot be re-run.** There is no flow behind it, so that row keeps its
+  "Completed" marker and stays non-actionable rather than becoming a button that silently refuses.
+  A **flow-backed** done row is operable — selecting it replays the tour via
+  `start(…, { force: true })`, which writes nothing and so cannot un-tick the row you just used.
 - **The widget is hidden and inert while a tour runs.** Its z-index sits deliberately *below*
   `--gf-z-overlay`, so a running tour dims and covers it. The decisive reason is the renderer's
   capture-phase focus trap: a Tab-reachable checklist mid-tour is a keyboard user being yanked

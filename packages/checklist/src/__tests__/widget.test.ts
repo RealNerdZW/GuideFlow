@@ -173,7 +173,46 @@ describe('mountChecklist', () => {
     const row = document.querySelector('[data-item-id="profile"]')
     expect(row?.hasAttribute('data-gf-done')).toBe(true)
     expect(row?.querySelector('.gf-checklist-mark')?.textContent).toBe('✓')
+    // Flow-backed, so the hidden text also says it can be re-run. The point of
+    // this test is the glyph-plus-text pairing, not the exact wording.
+    expect(row?.querySelector('.gf-checklist-sr')?.textContent)
+      .toBe('Completed — select to do it again')
+
+    view.destroy()
+    controller.destroy()
+  })
+
+  it('a done FLOW-BACKED row stays operable, so a finished tour can be replayed', async () => {
+    // It used to be inert, and the reason was true when written: core had no
+    // way to replay a completed flow. `clearCompleted` (7.10b) and
+    // `start(…, { force: true })` (ADR-021) both landed since, and `force` is
+    // the right one — clearing would un-tick this very row.
+    gf = make()
+    await gf.progress.markCompleted('u1', 'profile-tour')
+    const controller = createChecklist(gf, definition)
+    const view = mountChecklist(controller)
+    await flush()
+
+    const control = document.querySelector('[data-item-id="profile"] .gf-checklist-row')
+    expect(control?.getAttribute('aria-disabled')).toBeNull()
+    expect(control?.getAttribute('tabindex')).toBeNull()
+
+    view.destroy()
+    controller.destroy()
+  })
+
+  it('a done MANUAL row stays inert — there is no flow to re-run', async () => {
+    // The dead-button case the original comment was right about.
+    gf = make()
+    const controller = createChecklist(gf, definition)
+    await controller.complete('data')
+    const view = mountChecklist(controller)
+    await flush()
+
+    const row = document.querySelector('[data-item-id="data"]')
+    expect(row?.hasAttribute('data-gf-done')).toBe(true)
     expect(row?.querySelector('.gf-checklist-sr')?.textContent).toBe('Completed')
+    expect(row?.querySelector('.gf-checklist-row')?.getAttribute('aria-disabled')).toBe('true')
 
     view.destroy()
     controller.destroy()

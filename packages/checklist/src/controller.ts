@@ -190,7 +190,12 @@ export function createChecklist<TContext extends GuidanceContext = GuidanceConte
 
   async function activate(itemId: string): Promise<void> {
     const item = itemState(itemId)
-    if (!item || item.done || !item.available) return
+    if (!item || !item.available) return
+    // A done item is replayable when it is flow-backed — the user asked, by
+    // selecting a row the widget renders as a live control. A manually ticked
+    // item has nothing to re-run.
+    const replay = item.done
+    if (replay && item.flowId === null) return
     // Never interrupt: TourEngine.start() ends a running tour first, which
     // emits tour:abandon — analytics would log that as the user giving up.
     if (gf.isActive) return
@@ -202,7 +207,13 @@ export function createChecklist<TContext extends GuidanceContext = GuidanceConte
       await definitionItem.onActivate()
       return
     }
-    if (item.flowId !== null) await gf.start(item.flowId)
+    // `force` on a replay, never `progress.clearCompleted()`: clearing would
+    // un-tick THIS row, so the user's reward for re-reading a guide would be
+    // losing the tick they earned. `force` skips `start()`'s completed and
+    // dismissed gates and writes nothing (ADR-021).
+    if (item.flowId !== null) {
+      await gf.start(item.flowId, undefined, replay ? { force: true } : {})
+    }
   }
 
   function setCollapsed(collapsed: boolean): void {

@@ -399,11 +399,15 @@ deliberately **below** `--gf-z-overlay` — plus `visibility: hidden` and `inert
   `markCompleted` and the frequency caps already carry.
 - **Manual ticks expire with the instance TTL**, 30 days by default, with no per-record override.
   `persistence: { ttl: 0 }` means never-expire; that is prominent on the docs page, not a footnote.
-- A completed tour cannot be replayed from the checklist. `isCompleted` is version-blind and there
-  is no `clearCompleted`. The zero-byte hack — writing `setRecord(userId, 'completed', …)` minus
-  the flow id — is deliberately rejected: it is one subsystem reaching through a documented escape
-  hatch to overwrite another's data byte for byte, on a key `@guideflow/ai` also reads. The right
-  fix is `clearCompleted` in core, which is real bytes and its own conversation.
+- ~~A completed tour cannot be replayed from the checklist.~~ **Resolved in Phase 8.7.** This said
+  the right fix was `clearCompleted` in core — which landed in 7.10b — but the fix that shipped is
+  better still: `start(flow, ctx, { force: true })` (ADR-021) skips the completed gate and **writes
+  nothing**, so replaying cannot un-tick the very row that launched it. A flow-backed done item is
+  an operable control again; a manually ticked one is still inert, because there is no flow to
+  re-run and that genuinely would be a dead button.
+  The zero-byte hack this rejected — writing `setRecord(userId, 'completed', …)` minus the flow id
+  — remains rejected, and for the same reason: one subsystem reaching through an escape hatch to
+  overwrite another's data on a key `@guideflow/ai` also reads.
 
 ---
 

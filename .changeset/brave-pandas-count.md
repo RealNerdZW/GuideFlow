@@ -62,8 +62,8 @@ and forced-colors blocks ship inside the widget's own stylesheet.
 ## Known limits, documented rather than hidden
 
 Manual ticks expire with the instance TTL — 30 days by default; `persistence: { ttl: 0 }` disables
-expiry. Cross-tab writes are last-write-wins. A completed tour cannot be replayed from the
-checklist, because `isCompleted` is version-blind and core has no `clearCompleted`.
+expiry. Cross-tab writes are last-write-wins. A manually ticked item cannot be re-run, because
+there is no flow behind it — a flow-backed one can, via `start(…, { force: true })`.
 
 ## Core
 
