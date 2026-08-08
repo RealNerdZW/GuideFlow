@@ -16,6 +16,16 @@ export interface Locale {
   dialogLabel: string
   /** Accessible name for the progress indicator. */
   progressLabel: string
+  /**
+   * Announced when a tour finishes.
+   *
+   * Without it the end of a tour is silent. With a Done press the assistive
+   * technology at least voices the button activation, which correlates the
+   * disappearance — but when `advanceOn` ends a tour the user pressed a control
+   * in their own application and the tour simply ceases to exist: no utterance,
+   * and no focused element that changed.
+   */
+  tourComplete: string
 }
 
 const EN: Locale = {
@@ -29,6 +39,7 @@ const EN: Locale = {
   closeHint: 'Close hint',
   dialogLabel: 'Product tour',
   progressLabel: 'Tour progress',
+  tourComplete: 'Tour complete',
 }
 
 /**

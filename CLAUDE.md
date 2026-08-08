@@ -98,14 +98,14 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1–8.6 + 8.9, 2026-08-08)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1–8.7 + 8.9, 2026-08-08)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
 Build, type-check, lint and unit tests are **all green**: **1391 unit tests pass**, 1 skipped
 (core 572, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
-**Seven** bundles, each gated independently: `@guideflow/core` **15.3 kB / 15.5 kB**, `./authoring`
+**Seven** bundles, each gated independently: `@guideflow/core` **15.46 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
 `./selector` **1.76 kB / 2.5 kB**, `./html` **767 B / 1 kB**, `./versioning` **336 B / 500 B**.
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
@@ -309,7 +309,7 @@ strings will not respond to `gf.i18n.use(locale)`.
 [GuidePopover.tsx:206](packages/react/src/components/GuidePopover.tsx#L206). AUDIT
 `react-guidepopover-ignores-instance-i18n` is fixed; the warning outlived the fix here and in
 `apps/docs/guide/i18n.md`, which still carries a `::: warning React GuidePopover` block that is now
-wrong. `I18nRegistry` covers **eleven chrome strings only** — `Locale` is a closed interface and it
+wrong. `I18nRegistry` covers **twelve chrome strings only** — `Locale` is a closed interface and it
 does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
 
 ---
@@ -590,6 +590,19 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   native Tab walk from the last popover control into the page, which is what the first version did.
   Still true: `Enter` synthesises a click on a native `<button>`/`<a href>` and NOT on a
   `<div role="button" tabindex="0">`, so those steps need an app-dispatched `CustomEvent`.
+- **The renderer moves focus only when focus belongs to it, and restores only when it had it.**
+  `renderStep` used to focus the popover's first control on EVERY render, so advancing while the
+  user typed sent their next space keystroke to the header close button and ended the tour; and
+  `hideStep` used to restore unconditionally, so a tour ending because the user acted ripped focus
+  out of whatever the app had just opened. Both guards read `document.activeElement` **before** the
+  DOM changes — replacing `innerHTML`, or removing the popover, resets it to `body` and destroys the
+  distinction. `body` deliberately counts as "the tour had it". ADR-025.
+- **`hideStep(reason?)` is called on pause and on every ending, so an announcement there needs the
+  reason.** Only `'complete'` is passed. The live region is kept alive ~1 s afterwards, because
+  `_announce` writes on the next frame and removing it in the same tick — which is what used to
+  happen — dropped the utterance into a detached node. `_liveRegionEl` stays set while that removal
+  is pending, or a tour restarting inside the window builds a SECOND region and the stale one keeps
+  saying "Tour complete" under the new step.
 - **The content pipeline is `content → locale catalogue → {{token}} → renderer`, in that order,
   in `_resolveContent`.** The order is the whole reason 8.3 and 8.4 shipped together: a *translated*
   string containing `{{firstName}}` only resolves if the catalogue is applied first. It lives in the

@@ -329,3 +329,75 @@ test.describe('clickThrough steps are keyboard-reachable', () => {
     expect(stillInside).toBe(true);
   });
 });
+
+test.describe('focus is not stolen, and completion is announced', () => {
+  // Phase 8.1c. All three defects here were invisible to the unit suite for the
+  // same reason: `_focusables` filters on `offsetParent !== null`, which is null
+  // for everything in happy-dom, so the renderer's focus logic never runs there.
+
+  test('a step change does not yank focus off a control the user is using', async ({ page }) => {
+    // `renderStep` used to focus the popover's first control on EVERY render.
+    // Document order puts the header close button first, so advancing while the
+    // user is typing moved focus to it — and their next space keystroke
+    // activated it, ending the tour. WCAG 3.2.2.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await page.locator('#text-input').focus();
+    await page.evaluate(() => { void window.__guideflow.next(); });
+    await expect(page.locator('.gf-popover')).toContainText('Step 2');
+
+    const stillTyping = await page.evaluate(() => document.activeElement?.id === 'text-input');
+    expect(stillTyping).toBe(true);
+  });
+
+  test('pressing Next still moves focus into the new step', async ({ page }) => {
+    // The other half — the ordinary path must be unchanged. Focus was inside
+    // the popover, so it belongs inside the popover.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await page.click('[data-gf-action="next"]');
+    await expect(page.locator('.gf-popover')).toContainText('Step 2');
+
+    const inPopover = await page.evaluate(() =>
+      !!document.querySelector('.gf-popover')?.contains(document.activeElement));
+    expect(inPopover).toBe(true);
+  });
+
+  test('focus is not ripped back when the app moved it during the tour', async ({ page }) => {
+    // WCAG 2.4.3, and `advanceOn` made it reachable: the user acts on the
+    // highlighted control, the app focuses something of its own, and the tour
+    // ending must not throw focus back to a button from before it started.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+
+    await page.locator('#text-input').focus();
+    await page.evaluate(() => { window.__guideflow.stop(); });
+    await expect(page.locator('.gf-popover')).toBeHidden();
+
+    const where = await page.evaluate(() => document.activeElement?.id);
+    expect(where).toBe('text-input');
+  });
+
+  test('completion is announced', async ({ page }) => {
+    await page.click('#start-final-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+    await page.click('[data-gf-action="next"]');
+    await page.click('[data-gf-action="next"]');
+    await expect(page.locator('.gf-popover')).toBeHidden();
+
+    await expect(page.locator('[role="status"][aria-live="polite"]'))
+      .toHaveText('Tour complete');
+  });
+
+  test('an abandoned tour says nothing', async ({ page }) => {
+    // Escape is a user action the AT has already spoken to.
+    await page.click('#start-btn');
+    await expect(page.locator('.gf-popover')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.gf-popover')).toBeHidden();
+
+    await expect(page.locator('[role="status"][aria-live="polite"]')).toHaveCount(0);
+  });
+});

@@ -151,23 +151,44 @@ function ReactPopover({
     }
   }, [state, updatePosition])
 
-  // Move focus into the dialog on every step, and hand it back when the tour
-  // ends or pauses. Closes AUDIT `react-popover-never-focuses`.
+  // Move focus into the dialog when it belongs there, and hand it back when the
+  // tour ends — but only if the tour is what had it. Closes AUDIT
+  // `react-popover-never-focuses`; the two conditions mirror `DefaultRenderer`.
   useEffect(() => {
+    const active = typeof document !== 'undefined' ? document.activeElement : null
+
     if (!state) {
       const previous = restoreFocusRef.current
       restoreFocusRef.current = null
-      if (previous?.isConnected) previous.focus()
+      // The popover is already unmounted here, so focus reads as `body` when
+      // the tour had it. Anything else means the app moved focus deliberately —
+      // a confirm dialog it opened in response to the step's own action — and
+      // yanking it back to a control captured before the tour began is WCAG
+      // 2.4.3. Reachable since `advanceOn`.
+      const loose = active === null || active === document.body
+      if (loose && previous?.isConnected) previous.focus()
       return
     }
+
     const el = popoverRef.current
     if (!el) return
-    const active = typeof document !== 'undefined' ? document.activeElement : null
-    if (active instanceof HTMLElement && !el.contains(active)) {
+
+    // Captured ONCE, when the tour opens. It used to be reassigned on every
+    // step, so a page element the user focused mid-tour became the restore
+    // target and the trigger they actually came from was lost.
+    const opening = restoreFocusRef.current === null
+    if (opening && active instanceof HTMLElement && !el.contains(active)) {
       restoreFocusRef.current = active
     }
-    const focusable = el.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-    ;(focusable ?? el).focus()
+
+    // Not on every render. React reconciles rather than replacing innerHTML, so
+    // a control the user is typing in keeps focus — and stealing it to the
+    // header close button means their next space keystroke ends the tour.
+    // WCAG 3.2.2.
+    if (opening || el.contains(active) || active === null || active === document.body) {
+      const focusable = el.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+      ;(focusable ?? el).focus()
+    }
   }, [state])
 
   // Keep Tab inside the dialog. `aria-modal="true"` tells assistive technology

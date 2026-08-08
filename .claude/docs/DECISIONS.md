@@ -1480,3 +1480,67 @@ steps keep the cheap wrap-only path.
   focuses the first control on every render (so advancing mid-`input` can send the next keystroke to
   the close button), `hideStep` restores focus unconditionally, and completion is announced by
   nothing. They are their own change.
+
+---
+
+## ADR-025 — Focus belongs to whoever last claimed it, and a finished tour says so
+
+**Status.** Accepted (Phase 8.1c).
+
+**Context.** The 8.1 adversarial review found three defects that ADR-024 deliberately left open. All
+three were invisible to `pnpm test` for the same reason — `_focusables` filters on
+`offsetParent !== null`, which is null for everything in happy-dom — and all three became reachable,
+rather than merely theoretical, once `advanceOn` let a step advance because the user acted.
+
+**Decision 1 — move focus into the dialog only when focus belongs there.** `renderStep` focused the
+popover's first control on *every* render. Document order puts the header close button first, so
+advancing mid-typing — which `advanceOn`'s `when` gate makes an ordinary flow — moved focus to it,
+and the user's next **space** keystroke activated it: `end` → `stop()` → `tour:abandon`. They typed
+two characters and abandoned the tour. WCAG 3.2.2.
+
+Focus now moves when the tour is opening, when focus is already inside the popover, or when it is
+nowhere (`null`/`body`). A Next press still lands on the new step's first control, because replacing
+`innerHTML` destroys the focused child and the browser resets focus to `body` — so the ordinary path
+is unchanged and the excluded case is precisely the one that matters.
+
+**Decision 2 — restore focus only when the tour had it.** `hideStep` restored `_previouslyFocused`
+unconditionally. Correct for a Done press. Wrong when the tour ends because the user acted: the last
+step highlights "Publish" with `clickThrough`, the user activates it, the app opens its own dialog
+and focuses it — and the tour rips focus out of that live dialog back to a control captured before
+the tour began. WCAG 2.4.3.
+
+**Both guards read `document.activeElement` BEFORE the DOM changes.** Replacing `innerHTML`, or
+removing the popover, resets it to `body`; reading afterwards cannot tell "the tour had focus" from
+"the app has focus". That ordering is the whole implementation.
+
+**Decision 3 — announce completion, and only completion.** The end of a tour was silent twice over:
+`Locale` carried no completion string, and `hideStep` removed the live region synchronously while
+`_announce` writes on the *next* frame, so a pending write landed in a detached node. With a Done
+press the assistive technology at least voices the button activation; when `advanceOn` ends a tour
+the user pressed a control in their own application and the tour simply ceased to exist.
+
+`RendererContract.hideStep` gains an optional `reason`, passed as `'complete'` only from the
+completed path. Pause, abandon and dismissal pass nothing — all three are user actions the AT has
+already spoken to, and announcing there is noise. `hideStep` runs on **pause** as well as on ending,
+which is why a boolean "did it end" would not have been enough.
+
+**Consequences.**
+
+- **`_liveRegionEl` stays set while the removal is pending.** Nulling it — which the first
+  implementation did — meant a tour starting inside the ~1 s window built a *second* region, so the
+  page carried two and the stale one was still saying "Tour complete" under the new tour's first
+  step. Caught by its own test. `_announce` now also cancels a pending removal.
+- **The `Locale` interface grows to twelve keys.** It is closed by design, so this is a deliberate
+  widening and every docs figure quoting "eleven" moved with it.
+- Mirrored in `@guideflow/react` for the two focus rules, which had both defects identically —
+  including reassigning the restore target on every step, so a page element the user focused
+  mid-tour became the restore point and the trigger they actually came from was lost.
+  **The completion announcement is core-renderer only:** React's live region is JSX inside the
+  component, and `GuidePopover` returns `null` when no tour is running, so the region unmounts
+  before it could speak. Making it persistent means splitting it into an always-mounted sibling —
+  a real adapter refactor, recorded rather than half-done.
+- Core measures **15.46 kB against 15.5 kB** — 40 B of headroom, the tightest it has been. The next
+  change to the entry should expect to look for a saving, and ADR-022 records what a real one looks
+  like versus a bookkeeping one.
+- Five e2e cases carry what happy-dom cannot see, including both negatives: a Next press must still
+  move focus in, and an abandoned tour must stay silent.

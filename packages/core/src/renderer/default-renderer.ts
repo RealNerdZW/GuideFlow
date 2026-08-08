@@ -101,6 +101,8 @@ export class DefaultRenderer implements RendererContract {
   private _focusTrapHandler: ((e: KeyboardEvent) => void) | null = null
   /** Polite live region for step announcements; outlives the popover. */
   private _liveRegionEl: HTMLElement | null = null
+  /** Pending removal of a region that is still speaking the completion. */
+  private _liveRegionTimer: ReturnType<typeof setTimeout> | undefined = undefined
   /** Whatever had focus before the tour opened, so it can be handed back. */
   private _previouslyFocused: HTMLElement | null = null
   /** Once per page, not once per step — the advice is the same every time. */
@@ -172,6 +174,9 @@ export class DefaultRenderer implements RendererContract {
     // Remember who had focus so it can be handed back when the tour ends.
     // Only on the first step: later steps are focused by us, and capturing
     // those would restore focus into a popover that no longer exists.
+    // Read BEFORE the assignment below: `_previouslyFocused` being null is what
+    // "the tour is opening" means, and the next line destroys that signal.
+    const opening = this._previouslyFocused === null
     if (!this._previouslyFocused && document.activeElement instanceof HTMLElement) {
       this._previouslyFocused = document.activeElement
     }
@@ -241,9 +246,26 @@ export class DefaultRenderer implements RendererContract {
     // the step body (AUDIT `no-live-region`).
     this._announce(content, index, total)
 
-    // Focus the first control, and trap Tab inside the dialog while it is open.
-    const firstFocusable = this._focusables(el)[0]
-    firstFocusable?.focus()
+    // Move focus into the dialog only when it belongs there. Trap Tab always.
+    //
+    // This used to fire on EVERY render, and that is a real defect once a step
+    // can advance because the user acted rather than because they pressed Next.
+    // Document order puts the header close button first, so advancing mid-typing
+    // — which `advanceOn`'s `when` gate makes an ordinary flow — moved focus to
+    // it, and the user's next space keystroke activated it: `end` → `stop()` →
+    // `tour:abandon`. They typed two characters and abandoned the tour.
+    // WCAG 3.2.2.
+    //
+    // `document.body` covers "focus was inside the popover", because replacing
+    // `innerHTML` above destroyed whatever held it and the browser reset focus
+    // to the body — so a Next press still lands on the new step's first control,
+    // exactly as before. What is excluded is the case that matters: focus
+    // sitting on something in the host page that the user or the app put there
+    // deliberately.
+    const active = document.activeElement
+    if (opening || active === null || active === document.body || el.contains(active)) {
+      this._focusables(el)[0]?.focus()
+    }
     this._attachFocusTrap()
   }
 
@@ -383,6 +405,14 @@ export class DefaultRenderer implements RendererContract {
       .map((part) => String(part).replace(/[.!?]+\s*$/, ''))
       .filter(Boolean)
 
+    // Cancel a removal left pending by a completion announcement, so a tour
+    // that restarts inside that window keeps the one region rather than
+    // stranding it.
+    if (this._liveRegionTimer !== undefined) {
+      clearTimeout(this._liveRegionTimer)
+      this._liveRegionTimer = undefined
+    }
+
     this._liveRegionEl.textContent = ''
     // Next frame, so the cleared value is observed as a change.
     requestAnimationFrame(() => {
@@ -419,28 +449,84 @@ export class DefaultRenderer implements RendererContract {
     if (waiting) this._detachReposition()
   }
 
-  hideStep(): void {
+  hideStep(reason?: 'complete'): void {
     this._detachReposition()
     this._detachFocusTrap()
     this._currentTarget = null
     this._clickThroughEl = null
+
+    // Read BEFORE removing the popover: taking it out of the document resets
+    // `activeElement` to the body, which destroys the distinction below.
+    const activeBefore = document.activeElement
+    const wasInDialog = this._popoverEl?.contains(activeBefore) ?? false
+
     if (this._popoverEl) {
       this._popoverEl.parentNode?.removeChild(this._popoverEl)
       this._popoverEl = null
     }
 
-    // Hand focus back to whatever had it before the tour opened. Without this
-    // focus lands on <body> when the dialog is removed, so a keyboard user
-    // restarts from the top of the document and a screen-reader user loses
-    // their place entirely (AUDIT `no-focus-trap-or-restore`).
+    // Hand focus back to whatever had it before the tour opened — but only when
+    // the tour is the thing that had it. Without any restore, focus lands on
+    // <body> and a keyboard user restarts from the top of the document (AUDIT
+    // `no-focus-trap-or-restore`); restoring unconditionally is the opposite
+    // error, and `advanceOn` made it reachable. Last step highlights "Publish"
+    // with clickThrough, the user activates it, the app opens its own dialog
+    // and focuses it — and the tour then rips focus out of that live dialog
+    // back to a control captured before the tour began. WCAG 2.4.3.
     const restoreTo = this._previouslyFocused
     this._previouslyFocused = null
-    if (restoreTo?.isConnected) restoreTo.focus()
+    const focusIsLoose =
+      wasInDialog || activeBefore === null || activeBefore === document.body
+    if (focusIsLoose && restoreTo?.isConnected) restoreTo.focus()
 
-    if (this._liveRegionEl) {
-      this._liveRegionEl.remove()
+    this._teardownLiveRegion(reason === 'complete')
+  }
+
+  /**
+   * Announce the ending, then take the region away.
+   *
+   * A finished tour was silent. `_announce` writes on the NEXT frame, and this
+   * method used to remove the region synchronously — so a pending write landed
+   * in a detached node and was dropped, and `Locale` carried no completion
+   * string to write anyway. With a Done press the assistive technology at least
+   * voices the button activation; when `advanceOn` ends a tour the user pressed
+   * a control in their own application and the tour simply ceased to exist.
+   *
+   * Only on completion. `hideStep` also runs on pause, on abandon and on
+   * dismissal, and all three are user-initiated actions the AT has already
+   * spoken to — announcing there would be noise, not information.
+   */
+  private _teardownLiveRegion(announceComplete: boolean): void {
+    const region = this._liveRegionEl
+    if (!region) return
+    if (this._liveRegionTimer !== undefined) clearTimeout(this._liveRegionTimer)
+    this._liveRegionTimer = undefined
+
+    if (!announceComplete) {
       this._liveRegionEl = null
+      region.remove()
+      return
     }
+
+    // `_liveRegionEl` deliberately stays set while the removal is pending. It
+    // used to be nulled here, and then a tour started inside that window built
+    // a SECOND region — so the page carried two, and the stale one was still
+    // saying "Tour complete" underneath the new tour's first step. Keeping the
+    // reference means `_announce` reuses this one and cancels the removal.
+    region.textContent = ''
+    requestAnimationFrame(() => {
+      // A restart already claimed it; its own announcement owns the region now.
+      if (this._liveRegionEl !== region) return
+      region.textContent = (this._i18n ?? defaultI18n).t('tourComplete')
+      // Long enough for the utterance to be picked up. Removing in the same
+      // tick is what made completion silent in the first place.
+      this._liveRegionTimer = setTimeout(() => {
+        this._liveRegionTimer = undefined
+        if (this._liveRegionEl !== region) return
+        this._liveRegionEl = null
+        region.remove()
+      }, 1000)
+    })
   }
 
   renderHotspot(_hotspot: RegisteredHotspot): void {

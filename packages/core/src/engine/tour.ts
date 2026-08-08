@@ -640,7 +640,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     this._emitStepExit()
 
     this._spotlight.hide()
-    this._renderer.hideStep()
+    this._renderer.hideStep(completed ? 'complete' : undefined)
     this._detachKeyboard()
     this._detachNavigation()
     this._exitWaiting()

@@ -558,7 +558,15 @@ export interface RendererContract {
     total: number,
     chapter?: string,
   ): void
-  hideStep(): void
+  /**
+   * Tear the step down.
+   *
+   * `reason` is `'complete'` only when the tour finished; a pause, an abandon
+   * and a dismissal all pass nothing. It exists so the renderer can announce
+   * completion — the end of a tour is otherwise silent, and `hideStep` is
+   * called on paths where an announcement would be noise.
+   */
+  hideStep(reason?: 'complete'): void
   /**
    * The engine is waiting for a route change or for a target element to appear.
    *

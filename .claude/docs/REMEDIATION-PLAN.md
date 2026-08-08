@@ -868,9 +868,25 @@ transfers to an embedded tour library.
       The `advanceOn` spec that used programmatic focus is now a real Tab walk ending in Enter.
       Five new a11y cases including the negative. `accessibility.spec.ts`'s existing trap assertions
       needed no scoping after all — they drive `flows.basic`, which sets no `clickThrough`.
-      **Still open, and now their own item:** `renderStep` focuses the first control on every render
-      (so advancing mid-`input` can send the next keystroke to the close button), `hideStep`
-      restores focus unconditionally, and completion is announced by nothing.
+- [x] **8.1c Focus and announcement follow-ups** — the three the 8.1b change deferred, all of them
+      reachable rather than theoretical once `advanceOn` shipped. See **ADR-025**.
+      `renderStep` focused the popover's first control on EVERY render, and document order puts the
+      header close button first — so advancing mid-typing moved focus there and the user's next
+      **space** keystroke ended the tour (WCAG 3.2.2). `hideStep` restored focus unconditionally, so
+      a tour ending because the user acted ripped focus out of whatever the app had just opened
+      (WCAG 2.4.3). And completion was silent twice over: no `Locale` key, and the live region was
+      removed in the same tick a pending announcement was scheduled for, so the utterance landed in
+      a detached node.
+      **Both focus guards read `activeElement` BEFORE the DOM changes** — replacing `innerHTML`, or
+      removing the popover, resets it to `body` and destroys the distinction. That ordering is the
+      implementation.
+      `hideStep(reason?)` takes `'complete'` only; it also runs on **pause**, where an announcement
+      would be noise. Its own test caught the follow-on bug: nulling `_liveRegionEl` while a removal
+      was pending let a restarting tour build a SECOND region, with the stale one still saying "Tour
+      complete" under the new step.
+      8 unit + 5 e2e. Mirrored in React for the two focus rules; the announcement is core-renderer
+      only, because React's live region is JSX that unmounts with the popover — recorded, not
+      half-done. Core **15.46 / 15.5 kB**, the tightest it has been.
 - [x] **8.5 `?gf_tour=` deep-link start** — the only survivor of the teardown's distribution layer,
       and the answer to §6.4 "reply to the ticket with a clickable walkthrough". `StartTrigger` has
       no URL form and `URLSearchParams` appears nowhere in `packages/core/src`. Lands on the
