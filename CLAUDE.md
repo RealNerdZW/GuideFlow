@@ -592,6 +592,18 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   `--filter=!docs`, and `docs.yml` only fires on push to `master`, so a broken docs build failed at
   *deploy* — after review, after merge, with the published site left stale. The `docs` job in
   `ci.yml` closes that. Do not "simplify" it away; it is 20 seconds and it caught two real breaks.
+- **A CI job that runs a SUBSET of what it guards is worse than no job — it reports safety it has
+  not established.** The `docs` job above shipped copying `docs.yml`'s hardcoded four-package build
+  list and stopping at `docs:build`. It went green on the release PR while the real deploy died one
+  step later on **Build demo**, which is precisely what it existed to catch. `docs.yml` builds the
+  demo and copies it into the docs output, so a demo that does not compile takes the whole site
+  down. The job now mirrors the deploy step for step, demo included.
+- **Never hardcode a package list in a workflow; use an exclude list.** `docs.yml` named `core`,
+  `react`, `ai` and `analytics`, and went stale the moment `apps/demo` mounted `@guideflow/banner`,
+  `checklist` and `survey` — their `.d.ts` were never emitted and the demo died with a wall of
+  TS2307. An include list rots silently every time a package is added; an exclude list cannot.
+  Same root cause as the `extension-zip` break: a workflow asserting a dependency graph by hand
+  instead of letting `turbo`'s `^build` derive it.
 - **`repo.config.json` is the only source of identity truth.** Owner, author, and URLs are
   propagated by `scripts/sync-repo-meta.mjs`, which now also rewrites the `@author` / `@github` /
   copyright lines in `packages/*/src/**` and the `LICENSE` copyright holder. Never hand-edit those
