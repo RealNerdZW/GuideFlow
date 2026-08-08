@@ -55,6 +55,17 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
     return this.currentSteps[this._ctx.stepIndex] ?? null
   }
 
+  /**
+   * The definition node for the current state. This is what carries `route`.
+   *
+   * `?? null` because of `noUncheckedIndexedAccess`. Nothing else in the FSM
+   * changes for route support — `_defaultPath` never reads `route`, which is
+   * the whole argument for putting routes on states rather than transitions.
+   */
+  get currentStateNode(): StateNode<TContext> | null {
+    return this._ctx.flow.states[this._ctx.currentState] ?? null
+  }
+
   get isFinal(): boolean {
     return this._ctx.flow.states[this._ctx.currentState]?.final === true
   }
@@ -283,13 +294,38 @@ export class FlowMachine<TContext extends GuidanceContext = GuidanceContext> {
    * written verbatim, leaving `currentStep === null` and an active tour with
    * nothing to render. See AUDIT `machine-restore-unvalidated`.
    */
-  restore(snapshot: { state: string; stepIndex: number; context?: TContext }): boolean {
-    const node = this._ctx.flow.states[snapshot.state]
-    if (!node) return false
+  /**
+   * Move to a persisted position, or refuse.
+   *
+   * Prefers `stepId` over `stepIndex`: an index means nothing once a step has
+   * been inserted above it, and a stored index of 2 could land the user
+   * anywhere. A `stepId` that no longer exists is a *rejection*, not something
+   * to clamp — there is no honest coordinate to resume to.
+   */
+  restore(snapshot: {
+    state: string
+    stepIndex: number
+    stepId?: string
+    context?: TContext
+  }): boolean {
+    const steps = this._ctx.flow.states[snapshot.state]?.steps ?? []
+    // `length === 0` subsumes the old missing-state check and additionally
+    // rejects a state with no steps — which used to return true and leave an
+    // "active" tour with nothing on screen, because the render bails on a null
+    // currentStep.
+    if (steps.length === 0) return false
 
-    const stepCount = node.steps?.length ?? 0
-    const raw = Math.trunc(Number(snapshot.stepIndex))
-    const index = Number.isFinite(raw) ? Math.min(Math.max(0, raw), Math.max(0, stepCount - 1)) : 0
+    let index: number
+    const wanted = snapshot.stepId
+    if (wanted !== undefined) {
+      index = steps.findIndex((s) => s.id === wanted)
+      if (index === -1) return false
+    } else {
+      // No stepId: byte-for-byte the old clamping behaviour, so legacy
+      // snapshots resume exactly as they did.
+      const raw = Math.trunc(Number(snapshot.stepIndex))
+      index = Number.isFinite(raw) ? Math.min(Math.max(0, raw), steps.length - 1) : 0
+    }
 
     this._ctx.currentState = snapshot.state
     this._ctx.stepIndex = index

@@ -36,11 +36,31 @@
   <button id="start-scroll-btn" type="button">Start Scroll Tour</button>
   <button id="start-persisted-btn" type="button">Start Persisted Tour</button>
   <button id="start-multistate-btn" type="button">Start Multi-State Tour</button>
+  <button id="start-clickthrough-btn" type="button">Start Click-Through Tour</button>
+  <button id="start-advance-btn" type="button">Start Advance-On Tour</button>
+  <button id="start-blocking-btn" type="button">Start Blocking Tour</button>
+  <button id="start-routed-btn" type="button">Start Routed Tour</button>
+  <button id="start-missing-target-btn" type="button">Start Missing-Target Tour</button>
+  <button id="apply-brutalist-btn" type="button">Apply Brutalist Theme</button>
+  <button id="mount-checklist-btn" type="button">Mount Checklist</button>
 
   <p>
     <label for="text-input">Type here</label>
     <input id="text-input" type="text" value="" />
   </p>
+
+  <!-- Counts its own clicks, so a spec can prove a click actually landed on
+       the target rather than being swallowed by the overlay. -->
+  <button id="clickable-target" type="button">Click me</button>
+  <span id="click-count">0</span>
+
+  <!-- A two-"route" SPA, switched with pushState. #route-settings-target does
+       not exist until the route changes, which is the whole point. -->
+  <nav>
+    <button id="go-settings" type="button">Go to settings</button>
+    <button id="go-home" type="button">Go home</button>
+  </nav>
+  <div id="route-view"><div id="route-home-target" class="box">Home widget</div></div>
 
   <div id="step-one" class="box">Feature A</div>
   <div id="step-two" class="box">Feature B</div>
@@ -56,15 +76,64 @@
     come from flows.js, which the core unit suite imports too, so the fixture
     and the engine contract cannot drift apart.
   -->
+  <!--
+    @guideflow/checklist, @guideflow/banner and @guideflow/survey are built with
+    core as external,
+    so their ESM output carries bare specifiers the browser cannot resolve on
+    its own. Core itself needs no map — it has zero dependencies, which is
+    exactly why the rest of this fixture loads without a bundler.
+
+    The SUBPATHS are mapped too, and must be: @guideflow/banner and
+    @guideflow/survey both import
+    `@guideflow/core/targeting` for the shared rule matchers and lazily imports
+    `@guideflow/core/navigation` for url-scoped banners. A map entry for the
+    root package does not cover its subpaths — a bare `@guideflow/core/targeting`
+    with no entry is a hard module-resolution error at load, which is how this
+    was found.
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@guideflow/core": "/packages/core/dist/index.js",
+        "@guideflow/core/targeting": "/packages/core/dist/targeting/index.js",
+        "@guideflow/core/navigation": "/packages/core/dist/navigation/index.js"
+      }
+    }
+  </script>
+
   <script type="module">
     import { createGuideFlow } from '/packages/core/dist/index.js'
+    import { createNavigation, advanceOn } from '/packages/core/dist/navigation/index.js'
     import { flows } from './flows.js'
 
-    const gf = createGuideFlow({ context: { userId: 'e2e-user' } })
+    // A pushState router, ~10 lines, standing in for React Router et al.
+    function render (view) {
+      document.getElementById('route-view').innerHTML = view === 'settings'
+        ? '<div id="route-settings-target" class="box">Settings widget</div>'
+        : '<div id="route-home-target" class="box">Home widget</div>'
+    }
+    function go (view) {
+      const url = view === 'settings'
+        ? '/apps/e2e/fixtures/index.html?view=settings'
+        : '/apps/e2e/fixtures/index.html'
+      history.pushState({}, '', url)
+      render(view)
+    }
+    window.__gfGo = go
+    window.addEventListener('popstate', function () {
+      render(new URLSearchParams(location.search).get('view') || 'home')
+    })
 
-    // The devtools extension detects tours through this global, and the library
-    // never sets it — every integration must do this itself.
-    window.__guideflow = gf
+    const gf = createGuideFlow({
+      context: { userId: 'e2e-user' },
+      // No `subscribe` and no `navigate`: exercise the built-in history watcher
+      // and the passive wait, which is the harder path of the two.
+      navigation: createNavigation({ waitForRoute: 8000, waitForTarget: 3000, indicatorDelay: 50 }),
+      // Sets window.__guideflow, which the devtools extension detects and which
+      // most specs in this suite reach through. This used to be a hand-written
+      // assignment below, because the library had no way to do it.
+      exposeGlobal: true,
+    })
 
     // Test hooks: record the exact sequence of steps rendered, so specs can
     // assert on what happened rather than only on what is currently visible.
@@ -76,6 +145,11 @@
     })
 
     window.__gfFlows = flows
+
+    // Register every flow by id. The wire() helper below passes the definition
+    // object directly, but anything that starts a tour by NAME — the checklist's
+    // `flowId`, targeting, startVariant — needs it in the registry first.
+    Object.keys(flows).forEach(function (name) { gf.createFlow(flows[name]) })
 
     function wire (id, flow) {
       document.getElementById(id).addEventListener('click', function () {
@@ -90,6 +164,104 @@
     wire('start-scroll-btn', flows.scroll)
     wire('start-persisted-btn', flows.persisted)
     wire('start-multistate-btn', flows.multistate)
+    wire('start-clickthrough-btn', flows.clickThrough)
+    wire('start-advance-btn', flows.advance)
+    wire('start-blocking-btn', flows.blocking)
+    wire('start-routed-btn', flows.routed)
+    wire('start-missing-target-btn', flows.missingTarget)
+
+    document.getElementById('go-settings').addEventListener('click', function () { go('settings') })
+    document.getElementById('go-home').addEventListener('click', function () { go('home') })
+
+    // Themes are a config option now — nothing in the library used to set the
+    // attribute the shipped stylesheets key on.
+    document.getElementById('apply-brutalist-btn').addEventListener('click', function () {
+      gf.configure({ theme: 'brutalist' })
+    })
+
+    window.__gfWaiting = []
+    window.__gfTimeouts = []
+    gf.on('step:waiting', function (e) { window.__gfWaiting.push(e.stepId + ':' + e.reason) })
+    gf.on('step:timeout', function (e) { window.__gfTimeouts.push(e.stepId + ':' + e.reason) })
+
+    // Advance the tour when the user actually clicks the spotlit control, which
+    // is the half of clickThrough that did not exist until Phase 8.1. Armed for
+    // the whole page load: it only ever attaches for a step named in the map.
+    advanceOn(gf, { av1: 'click', av2: 'click' })
+
+    // Proof that a click reached the page rather than the overlay.
+    var clicks = 0
+    document.getElementById('clickable-target').addEventListener('click', function () {
+      clicks++
+      document.getElementById('click-count').textContent = String(clicks)
+    })
+
+    // The checklist is mounted on demand: most specs must not have a docked
+    // widget on the page, and a spec that wants one needs to seed localStorage
+    // before the first storage read happens.
+    document.getElementById('mount-checklist-btn').addEventListener('click', async function () {
+      if (window.__gfChecklist) return
+      const [{ createChecklist }, { mountChecklist }, { checklists }] = await Promise.all([
+        import('/packages/checklist/dist/index.js'),
+        import('/packages/checklist/dist/widget/index.js'),
+        import('./checklists.js'),
+      ])
+      window.__gfChecklistEvents = []
+      const controller = createChecklist(gf, checklists.gettingStarted, {
+        onEvent: function (e) { window.__gfChecklistEvents.push(e) },
+      })
+      window.__gfChecklist = controller
+      window.__gfChecklistView = mountChecklist(controller, { dock: 'bottom-end' })
+      window.__gfChecklistReady = true
+    })
+
+    // Banners, on demand for the same reason as the checklist: most specs must
+    // not have a docked surface on the page.
+    window.__gfMountBanners = async function (definitions, options) {
+      const [{ createBanners }, { mountBanner }] = await Promise.all([
+        import('/packages/banner/dist/index.js'),
+        import('/packages/banner/dist/widget/index.js'),
+      ])
+      window.__gfBannerEvents = []
+      const controller = createBanners(gf, definitions, {
+        onEvent: function (e) { window.__gfBannerEvents.push(e) },
+      })
+      window.__gfBanners = controller
+      window.__gfBannerView = mountBanner(controller, options)
+      return true
+    }
+
+    // Surveys, on demand for the same reason as the banner and the checklist.
+    window.__gfMountSurveys = async function (definitions, options) {
+      const [{ createSurveys }, { mountSurvey }] = await Promise.all([
+        import('/packages/survey/dist/index.js'),
+        import('/packages/survey/dist/widget/index.js'),
+      ])
+      window.__gfSurveyEvents = []
+      const controller = createSurveys(gf, definitions, {
+        onEvent: function (e) { window.__gfSurveyEvents.push(e) },
+      })
+      window.__gfSurveys = controller
+      window.__gfSurveyView = mountSurvey(controller, options)
+      return true
+    }
+
+    // Targeting is NOT installed here. `install()` auto-starts eligible flows,
+    // which would fire in the middle of every other spec. A test opts in, and
+    // deliberately registers its flow AFTER installing — that ordering is the
+    // whole point of what it proves.
+    window.__gfInstallTargeting = async function () {
+      const mod = await import('/packages/core/dist/targeting/index.js')
+      window.__gfTargeting = mod.createTargeting(gf)
+      window.__gfTargeting.install()
+      return true
+    }
+
+    // Deep-link flows are registered up front — a `?gf_tour=` link that arrives
+    // before its flow exists matches nothing, which is the ordering trap the
+    // docs warn about. Starting them still requires installing targeting.
+    gf.createFlow(flows.deepLinked)
+    gf.createFlow(flows.notLinked)
 
     // Signals to the specs that wiring is complete.
     window.__gfReady = true

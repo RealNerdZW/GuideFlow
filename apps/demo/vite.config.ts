@@ -9,11 +9,32 @@ export default defineConfig({
   resolve: {
     // Point workspace packages directly at their TypeScript source so the
     // demo always reflects the latest changes without a rebuild step.
-    alias: {
-      '@guideflow/core':      path.resolve(__dirname, '../../packages/core/src/index.ts'),
-      '@guideflow/react':     path.resolve(__dirname, '../../packages/react/src/index.ts'),
-      '@guideflow/ai':        path.resolve(__dirname, '../../packages/ai/src/index.ts'),
-      '@guideflow/analytics': path.resolve(__dirname, '../../packages/analytics/src/index.ts'),
-    },
+    //
+    // Order matters, and so does the regex form. A bare string alias is a
+    // PREFIX match, so `'@guideflow/core'` rewrote `@guideflow/core/selector`
+    // to `…/src/index.ts/selector` and the build died on a path that is a file
+    // with a segment after it. Subpaths are matched first and mapped to their
+    // own source file; the exact-match entries come after.
+    alias: [
+      // Core's DIRECTORY subpaths first: `targeting` and `navigation` are
+      // folders with an index.ts, so the generic rule below would resolve them
+      // to `src/targeting.ts`, which does not exist. @guideflow/banner and
+      // @guideflow/survey both import `@guideflow/core/targeting`, so this
+      // stopped being hypothetical the moment they were added here.
+      { find: /^@guideflow\/core\/(targeting|navigation)$/, replacement: path.resolve(__dirname, '../../packages/core/src/$1/index.ts') },
+      { find: /^@guideflow\/core\/(.+)$/, replacement: path.resolve(__dirname, '../../packages/core/src/$1.ts') },
+      { find: '@guideflow/core', replacement: path.resolve(__dirname, '../../packages/core/src/index.ts') },
+      { find: '@guideflow/react', replacement: path.resolve(__dirname, '../../packages/react/src/index.ts') },
+      { find: '@guideflow/ai', replacement: path.resolve(__dirname, '../../packages/ai/src/index.ts') },
+      { find: '@guideflow/analytics', replacement: path.resolve(__dirname, '../../packages/analytics/src/index.ts') },
+      // Anchored regexes rather than bare strings, so the `/widget` subpath
+      // cannot be swallowed by the shorter package-name entry.
+      { find: /^@guideflow\/checklist\/widget$/, replacement: path.resolve(__dirname, '../../packages/checklist/src/widget/index.ts') },
+      { find: /^@guideflow\/checklist$/, replacement: path.resolve(__dirname, '../../packages/checklist/src/index.ts') },
+      { find: /^@guideflow\/banner\/widget$/, replacement: path.resolve(__dirname, '../../packages/banner/src/widget/index.ts') },
+      { find: /^@guideflow\/banner$/, replacement: path.resolve(__dirname, '../../packages/banner/src/index.ts') },
+      { find: /^@guideflow\/survey\/widget$/, replacement: path.resolve(__dirname, '../../packages/survey/src/widget/index.ts') },
+      { find: /^@guideflow\/survey$/, replacement: path.resolve(__dirname, '../../packages/survey/src/index.ts') },
+    ],
   },
 })

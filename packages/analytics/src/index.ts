@@ -29,18 +29,20 @@
  *
  * collector.attach(gf);
  *
- * // A/B assignment. The engine assigns; nothing in GuideFlow consumes the
- * // result — applying and recording the variant is application code.
+ * // A/B: assign a variant, run the flow it names, record the exposure.
  * const engine = new ExperimentEngine('user-123');
- * const { variantId, value: flow } = engine.assign({
+ * await startVariant(gf, engine, {
  *   id: 'onboarding-shape',
  *   variants: [
- *     { id: 'control', value: shortOnboardingFlow },
+ *     { id: 'control',   value: shortOnboardingFlow },
  *     { id: 'treatment', value: longOnboardingFlow },
  *   ],
- * });
- * await gf.start(flow);
+ * }, { collector });
  * ```
+ *
+ * This docstring used to show `createGuideFlow({ theme })`, which has never
+ * type-checked, and then said applying the variant was "application code" —
+ * which was true, and was the bug. `startVariant` is the glue.
  */
 
 export { AnalyticsCollector } from './collector.js';
@@ -56,5 +58,10 @@ export { SegmentTransport } from './transports/segment.js';
 export { WebhookTransport } from './transports/webhook.js';
 export type { WebhookTransportOptions } from './transports/webhook.js';
 
+export { computeFunnel } from './funnel.js';
+export type { Funnel, FunnelStep, ComputeFunnelOptions } from './funnel.js';
+
 export { ExperimentEngine } from './experiments.js';
+export { startVariant, EXPERIMENT_EXPOSED_EVENT } from './start-variant.js';
+export type { VariantFlow, StartVariantOptions } from './start-variant.js';
 export type { Variant, Experiment, ExperimentResult } from './experiments.js';

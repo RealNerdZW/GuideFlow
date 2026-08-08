@@ -6,8 +6,16 @@ keywords: GuideFlow themes, product tour theme, tour popover styles, data-gf-the
 # Themes
 
 GuideFlow's look is driven entirely by **CSS custom properties**. The built-in themes are nothing
-more than blocks that re-declare those properties — there is no `theme` option in
-`GuideFlowConfig` and no JavaScript involved.
+more than blocks that re-declare those properties, keyed on a `data-gf-theme` attribute.
+
+```ts
+createGuideFlow({ theme: 'bold' })   // or configure({ theme }) at any time
+```
+
+That sets the attribute on `<html>` — not on the popover, because the spotlight overlay, hotspot
+beacons and hint badges are all portalled to `document.body` and read the same properties. Only the
+root themes every surface. Set the attribute yourself if you would rather; nothing else is
+involved.
 
 ## One stylesheet
 

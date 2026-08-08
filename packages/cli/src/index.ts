@@ -12,10 +12,9 @@
  * Command-line interface for GuideFlow.js
  *
  * Commands:
- *   guideflow init    — scaffold GuideFlow configuration in a project
- *   guideflow studio  — launch the local visual tour editor
- *   guideflow export  — export a flow definition to JSON
- *   guideflow push    — publish a flow to GuideFlow Cloud or self-hosted API
+ *   guideflow init      — scaffold GuideFlow configuration in a project
+ *   guideflow export    — normalise and validate a flow file
+ *   guideflow validate  — check flow files, for CI
  */
 
 import { readFileSync } from 'node:fs';
@@ -26,8 +25,7 @@ import { Command } from 'commander';
 
 import { exportCommand } from './commands/export.js';
 import { initCommand } from './commands/init.js';
-import { pushCommand } from './commands/push.js';
-import { studioCommand } from './commands/studio.js';
+import { validateCommand } from './commands/validate.js';
 
 // Resolve package version at runtime without import assertions (ESM-safe)
 const __filename = fileURLToPath(import.meta.url);
@@ -42,9 +40,8 @@ const program = new Command()
   .version(pkg.version, '-v, --version', 'Print the version number');
 
 program.addCommand(initCommand);
-program.addCommand(studioCommand);
 program.addCommand(exportCommand);
-program.addCommand(pushCommand);
+program.addCommand(validateCommand);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   console.error(err);

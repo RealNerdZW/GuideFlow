@@ -25,6 +25,8 @@ import { BroadcastSync } from './persistence/broadcast-sync.js'
 import { ProgressStore } from './persistence/progress-store.js'
 import { DefaultRenderer } from './renderer/default-renderer.js'
 import type {
+  NavigationAdapter,
+  SnapshotDiscardReason,
   GuideFlowConfig,
   FlowDefinition,
   GuidanceContext,
@@ -33,10 +35,22 @@ import type {
   TourEvents,
   FlowSnapshot,
   RendererContract,
+  StartOptions,
   Step,
   StepContent,
 } from './types/index.js'
 import type { EventEmitter } from './utils/emitter.js'
+import { isBrowser } from './utils/ssr.js'
+
+/**
+ * `window` with the devtools detection global.
+ *
+ * A local intersection rather than a `declare global` augmentation: core is
+ * imported by Next, Nuxt and SvelteKit apps, and a global `Window.__guideflow`
+ * would leak into every consumer's type space — and collide with the one
+ * `apps/e2e/global.d.ts` already declares.
+ */
+type GlobalWithGuideFlow = Window & { __guideflow?: unknown }
 
 // ── Re-exports ─────────────────────────────────────────────────────────────
 
@@ -44,11 +58,25 @@ export type {
   GuideFlowConfig,
   FlowDefinition,
   GuidanceContext,
+  StateNode,
   Step,
   StepContent,
   StepAction,
+  RoutePattern,
+  TimeoutReason,
+  SnapshotDiscardReason,
+  FlowTargeting,
+  AudienceRule,
+  AudienceValue,
+  FlowSchedule,
+  FlowFrequency,
+  StartTrigger,
+  NavigationAdapter,
+  ResolveTargetRequest,
+  ResolveTargetResult,
   PopoverPlacement,
   SpotlightOptions,
+  StartOptions,
   HotspotOptions,
   HintStep,
   TourEvents,
@@ -94,7 +122,11 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   /** Create a flow definition — alias for createMachine */
   createFlow(definition: FlowDefinition<TContext>): FlowDefinition<TContext>
   /** Start a named or inline flow */
-  start(flow: FlowDefinition<TContext> | string, context?: TContext): Promise<void>
+  start(
+    flow: FlowDefinition<TContext> | string,
+    context?: TContext,
+    options?: StartOptions,
+  ): Promise<void>
   /** Stop the current tour */
   stop(): void
   /** Go to next step */
@@ -124,12 +156,62 @@ export interface GuideFlowInstance<TContext extends GuidanceContext = GuidanceCo
   readonly isActive: boolean
   /** Whether the active tour is paused. `false` once the tour ends. */
   readonly isPaused: boolean
+  /**
+   * The guidance context predicates see — the running machine's while a tour is
+   * live, the configured default otherwise.
+   *
+   * A prototype getter on `TourEngine`, so it must NOT be added to the
+   * `Object.assign` literal.
+   */
+  readonly context: TContext
   /** Current step id */
   readonly currentStepId: string | null
-  /** Current step index (0-based) */
+  /** Current step index (0-based), counted across the whole flow. */
   readonly currentStepIndex: number
-  /** Total steps in the current flow state */
+  /** Total steps a `next()`-only run of the current flow would show. */
   readonly totalSteps: number
+  /**
+   * Waiting for a route change, or for a target element to appear.
+   *
+   * `isActive` stays true and `isPaused` stays false throughout — a wait is not
+   * a pause. A prototype getter on `TourEngine`, so it must NOT be added to the
+   * `Object.assign` literal below.
+   */
+  readonly isWaiting: boolean
+  /**
+   * Re-resolve and re-render the current step against the live DOM.
+   *
+   * Re-runs `showIf`, re-resolves async `content`, and re-emits `step:enter`.
+   * This is the seam `@guideflow/core/navigation` re-anchors through after a
+   * route change. Already on the `TourEngine` prototype and never shadowed by
+   * the `Object.assign` literal, so declaring it costs zero runtime bytes.
+   */
+  rerender(): Promise<void>
+  /**
+   * Re-resolve and repaint the current step's **content**, emitting nothing.
+   *
+   * The counterpart to `rerender()`. That one re-runs the render pipeline and
+   * re-emits `step:enter`, which `@guideflow/analytics` counts as another step
+   * view — so using it to move a live step into a new language inflated that
+   * step's `reached` count in `computeFunnel`.
+   *
+   * Call this after anything that changes what the step *says* rather than
+   * which step it is: `i18n.use()`, `i18n.registerContent()`, or a
+   * `configure({ context })` that feeds `{{token}}` values.
+   *
+   * Also on the `TourEngine` prototype and never shadowed by the `Object.assign`
+   * literal, so declaring it costs zero runtime bytes.
+   */
+  repaint(): Promise<void>
+  /**
+   * Id of the running flow, or null when no tour is active.
+   *
+   * Reachable on the instance because `TourEngine` declares it on the
+   * prototype and the `Object.assign` literal does not shadow it — but it was
+   * missing from this interface, so TypeScript consumers could not read it even
+   * though CLAUDE.md §5.1 listed it as available.
+   */
+  readonly flowId: string | null
   /** The step currently being displayed (null when no tour is active). */
   readonly currentStep: Step<TContext> | null
   /** Resolved display content for the current step (null when no tour is active). */
@@ -188,6 +270,17 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     ...(_config.spotlight !== undefined && { spotlight: _config.spotlight }),
     ...(_config.context !== undefined && { context: _config.context as TContext }),
     ...(_config.debug !== undefined && { debug: _config.debug }),
+    // The engine resolves content, so it needs the registry the renderer also
+    // gets — per-locale copy and chapter labels are applied before renderStep.
+    i18n,
+    ...(_config.navigation !== undefined && {
+      navigation: // Through `unknown`: `Step<T>` is contravariant in T (showIf and the
+      // function target form both consume it), so TypeScript will not accept
+      // the direct cast even though it is sound — an adapter written against
+      // the base GuidanceContext accepts any TContext that extends it, and
+      // the adapter only ever reads context.
+      _config.navigation as unknown as NavigationAdapter<TContext>,
+    }),
   })
 
   // Wire the renderer. These calls used to sit inside an
@@ -219,10 +312,14 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
   engine.on('tour:complete', ({ flowId }) => {
     const userId = _config.context?.userId
+    // Captured before `_activeFlow` is cleared: completion is recorded against
+    // the version the user actually finished, so republishing a changed flow
+    // reaches them again.
+    const completedVersion = _activeFlow?.version
     _activeFlow = null
     if (!userId) return
     void (async () => {
-      await progress.markCompleted(userId, flowId)
+      await progress.markCompleted(userId, flowId, completedVersion)
       // Drop the resume point too. Without this a completed flow left a
       // non-completed snapshot behind and resumed mid-flow on the next visit.
       await progress.clearSnapshot(userId, flowId)
@@ -263,7 +360,16 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   const instance: GuideFlowInstance<TContext> = Object.assign(engine as any, {
 
     configure(patch: DeepPartialConfig): void {
+      const prevNav = _config.navigation
       _config = { ..._config, ...patch }
+
+      // Identity check, not merely `!== undefined`: configure({ navigation })
+      // called twice with the SAME adapter must not destroy the one still in
+      // use, and called with a different one must not leak the old one's
+      // history patch.
+      if (patch.navigation !== undefined && patch.navigation !== prevNav) {
+        prevNav?.destroy?.()
+      }
 
       if (patch.nonce !== undefined) {
         // Propagate the new nonce to sub-systems so future style injections
@@ -279,6 +385,9 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         ...(patch.spotlight !== undefined && { spotlight: patch.spotlight }),
         ...(patch.context !== undefined && { context: patch.context as TContext }),
         ...(patch.debug !== undefined && { debug: patch.debug }),
+        ...(patch.navigation !== undefined && {
+          navigation: patch.navigation as unknown as NavigationAdapter<TContext>,
+        }),
       })
 
       if (patch.persistence !== undefined) {
@@ -289,6 +398,13 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
         console.warn('[GuideFlow] configure({ renderer }) is ignored — set it in createGuideFlow().')
       }
 
+      // Not a factory-only key. The whole security argument for `exposeGlobal`
+      // is that the developer stays in control of it, so
+      // `configure({ exposeGlobal: false })` has to be a real kill switch
+      // rather than the silent no-op that AUDIT `configure-mostly-ignored`
+      // is about — three lines below the warn that exists for that class.
+      if (patch.exposeGlobal !== undefined) _setGlobal(patch.exposeGlobal)
+
       // Let the renderer pick up nonce / injectStyles / theming changes.
       renderer.onInit?.(_config)
     },
@@ -298,7 +414,11 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       return definition
     },
 
-    async start(flowOrId: FlowDefinition<TContext> | string, ctx?: TContext): Promise<void> {
+    async start(
+      flowOrId: FlowDefinition<TContext> | string,
+      ctx?: TContext,
+      options?: StartOptions,
+    ): Promise<void> {
       const flow =
         typeof flowOrId === 'string'
           ? _registeredFlows.get(flowOrId) ?? null
@@ -310,18 +430,42 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       }
 
       const userId = _config.context?.userId
-      let restorePoint: { state: string; stepIndex: number } | null = null
+      let restorePoint:
+        | { state: string; stepIndex: number; stepId?: string }
+        | null = null
 
       if (userId) {
         // Suppress flows the user has dismissed or already finished. The
         // completed check was missing entirely, so `markCompleted` was
         // write-only and every tour replayed on every visit.
-        if (await progress.isDismissed(userId, flow.id)) return
-        if (await progress.isCompleted(userId, flow.id)) return
+        // `force` skips both, and writes nothing. It exists because the two
+        // alternatives are worse: leaving them is a tour that silently does not
+        // start (no render, no event — see `StartOptions`), and clearing the
+        // records first is destructive in a way nobody would predict, because
+        // `@guideflow/checklist` projects `getCompletedFlows()` and would
+        // visibly un-tick.
+        if (options?.force !== true) {
+          if (await progress.isDismissed(userId, flow.id)) return
+          // Version-scoped: finishing v1 must not suppress v2. A record written
+          // without a version still suppresses every version — see isCompleted.
+          if (await progress.isCompleted(userId, flow.id, flow.version)) return
+        }
 
         const snapshot = await progress.loadSnapshot(userId, flow.id)
         if (snapshot && !snapshot.completed) {
-          restorePoint = { state: snapshot.currentState, stepIndex: snapshot.stepIndex }
+          // `?? null` on both sides deliberately: a snapshot written before the
+          // flow declared a version, and a flow that has since dropped one, are
+          // both mismatches. Resuming across a structural change is the whole
+          // thing this gate exists to prevent.
+          if ((snapshot.version ?? null) === (flow.version ?? null)) {
+            restorePoint = {
+              state: snapshot.currentState,
+              stepIndex: snapshot.stepIndex,
+              ...(snapshot.stepId !== undefined && { stepId: snapshot.stepId }),
+            }
+          } else {
+            await _discardSnapshot(userId, flow.id, 'version')
+          }
         }
 
         // Cross-tab sync belongs to the instance, not to the resume path — it
@@ -335,8 +479,15 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
 
       // Restoring must be followed by a re-render: _engineStart has already
       // painted step 0, and FlowMachine.restore only moves the machine.
-      if (restorePoint && engine.machine?.restore(restorePoint) === true) {
-        await _engineRerender()
+      if (restorePoint) {
+        if (engine.machine?.restore(restorePoint) === true) {
+          await _engineRerender()
+        } else if (userId) {
+          // The version matched but the position did not survive — a renamed
+          // state, or a step id that no longer exists. Same outcome, different
+          // reason, and the caller deserves to know which.
+          await _discardSnapshot(userId, flow.id, 'structure')
+        }
       }
 
       // Persist immediately so abandoning on the very first step is remembered.
@@ -347,24 +498,49 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       _engineEnd()
     },
 
+    // Each of these snapshots the moment the MACHINE moves, not when the
+    // render lands. The engine runs synchronously through the FSM before its
+    // first await, so the new position is already committed by the time the
+    // promise is returned — and with a navigation adapter the render can wait
+    // seconds for a route, during which a closed tab would have lost the
+    // advance entirely.
+    //
+    // The `finally` is load-bearing: without it a throwing _saveProgress leaves
+    // `render` as an unhandled rejection.
     async next(): Promise<void> {
-      await _engineNext()
-      await _saveProgress()
+      const render = _engineNext()
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     async prev(): Promise<void> {
-      await _enginePrev()
-      await _saveProgress()
+      const render = _enginePrev()
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     async goTo(stepId: string): Promise<void> {
-      await _engineGoTo(stepId)
-      await _saveProgress()
+      const render = _engineGoTo(stepId)
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     async send(event: string): Promise<void> {
-      await _engineSend(event)
-      await _saveProgress()
+      const render = _engineSend(event)
+      try {
+        await _saveProgress()
+      } finally {
+        await render
+      }
     },
 
     hotspot(target: string | Element, options?: HotspotOptions): string {
@@ -394,6 +570,7 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       _broadcastSync = null
       _broadcastUserId = null
       _activeFlow = null
+      _setGlobal(false)
     },
 
     i18n,
@@ -401,6 +578,27 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
   })
   // instance === engine, so TourEngine's prototype getters (isActive,
   // currentStepId, etc.) are already reachable — no extra wiring needed.
+
+  /**
+   * Register or unregister this instance on `window.__guideflow`.
+   *
+   * Called from three places: the factory below, `configure()` and `destroy()`.
+   * The unregister path is identity-guarded — two instances that both opted in
+   * leave the *last* one on the global, and an unconditional delete in the
+   * first's teardown would unregister whichever is actually live.
+   */
+  function _setGlobal(on: boolean): void {
+    if (!isBrowser()) return
+    const w = window as GlobalWithGuideFlow
+    if (on) w.__guideflow = instance
+    else if (w.__guideflow === instance) delete w.__guideflow
+  }
+
+  // Opt-in detection for the devtools extension. Assigned after the
+  // `Object.assign`, because that is what produces the object the extension
+  // needs to read — `engine` alone is missing `start`, `next`, `listFlows` and
+  // every other wrapper the panel dispatches to.
+  if (_config.exposeGlobal === true) _setGlobal(true)
 
   /**
    * Create the cross-tab channel once per instance (recreating it only if the
@@ -414,10 +612,37 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     _broadcastSync = new BroadcastSync(userId)
     _broadcastSync.on('progress:sync', ({ snapshot: snap }) => {
       if (snap.flowId !== engine.flowId) return
-      if (engine.machine?.restore({ state: snap.currentState, stepIndex: snap.stepIndex }) === true) {
+      // The version must match too. This used to reason "both tabs are the same
+      // build, so a mismatch is impossible by construction" — true only while
+      // flows ship inside the bundle. A flow fetched at runtime breaks it: two
+      // tabs of the same build can hold different revisions, and restoring one
+      // tab's position into the other's machine clamps a legacy snapshot into a
+      // different index space.
+      if ((snap.version ?? null) !== (_activeFlow?.version ?? null)) return
+      if (engine.machine?.restore({
+        state: snap.currentState,
+        stepIndex: snap.stepIndex,
+        ...(snap.stepId !== undefined && { stepId: snap.stepId }),
+      }) === true) {
         void _engineRerender()
       }
     })
+  }
+
+  /**
+   * Throw away a resume point that can no longer be honoured, and say so.
+   *
+   * The alternative — resuming anyway — puts the user at a coordinate that
+   * means something different than it did when it was written, which is worse
+   * than restarting and much harder to diagnose.
+   */
+  async function _discardSnapshot(
+    userId: string,
+    flowId: string,
+    reason: SnapshotDiscardReason,
+  ): Promise<void> {
+    await progress.clearSnapshot(userId, flowId)
+    engine.emit('progress:discard', { flowId, reason })
   }
 
   async function _saveProgress(): Promise<void> {
@@ -439,6 +664,11 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
       // tour un-resumable.
       completed: false,
       timestamp: Date.now(),
+      // `engine.currentStepId` reads the same machine position as
+      // `machine.stepIndex` above — not the post-render `_currentStep` — so the
+      // two can never disagree.
+      ...(engine.currentStepId !== null && { stepId: engine.currentStepId }),
+      ...(_activeFlow?.version !== undefined && { version: _activeFlow.version }),
     }
     await progress.saveSnapshot(userId, snapshot)
     _broadcastSync?.broadcast({ type: 'snapshot', flowId, snapshot })

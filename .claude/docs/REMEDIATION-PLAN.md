@@ -10,16 +10,18 @@ and set `"status": "resolved"` in [`audit-findings.json`](audit-findings.json).
 **Rules for every task:** add a test that fails without the fix; run `/verify`; update `apps/docs/`
 if behaviour changed; write a changeset for published packages.
 
-**Progress:** **148 / 357 findings resolved** — Phases 0–5 complete on branch
-`fix/phase-0-1-engine-correctness`. Remaining open: **1 P0**, 43 P1, 123 P2, 42 P3.
+**Progress:** **203 / 385 findings resolved** — Phases 0–6 complete, and Phase 7 through 7.11 plus
+the announcement audit and the store pack, on branch `fix/phase-0-1-engine-correctness`.
+Remaining open: **0 P0**, 26 P1, 114 P2, 42 P3.
 
-The total grew from 325 to 357 because Phase 4 found **32 new source bugs while verifying
+The total grew from 325 to 371 because Phase 4 found **32 new source bugs while verifying
 documentation claims against the code** — checking whether a doc was true turned out to be an
-effective bug-finding technique in its own right. They are registered as P2 with
-`foundIn: "Phase 4 docs verification"`.
+effective bug-finding technique in its own right (registered as P2 with
+`foundIn: "Phase 4 docs verification"`) — and later phases registered what they found on the way
+past.
 
-**The one remaining P0, `no-spa-route-change-handling`, is not a defect** — it is an absent feature,
-and the highest-value item left in the plan. Every P0 that was *broken code* is now fixed.
+**There are no open P0s.** The last one, `no-spa-route-change-handling`, was never a defect — it was
+an absent feature, and it closed in Phase 7.1. Every P0 that was *broken code* was fixed before it.
 
 ---
 
@@ -449,7 +451,23 @@ Both were invisible until the browser suite actually ran for the first time:
 
 ### Still open from Phase 6
 
-- [ ] **Manual screen-reader pass.** No NVDA or VoiceOver session has been run. Everything above is
+- [ ] **Manual screen-reader pass.** **STILL NOT DONE — it needs a human with ears.** A session
+      script and everything needed to make it short now lives in
+      [`SCREEN-READER-PASS.md`](SCREEN-READER-PASS.md), together with the three defects an
+      automated audit found first.
+      What WAS done: `apps/e2e/tests/a11y-announcements.spec.ts` captures every live-region
+      utterance in order, tagged by surface, with all four regions on one page — plus the real
+      ARIA tree via `ariaSnapshot()`, across four browser projects. That covers *what is said* and
+      *what is exposed*; it cannot cover pacing, verbosity or whether the result is pleasant, which
+      is the whole point of the manual pass.
+      It found and fixed two defects axe cannot see — the survey scale exposed **every value
+      twice** (`radio "0"` followed by `text: "0"`, so an NPS scale read "0, 0, 1, 1, 2, 2"), and a
+      tour step announced **doubled punctuation** (`"This is step one.. Step 1 of 3"`). And it
+      measured one it did not fix: closing a tour releases the banner's and the survey's held
+      announcements **in the same millisecond**. Both polite, so they queue rather than collide, and
+      the spec now asserts a ceiling of two so it cannot grow silently. Whether two is acceptable is
+      exactly the question that needs ears.
+      Everything above is
       verified by axe and by assertion, which catches structure but not whether the result is
       *usable*. Until someone drives a tour end-to-end with a screen reader, do not restore the
       `docs-claim-accessible-by-default` marketing claim — that finding stays open.
@@ -458,33 +476,536 @@ Both were invisible until the browser suite actually ran for the first time:
 
 ---
 
-## Phase 7 — Close the product gaps (ongoing)
+## Phase 7 — Close the product gaps (in progress)
 
 Driven by [`PRODUCT-ROADMAP.md`](PRODUCT-ROADMAP.md). Highest impact first.
 
-- [ ] **7.1 SPA route-change handling.** ⭐ Closes `no-spa-route-change-handling`.
-      **Nothing** in the monorepo handles `popstate`, `pushState` or `hashchange`. A tour cannot span two
-      routes — the most common real-world onboarding requirement, and a category table-stake that
-      Shepherd and react-joyride both meet. Needs `waitForTarget` with a timeout, a per-step `route`
-      hint, a history adapter, and re-anchoring after navigation.
-- [ ] **7.2 Target-only interaction** — rework the overlay so `clickThrough` exposes the *target*, not
-      the whole page (revisits `ADR-004`).
-- [ ] **7.3 Flow versioning** — closes `no-flow-versioning-stale-snapshot-resume`.
-- [ ] **7.4 Targeting, scheduling and frequency capping** — closes `no-targeting-or-audience-rules`,
-      `no-frequency-capping-or-flow-orchestration`.
-- [ ] **7.5 Make A/B testing able to change something** — closes `experiment-variant-cannot-affect-any-tour`.
-- [ ] **7.6 Wire intent to flows** — closes `intent-never-wired-to-flows`.
-- [ ] **7.7 AI reliability** — structured outputs, retries, timeouts, abort, spend caps. Closes
-      `no-json-mode-hand-parsed`, `uncapped-llm-calls-per-pause`, `brain-unhandled-rejection`,
-      `provider-no-timeout-abort`, `anthropic-default-model-retired`.
-- [ ] **7.8 Checklists, banners, surveys** — closes `no-checklists-surveys-banners-resource-centre`.
-- [ ] **7.9 A real authoring path** — finish the recorder, then build the studio on it. Closes
-      `no-authoring-path-for-non-engineers`.
-- [ ] **7.10 Backend / flow CMS** — closes `no-backend-cms-or-self-hosting-story`. See
-      `MCP-AND-SKILLS.md` for the stack recommendation.
-- [ ] **7.11 Ship a GuideFlow MCP server** — see `MCP-AND-SKILLS.md` §3.
+A 13-agent design pass produced a full implementation brief for 7.1/7.3/7.4/7.5, with a byte budget
+for every piece. Its headline finding drove the order below: **the remaining core work is ~830 B and
+the budget could not absorb it**, so the packaging change had to come first.
+
+### Done
+
+- [x] **7.2 Target-only interaction.** Closed `clickthrough-exposes-whole-page`,
+      `clickthrough-overlay-still-blocks`, and ADR-004's recorded limitation.
+      The overlay carves a hole with `clip-path` rather than dropping pointer capture. Clipping
+      affects hit-testing, so the target is genuinely clickable and the rest of the page is not.
+      One element, one style assignment — the four-panel arrangement competitors use costs several
+      hundred bytes more. 11 unit tests on the geometry, 5 e2e tests that click the target for real.
+      *Known cosmetic gap: the hole's corners are square while the cutout's are rounded.*
+
+- [x] **7.1e Evict `content.html` to `@guideflow/core/html`.** See **ADR-009**.
+      Not housekeeping — 7.2 took core to 14.55 kB against a 14.5 kB limit, and ADR-008's condition
+      on the next raise was to move `content.html` out *first*. Doing so freed 420 B and the limit
+      did not move at all: **14.13 kB, ~370 B spare**. The sanitiser is passed explicitly rather
+      than registered by a side-effect import, because a bundler giving the subpath its own copy of
+      a registry module would fail silently. Breaking for `content.html` users.
+
+- [x] **Two render-lifecycle defects the design pass found by reading.**
+      `detached-target-paints-black-screen` (P1) — a target removed mid-step is still a non-null
+      Element with a zero rect, so the cutout collapsed to 0x0 while keeping a 9999px shadow: a
+      fully black, click-blocking screen. `generation-not-bumped-on-navigation` (P2) —
+      `_renderGeneration` was never bumped by `next`/`prev`/`goTo`/`send`, so two rapid navigations
+      shared a generation and the older render could land last. Both are prerequisites for 7.1f.
+
+- [x] **7.6 Wire intent detection to flows.** Closed `intent-never-wired-to-flows`.
+      `createAI({ intentTriggers })` maps a signal type + confidence floor to a flow. Opt-in; never
+      interrupts a live tour; `minConfidence` defaults to 0.7 so a failed detection (which falls
+      back to `confidence: 0`) cannot fire a rule; once-per-flow by default.
+
+- [x] **7.7 AI reliability.** Closed `no-json-mode-hand-parsed`, `provider-no-timeout-abort`,
+      `uncapped-llm-calls-per-pause`, `brain-unhandled-rejection`, `anthropic-default-model-retired`.
+      Structured output per provider with a parse-and-recover fallback that *warns* rather than
+      returning `[]`; timeouts, abort and retry on all four; detection capped by a new-event floor,
+      a cooldown and a session ceiling; the unhandled rejection on a timer removed.
+
+### Remaining
+
+- [x] **7.1 SPA route-change handling — DONE. The audit has no open P0s left.**
+      Closed `no-spa-route-change-handling` and `silent-missing-target`. See **ADR-010**.
+      `route` on `StateNode` (not on `Step`, not a transition — a `ROUTE` transition would put the
+      target state off `_defaultPath`, which walks `NEXT` only, and revert the counters to
+      per-state numbering). A `NavigationAdapter` seam in the engine at **+590 B**, and
+      `@guideflow/core/navigation` at **1.55 kB, opt-in**, carrying `matchRoute`, `waitForElement`,
+      `watchHistory` and `createNavigation`.
+      Also: `waitForTarget`, function `Step.target`, `step:target-missing` / `step:waiting` /
+      `step:timeout`, `isWaiting` across all three adapters, `rerender()` declared, progress saved
+      when the machine moves rather than when the render lands.
+      31 unit tests plus 11 e2e specs driving a real `pushState` router.
+- [x] **7.3 Flow versioning — DONE.** Closed `no-flow-versioning-stale-snapshot-resume`.
+      Two gates, cheapest first: `stepId` on every snapshot, preferred over `stepIndex` and
+      **rejected rather than clamped** when it no longer exists; then `FlowDefinition.version`.
+      `@guideflow/core/versioning` (336 B) derives one from a flow's structure, ignoring everything
+      cosmetic so a typo fix does not restart anybody's tour. `progress:discard` names which gate
+      rejected. `restore()` also now refuses a state with zero steps — it used to return `true` and
+      leave an "active" tour with nothing painted.
+      *The audit was **wrong** that `restore()` does not clamp `stepIndex`. It always did.*
+      **Still open, by design:** `isCompleted` is version-blind (keyed on flowId, no
+      `clearCompleted`), so shipping v2 never re-shows to anyone who completed v1.
+- [x] **7.4 Targeting, scheduling and frequency capping — DONE.** Closed
+      `no-targeting-or-audience-rules` and `no-frequency-capping-or-flow-orchestration`.
+      **Data in core (types, 0 bytes), policy in `@guideflow/core/targeting` (2.18 kB).** The one
+      core addition is `ProgressStore.getRecord`/`setRecord` (~130 B), which puts cap state under
+      the prefix `resetUser()` already sweeps.
+      Modelled as the third scope of a guard the FSM already has — transition, step, flow — so
+      every rule compiles to the same shape and `evaluate()` can name the guard that rejected
+      (`blockedBy`). Guard order is load-bearing: free checks before storage reads.
+      **Known limitation, documented:** the cap record is read-modify-write with no lock, so two
+      tabs starting tours in the same instant can lose one increment.
+- [x] **7.5 Make A/B testing able to change something — DONE.** Closed
+      `experiment-variant-cannot-affect-any-tour` and `experiment-correlation`.
+      `startVariant(gf, engine, experiment)` in `@guideflow/analytics` — zero core bytes — assigns,
+      starts the flow the variant names, and emits `guideflow.experiment.exposed` through the
+      collector's privacy pipeline. `AnalyticsCollector.track()` promoted to public so a custom
+      event goes *through* `send()` rather than around it.
+      **The bucketing had to be fixed first.** `hash % totalWeight` is the low bit of djb2 for a
+      two-arm experiment, so two concurrent experiments agreed 100.0% / 0.0% of the time while every
+      marginal split looked like a clean 50/50. Now FNV-1a plus a murmur3 avalanche over a fixed
+      10 000-slot space; measured agreement 49–50%. **Assignments changed** — documented.
+      `theme` landed in core after all, at ~30 B rather than the estimated 80: `DefaultRenderer.onInit`
+      is already re-invoked by `configure()`, so one call site covers both.
+      Also `StepAction.action` — it used `string & object`, which no string literal satisfies, so
+      every custom FSM event name was a type error and the documented escape hatch was unusable.
+- [x] **7.8 Onboarding checklist** — `no-checklists-surveys-banners-resource-centre`, partially.
+      `@guideflow/checklist` ships as a ninth workspace package: `createChecklist()` headless plus
+      `mountChecklist()` at the `/widget` subpath. A **projection** of `ProgressStore`, never a
+      second source of truth — flow-backed items read `getCompletedFlows` and are never written
+      back, and `complete()` deliberately does not call `markCompleted`, because `gf.start()` gates
+      on `isCompleted` and would then permanently suppress the tour the item launches. **Zero bytes
+      reach core**; the only core change is one CSS token (`--gf-z-checklist`) and a docblock. 74
+      unit tests; a Playwright spec covering everything happy-dom cannot prove (tab order, focus
+      restoration, `inert`, computed reduced-motion, RTL geometry, z-order hit-testing). See
+      ADR-011.
+      Also closed the release hazard it exposed: `verify-pack.mjs` now fails when the changesets
+      `fixed` group carries more than one version. Nothing checked that before, and a package
+      scaffolded at npm's default `1.0.0` would have majored all nine.
+      Scope item B: the `target: null` centred modal announcement is now **documented** rather than
+      disparaged (`apps/docs/guide/announcements.md`), with an e2e spec pinning the geometry and the
+      dialog semantics, and `PRODUCT-ROADMAP.md` corrected — it works, it is accessible, and calling
+      it a hand-rolled workaround while shipping a docs page for it was working agreement 6 violated
+      in the opposite direction from usual.
+- [x] **7.8b Docked banners** — `@guideflow/banner`, the tenth package. Closes every one of the four
+      limits `apps/docs/guide/announcements.md` has recorded against the `target: null` modal since
+      Phase 7.8, and that page now points at it instead of saying the variant is not built.
+      **One shows at a time, derived rather than pushed** — highest-priority eligible undismissed,
+      ties keeping registration order, the rule targeting already uses. **Targeting is core's**:
+      `matchUrl` / `matchAudience` / `matchSchedule` imported, never reimplemented, so a throwing
+      audience predicate still means "not eligible" rather than a crash. `evaluate()` reports
+      `blockedBy` in core's own `BlockReason` vocabulary. **Dismissal is permanent unless the author
+      declares a `version`** — ADR-015's rule, with an opt-out that is a declaration rather than a
+      content hash. A landmark with a *separate* live region, never `role="alert"`.
+      **The shared abstraction was counted, not assumed.** Three designers independently measured
+      81/91/115 genuinely generic lines out of the checklist widget's 816, ~88% in one file — so
+      `a11y.ts` is copied, and `@guideflow/dock` was rejected. See **ADR-017**.
+      Two defects found on the way and fixed: `@guideflow/checklist`'s `destroy()` called
+      `removeStyles` unconditionally, so with two mounts the first teardown stripped the stylesheet
+      from the survivor, silently — its own test mounted twice and never checked; and the e2e
+      fixture's import map covered `@guideflow/core` but none of its subpaths, which is a hard
+      module-resolution error the moment any package imports one.
+      **Layout reservation was solved rather than deferred, by the e2e suite**: a spec could not
+      click a button the `position: fixed` bar sat on top of, so `dock: 'top'` became
+      `position: sticky` — it reserves its own height and needs nothing from the host.
+      62 unit tests, 8 e2e specs in real Chromium.
+- [x] **7.8c Surveys / NPS** — `@guideflow/survey`, the eleventh package. The premise had moved:
+      it was deferred "until after 7.10, because the backend is where the answers would live", and
+      7.10 decided there is no backend — analytics was always host-wired, so the answers go to a
+      callback like every other event.
+      **Not a tour step type**, which is what `PRODUCT-ROADMAP.md` said. A step-type survey lands in
+      the tour funnel: submitting would emit `tour:complete`, so `@guideflow/analytics` would count
+      every NPS response as a completed tour and the abandonment rate would move whenever a survey
+      ran. The roadmap line is corrected in the same change.
+      **One question shape** — `scale` with configurable bounds is NPS (`0..10`), CSAT (`1..5`) and
+      a thumbs poll (`1..2`); the response carries a `normalized` score so a host can compare them.
+      **The cooldown is measured from the ask, not the answer**: someone who closed the card has
+      also been asked.
+      **A radiogroup of real radios**, which buys the arrow-key model, one tab stop and "3 of 11"
+      for free — and is the reason there is an e2e spec, since happy-dom has neither a tab order nor
+      an arrow-key model.
+      **The third copy of the dock helpers is now enforced rather than promised**:
+      `dock-drift.test.ts` compares the normalised body of `createLiveRegion` and `setTourActive`
+      across all three packages and asserts the two properties easy to "simplify" wrongly — the
+      clipped live region and the stylesheet refcount. One test file instead of a shared package.
+      See **ADR-018**. 79 unit tests, 8 e2e specs across four browser projects.
+- [x] **Devtools event-list rot** (standalone, no phase) — converted to
+      `Object.keys({…} satisfies Record<keyof TourEvents, true>)` at all three sites: the bridge
+      relay, the panel's filter chips, and `apps/demo`'s live log. Both drift directions were
+      *demonstrated* to fail `tsc` — a missing key as TS1360, a renamed one as TS2353.
+      They had already rotted: `tour:dismiss` shipped in Phase 6 and reached none of them, so the
+      panel could not show a dismissal, and the demo log was missing seven events.
+      The two devtools copies must stay separate — `bridge.ts` is injected into the page world as a
+      classic script, so importing a module another entry point also imports makes Rollup emit a
+      shared chunk and the build's ESM guard rejects it. `devtools-events.test.ts` asserts the two
+      still agree with each other, which is the one thing `satisfies` cannot check.
+- [x] **7.9a The authoring core** — the provable half of `no-authoring-path-for-non-engineers`.
+      Two zero-byte `@guideflow/core` subpaths: `./selector` (one ranked, uniqueness-verified engine
+      replacing three broken copies) and `./authoring` (`validateFlow`, the one draft⇄flow converter,
+      and the one reader/writer of `.flow.json`). `guideflow validate` added; `guideflow export`
+      rewritten onto the one serialiser with its `.ts`/`.js` stub P1 deleted; `guideflow studio`
+      deleted with its `vite` peer. `dist/index.js` unchanged at 14.96 kB. See ADR-012.
+      **Measured, not read.** Two wrong-element selector failures reproduced in real Chromium and
+      fixed. Four engine behaviours measured to grade the validator's severities — one of which
+      showed CLAUDE.md had been **wrong for eight phases** about `final: true`, now corrected and
+      pinned by `authoring-engine.test.ts`.
+      Two pre-existing repo defects surfaced and fixed on the way: turbo's `lint`/`type-check` raced
+      a package's own `dist` deletion (intermittent, 1-in-3), and Vite's bare-string alias is a
+      prefix match that broke the demo on the first subpath import.
+- [x] **7.9b The authoring surface** — the half that needed a browser. `recorder.html` is an
+      ordinary extension page hosting the authoring UI; the panel's Builder tab is deleted.
+      Recording state and the captured-step buffer moved to the service worker and through it to
+      `chrome.storage.session`, which fixes navigation-kills-recording,
+      DevTools-close-loses-steps and popup-armed-captures-nothing in one change and makes the
+      buffer survive an MV3 eviction. One message vocabulary in `src/messages.ts`.
+      `scripts/pack-extension.mjs` + a CI artifact, so the extension can be downloaded rather than
+      cloned and built. See ADR-013.
+      **The extension is exercised in a browser for the first time in this repo's history** — ten
+      specs in a chromium-only Playwright project covering the worker, the content script, the
+      Phase 3 nonce handshake and relay allowlist, detection, recording across a navigation,
+      buffering with no UI open, the Recorder, and the packaged zip. `channel: 'chromium'` is
+      mandatory: the default headless chromium is the headless shell and loads no extension at
+      all, silently.
+      Retired on the way: `optional_host_permissions` (never requested, and able to silently
+      withhold the content script), the sticky bridge-injection failure, context menus that
+      stopped registering after an update, and an active-tour tracker reading fields
+      `tour:start` does not carry.
+- [ ] **7.9c Chrome Web Store listing** — **still needs a human.** A Google developer account, a
+      US$5 fee and a manual review cannot be done from here, and no part of the repository claims
+      otherwise.
+      What IS done is everything a person needs in front of them, in `packages/devtools/store/`:
+      `LISTING.md` (name, summary, detailed description, single-purpose statement, and a written
+      justification for every permission including the broad-site-access one reviewers scrutinise),
+      `PRIVACY.md`, and `SUBMITTING.md` — a runbook including what to do when the reviewer pushes
+      back on `<all_urls>`, with the `optional_host_permissions` option annotated with why 7.9b
+      removed it.
+      **A real blocker was found and fixed: none of the three icons was square.** 15×16, 46×48 and
+      122×128 — Chrome renders those squashed and the store requires an exact 128×128. Nothing had
+      ever measured them. Regenerated centred on square canvases, so the artwork is padded rather
+      than stretched, and a third the size at bit depth 8.
+      Two guards keep the mechanical half from rotting: `store-readiness.test.ts` (MV3, description
+      length, CSP with no remote code, no `host_permissions`, and every icon exactly its declared
+      size) and `no-network.test.ts`, which fails the build if `fetch`, `XMLHttpRequest`,
+      `WebSocket`, `EventSource`, `sendBeacon` or a remote `import()` appears anywhere in the
+      extension source — because "nothing leaves your machine" is a sentence in a published privacy
+      policy, and a stale privacy policy is worse than a missing feature.
+- [x] **7.10 Flows are static assets** — `no-backend-cms-or-self-hosting-story`, closed as the
+      audit's option (a) plus the one engine fix that makes the replacement honest. See ADR-014.
+      **No backend, no server package, no `loadFlows()`** — a `.flow.json` is a static asset, and
+      `fetch` + `parseFlowFile` + `gf.createFlow()` already swap a live tour. Proved end to end by
+      rewriting a file on disk between two assertions with no rebuild
+      (`apps/e2e/tests/remote-flows.spec.ts`, 7 tests).
+      **The actual blocker was never transport.** MEASURED: a user who completed v1 of a flow never
+      saw v2, because `start()` checks `isCompleted` before the version gate and completion was
+      keyed on the flow id alone — `start()` returned silently, no render, no event. Completion is
+      now `flowId@version`; `getCompletedFlows` still returns bare ids so the checklist projection
+      and `@guideflow/ai` are unaffected. Sixth budget raise, 15 → 15.5 kB, measured at 15.13 kB.
+      **`guideflow push` deleted** with `ora`: a dead default endpoint plus four measured defects —
+      it printed `unknown` for every real `.flow.json`, reported a successful 204/empty-201 as a
+      network error and exited 1, validated nothing, and its tests pinned a format `export` no
+      longer writes. Cross-tab sync gained the version check its own comment assumed it did not
+      need. New guide: `apps/docs/guide/hosting-flows.md`.
+- [x] **7.10b `ProgressStore.clearCompleted(userId, flowId?)`** — "let this user replay this tour".
+      Clears **every** version of the flow — asking for a replay means the tour, not one revision —
+      and leaves dismissals, snapshots, targeting caps and checklist state alone, which is the whole
+      reason it exists next to `resetUser()`. Removes the key rather than storing `[]`, because
+      `_rawCompleted` returns `[]` for both and no consumer can tell them apart. Six tests, including
+      the interior-`@` id spelling.
+- [x] **7.10c Version-scoped dismissal** — **decided: no.** Dismissal stays keyed on the flow id.
+      Completion is a statement about *content* ("I have seen all of this"), so new content justifies
+      asking again; dismissal is a statement about *interruption* ("do not put this in front of me"),
+      which editing the tour does not answer. Three things make leaving it safe rather than merely
+      defensible: it is opt-in per flow (`persistDismissal`), `gf.progress.clearDismissed()` is a
+      public one-line escape hatch for an author who knows their rewrite was material, and it carries
+      none of the ordering harm that made completion's id-only key a bug. See **ADR-015**; the
+      reasoning is in the source above `markDismissed`, and `progress-store.test.ts` pins it in both
+      directions so it cannot be tidied into symmetry.
+- [x] **7.10d `createTargeting().install()` re-scan** — fixed, and the ordering rule is gone. The
+      candidate list is re-read inside `check()` and the observer is armed whether or not a selector
+      flow exists yet; both halves were needed, and a probe measured each failing on its own.
+      **Three more defects fell out of the same probe**, all now fixed and registered:
+      `load` re-evaluated on `popstate` **only**, so a `history.pushState` — every React/Vue/Next
+      route change — fired nothing while `targeting.md` claimed "on every route change";
+      the `selector` trigger could start the **wrong flow**, because `evaluateFlow` is pure, has no
+      document, and marks a selector flow eligible without asking whether *its* selector is present;
+      and the observer never stopped, so closing a selector-started tour and mutating the DOM
+      restarted it, indefinitely, unless a frequency cap happened to be set.
+      The route fix imports `watchHistory` rather than hand-rolling a second one — 380 B, taken as
+      **ADR-016**, moving the *targeting subpath* gate 2.5 → 2.75 kB with the **core entry
+      untouched**. `apps/e2e/tests/targeting.spec.ts` proves the pushState and re-arm behaviour in a
+      real browser; happy-dom's `pushState` does not move `location.href`, so a unit assertion there
+      would have been testing the mock.
+- [x] **7.11 Ship a GuideFlow MCP server** — `@guideflow/mcp`, the twelfth package. The inversion
+      `MCP-AND-SKILLS.md` §3 asked for: expose the authoring engine as tools instead of shipping an
+      LLM call inside the browser bundle with the customer's key.
+      **Two of the five proposed tools needed rethinking before anything was written.**
+      `author_flow` was specified as "generate a validated FlowDefinition" — a server that generates
+      needs a provider and a key, reproducing the exact problem the inversion exists to solve. The
+      client IS the model, so it is mechanical: `draftToFlow`, validate, hand back the bytes. And
+      `simulate` is deferred and named: a browser download, a running copy of the operator's app and
+      a screenshot transport, which `apps/e2e` is a standing measurement of.
+      **Every tool is read-only and nothing writes a file** — the client already has file tools under
+      the operator's permissions, and a second write path inside an MCP server is blast radius for
+      no capability. Asserted by a test that walks the registry.
+      `root.ts` is fifty lines with fifteen test cases, which is the right ratio for the only
+      dangerous thing here. Writing the tests found a real hole: `try { realpath(abs) } catch
+      { accept }` waves through a non-existent file underneath a directory symlink pointing out of
+      the root. It now resolves the nearest existing ancestor.
+      Two harness findings fixed on the way: turbo filters `TEMP`/`TMP`, so `os.tmpdir()` returned
+      `undefined	emp` inside a task; and `eslint-import-resolver-typescript` cannot follow the
+      MCP SDK's `exports` subpaths that node, tsc and the built binary all resolve — scoped to a
+      package-level override rather than weakened repo-wide.
+      37 unit tests through a real MCP `Client` over `InMemoryTransport`, plus a smoke test that
+      spawns the built binary and speaks JSON-RPC over real stdio. See **ADR-019**.
+
+> **Budget note for whoever picks this up.** Core is at 14.13 kB / 14.5 kB. The projected remainder
+> (7.1f + 7.3 + 7.4) is ~830 B, landing near 14.96 kB. **A raise to 15 kB will be needed, and it
+> must land in the same changeset as the work that needs it, with an ADR and a real measurement** —
+> ADR-009 deliberately did not raise it pre-emptively. The lever after that is splitting navigation
+> and targeting into their own subpaths, which the design already assumes.
 
 ---
+
+- [x] **Wire the docked surfaces into `apps/demo`** (standalone, no phase). The design panel that
+      reviewed 7.8b measured that `@guideflow/checklist`'s only consumer was a test fixture — the
+      demo, which is the showcase, mounted none of it. `@guideflow/banner` and `@guideflow/survey`
+      are now wired in `main.tsx` alongside the collector, with both `onEvent` seams routed into
+      the same `AnalyticsCollector` the tour events go to, and a `📣 Docked surfaces` section that
+      reads live state through `useSyncExternalStore` with the controllers' own pre-bound
+      functions.
+      Two things the wiring surfaced. The demo aliases packages to **source**, and its generic
+      `@guideflow/core/(.+)` rule mapped `@guideflow/core/targeting` to `src/targeting.ts` — which
+      does not exist, because `targeting` and `navigation` are directories. Hypothetical until a
+      package that imports them was added to the demo. And both surfaces persist their dismissal
+      to `ProgressStore`, so a demo that showed them once and never again is useless: the section
+      has explicit reset buttons, and the survey cooldown is 60s rather than 90 days.
+      The checklist is mounted too, in the third corner, with two of its items naming real demo
+      flow ids so they tick through the projection rather than through a checklist write. The
+      section shows the asymmetry that follows and that nothing else demonstrates:
+      `checklist.reset()` clears the manual ticks and deliberately leaves the flow-backed ones,
+      because only `progress.clearCompleted()` can forget a completed tour — which is what 7.10b
+      added and what the second button calls.
+      `apps/demo/smoke.mjs` drives the built demo in real Chromium — eight checks including all
+      three surfaces landing in different corners and a dismissal surviving a reload.
+      `pnpm --filter @guideflow/demo smoke`.
+
+---
+
+## Phase 8 — Expansion
+
+**The full reasoning, the triage of all ~60 capabilities, the budget analysis and the regression
+rules are in [`EXPANSION-PLAN.md`](./EXPANSION-PLAN.md). Read it before starting any item below.**
+This is the checklist; that is the plan.
+
+Source: [`COMPETITOR-TEARDOWN.md`](./COMPETITOR-TEARDOWN.md), a teardown of **guideflow.com** — a
+hosted demo-automation SaaS that shares this project's name and is a **different product**. Most of
+it is declined for reasons recorded in `EXPANSION-PLAN.md` §3.4. What follows is the part that
+transfers to an embedded tour library.
+
+> **Ordering note.** `EXPANSION-PLAN.md` §2 argues this whole phase is worth less to adoption than
+> finishing 7.9c and running the screen-reader pass. 8.2 is forty bytes and belongs *with* 7.9c.
+> The rest should not jump that queue.
+
+- [x] **8.2 Opt-in `window.__guideflow`** — done. `createGuideFlow({ exposeGlobal: true })`. The devtools extension detects tours
+      through that global and **no package in `packages/*` ever sets it** — only `apps/demo` and the
+      e2e fixture. So the one feature `PRODUCT-ROADMAP.md` §2 calls unique reaches zero real
+      applications. `createGuideFlow({ exposeGlobal: true })`, ~40 B. **Opt-in, never default** — the
+      global lets any script on the page drive the tour.
+      **The blast radius is worse than "someone can drive your tour", and the doc comment now says
+      so:** `instance` extends the emitter, so one line of third-party script can
+      `emit('tour:complete', …)`, which runs core's own handler and writes a completed record to
+      storage — permanently suppressing that flow for that user. `configure({ exposeGlobal: false })`
+      is a real kill switch rather than the silent no-op it started as (that would have been a fresh
+      instance of AUDIT `configure-mostly-ignored`, three lines from the warn that exists for it).
+      `destroy()` clears the global only if it still points at that instance.
+      **Four** places asserted "the library never sets this" — CLAUDE.md §6 twice, `global.d.ts`, and
+      a core test named after the claim. All corrected. The e2e fixture switched to the option, which
+      turned 20+ existing assertions into live four-browser coverage for no new test code.
+      Core entry 15.2 → **15.29 kB** against 15.5 kB.
+- [x] **8.1 `advanceOn`** — the highest-leverage item in the teardown. ADR-004 spent ~1.3 kB so
+      `clickThrough` carves a real `clip-path` hole and the user can click the spotlit control; the
+      engine attaches exactly one listener, `document` `keydown` at
+      [tour.ts:655](../../packages/core/src/engine/tour.ts#L655), and nothing on the target — so the
+      tour just sits there. Shepherd and driver.js both ship this. **Helper on
+      `@guideflow/core/navigation` first (zero core bytes)**; a declarative `Step.advanceOn` only if
+      usage earns the bytes. Verify in `apps/e2e` — happy-dom has no `clip-path` hit-testing.
+      **Done, and the adversarial pass found a leak in the first implementation.** `step:exit` is
+      **not** a superset of the terminal paths: `send()` moves the machine before `_emitStepExit()`,
+      which reads the machine's *current* step — `null` for an ordinary `done: { final: true }` state
+      with no steps — so the emit is skipped while the once-only flag is set, `_doEnd` early-returns
+      on it, and only `tour:complete` fires. Reproduced, then fixed by also taking `tour:complete`
+      and `tour:abandon`. The test counts the listener rather than the behaviour, because a leaked
+      listener still bails on `!isActive` and looks fine; measured `['keydown','keydown']` without
+      the fix.
+      Also closed: `step:waiting` and `tour:pause` both drop the spotlight — which releases pointer
+      capture and makes the *whole page* clickable — and neither emits `step:exit`; and `step:enter`
+      fires twice with no exit between on `resume()` and `rerender()`, so teardown-before-arm is
+      load-bearing. And forgetting `clickThrough` does not merely no-op: the click hits the overlay,
+      whose handler calls `skip()`, so the user's first attempt to follow the instruction *destroys*
+      the tour. It warns once, naming that.
+      20 unit tests + **32 e2e across four browsers**. Core entry unchanged; navigation subpath
+      2 → **2.5 kB** gate, measured 2.19 kB — **ADR-020**, following ADR-016's pattern.
+      Known limitation registered as **8.1b**, not hidden: a `click` rule is mouse-only today.
+- [x] **8.1b `clickThrough` steps are keyboard-unreachable** — fixed — surfaced by 8.1's adversarial pass,
+      and **pre-existing**: `advanceOn` makes it matter, it does not cause it. The default renderer
+      force-returns focus into the popover on Tab and sets `aria-modal="true"` on **every** step,
+      including `clickThrough` ones, so a keyboard or AT user cannot reach the control the step is
+      telling them to use — while `apps/docs/guide/accessibility.md:150` instructs authors to make
+      it Tab-reachable. When `step.clickThrough === true`, drop `aria-modal` and widen the trap to
+      *popover ∪ target*. **`apps/e2e/tests/accessibility.spec.ts:88` currently asserts the opposite,
+      green in four browsers** — scope it to non-clickThrough steps in the same change.
+      Three related renderer defects from the same pass: `renderStep` focuses the first control on
+      *every* render (so advancing mid-`input` sends the next space keystroke to the close button and
+      abandons the tour); `hideStep` restores focus unconditionally (so finishing a tour by acting
+      rips focus out of whatever the app just opened); and completion is announced by nothing at all.
+      All four are invisible to `pnpm test` — happy-dom returns `[]` from `_focusables`.
+      **Done for the first two — ADR-024.** `aria-modal` is dropped on a `clickThrough` step, and
+      the trap widens to *popover ∪ target*: the same hole ADR-004 cuts in the overlay for the
+      mouse, cut in the tab order. Exactly one element; everything else stays trapped. Mirrored in
+      `@guideflow/react`, which had both defects identically.
+      **e2e found the real bug in the first version.** Wrapping at the ends is all a contiguous
+      popover needs, but a widened scope is *discontiguous* — the target sits elsewhere in the
+      document, and the popover is appended to `body` — so native Tab from the last popover control
+      walked into the page and never reached the target. Tab is now driven explicitly whenever the
+      scope is widened.
+      The `advanceOn` spec that used programmatic focus is now a real Tab walk ending in Enter.
+      Five new a11y cases including the negative. `accessibility.spec.ts`'s existing trap assertions
+      needed no scoping after all — they drive `flows.basic`, which sets no `clickThrough`.
+- [x] **8.1c Focus and announcement follow-ups** — the three the 8.1b change deferred, all of them
+      reachable rather than theoretical once `advanceOn` shipped. See **ADR-025**.
+      `renderStep` focused the popover's first control on EVERY render, and document order puts the
+      header close button first — so advancing mid-typing moved focus there and the user's next
+      **space** keystroke ended the tour (WCAG 3.2.2). `hideStep` restored focus unconditionally, so
+      a tour ending because the user acted ripped focus out of whatever the app had just opened
+      (WCAG 2.4.3). And completion was silent twice over: no `Locale` key, and the live region was
+      removed in the same tick a pending announcement was scheduled for, so the utterance landed in
+      a detached node.
+      **Both focus guards read `activeElement` BEFORE the DOM changes** — replacing `innerHTML`, or
+      removing the popover, resets it to `body` and destroys the distinction. That ordering is the
+      implementation.
+      `hideStep(reason?)` takes `'complete'` only; it also runs on **pause**, where an announcement
+      would be noise. Its own test caught the follow-on bug: nulling `_liveRegionEl` while a removal
+      was pending let a restarting tour build a SECOND region, with the stale one still saying "Tour
+      complete" under the new step.
+      8 unit + 5 e2e. Mirrored in React for the two focus rules; the announcement is core-renderer
+      only, because React's live region is JSX that unmounts with the popover — recorded, not
+      half-done. Core **15.46 / 15.5 kB**, the tightest it has been.
+- [x] **8.5 `?gf_tour=` deep-link start** — the only survivor of the teardown's distribution layer,
+      and the answer to §6.4 "reply to the ticket with a clickable walkthrough". `StartTrigger` has
+      no URL form and `URLSearchParams` appears nowhere in `packages/core/src`. Lands on the
+      targeting subpath (ADR-016's pattern). **Trap:** `start()` checks `isCompleted` before the
+      version gate ([index.ts:390](../../packages/core/src/index.ts#L390) vs `:399`), so a replay
+      link silently no-ops.
+      **Done, and the adversarial pass changed the design.** The obvious fix — `clearCompleted`
+      first — is destructive in a way nobody would predict: `@guideflow/checklist` projects
+      `getCompletedFlows()`, so clearing a completion **visibly un-ticks the user's checklist**, and
+      `@guideflow/ai` reads the same key. An attacker-supplied URL would silently destroy progress
+      the user earned, unrecoverably. Instead `start()` gained a public
+      `{ force: true }` that skips both gates and **writes nothing** — which a "Show me again"
+      button in the host's own UI wants too.
+      Second finding, equally sharp: **a link may override *delivery* policy but never *eligibility*
+      policy.** `frequency` and `urlPattern` are how often and where we would have *pushed* it, and
+      a human sent the link; `audience` and `schedule` say who the tour is *for*, and a URL does not
+      overrule them. Opt-in per flow via `targeting.deepLink` — types are erased, so zero core bytes.
+      Parameters stripped **after** the start resolves: before it, `replaceState` (patched by
+      `watchHistory`) fires a route change while nothing is running and lets `autoStart('load')` win
+      the race; never, and `matchUrl`'s anchored patterns silently kill every full-href rule for the
+      session. 18 unit tests + 8 e2e. Targeting 2.75 → **3 kB**, measured 2.83 kB — **ADR-021**;
+      core entry 15.3 kB, moved only by `force`.
+- [x] **8.6 `computeFunnel(events)`** — done. A pure function in `@guideflow/analytics`: the
+      collector already emits everything drop-off analysis needs and leaves the arithmetic to the
+      host, which is right for a library with no backend but meant everyone wrote the same
+      reduction. Counts `unfinished` apart from `abandoned` (a closed tab is not a user giving up),
+      sorts by timestamp first so a merged multi-transport stream is not mis-attributed, and reports
+      **median** dwell so one idle tab cannot move it. 17 tests.
+      **Found on the way: the three `step.*` events shipped `flow_id: undefined`** — the engine puts
+      only a `stepId` on them — so a step id, unique only *within* a flow, arrived unattributed and
+      every dashboard had to infer the flow from surrounding `tour.started` events and hope the
+      stream was ordered. `apps/docs/guide/analytics.md` documented that as a limitation. The
+      collector tracks the running flow now; a step with no tour open still reports `undefined`
+      rather than a guess. `computeFunnel` also falls back to a positional walk, so streams recorded
+      before the fix still reduce.
+- [x] **8.3 + 8.4 + 8.9 Content variables, localisation and chapters** — the differentiating pair,
+      shipped together because they share one resolution pipeline
+      (`raw → locale catalogue → {{token}} interpolation → renderer`). `Step.content`'s function
+      form covers both today and **does not serialise**, so every `.flow.json` the recorder, MCP and
+      `export` produce is frozen in one language with no personalisation. Localisation is a side
+      catalogue on `I18nRegistry`, **not** a change to `StepContent`. Chapters are a `label` on
+      `StateNode` and must not ship before localisation. **Interpolate into text only, never
+      `content.html`.** Delete the stale React `GuidePopover` i18n warning from `CLAUDE.md` §5.5 and
+      `apps/docs/guide/i18n.md` in the same change — it is fixed in code.
+      **Done, and the panel caught a real security slip in the first implementation.** It
+      interpolated `content.html`, under a docstring asserting that was safe. It is not:
+      "interpolate then sanitise" holds for element content but not for **attribute context** —
+      `<a href="/r?next={{to}}">` with a quote in the value closes the attribute *before* the
+      sanitiser parses anything, so untrusted data shapes the parse tree and every gap in the
+      allowlist becomes reachable from a URL. Compounded by `sanitizeHTML` being opt-in, which would
+      make the exposed configuration the one a developer chose *believing it was the hardened one*.
+      The catalogue may still translate `html` — a translation file is the same trust level as the
+      flow beside it. **The rule is about where data came from, not which field it is in.**
+      The catalogue is `{ steps, states }` rather than one flat map because step ids and state ids
+      are **separate namespaces** — `duplicate-step-id` makes step ids unique within a flow, and
+      nothing stops a state sharing a name with one.
+      28 unit tests. **No size raise, and core got smaller: 15.3 → 15.11 kB.** A seventh raise was
+      written, taken and withdrawn. The pipeline costs ~380 B; minifying the four injected CSS
+      literals at build time gives **570 B** back, for the gate *and* for a real consumer. The ~1 kB
+      alternative — moving the token-adapter and intro-compat re-exports off the entry — was
+      measured at **three bytes** for an actual `import { createGuideFlow }`, because `sideEffects`
+      is CSS-only and every bundler already shakes them away. ADR-022 is the worked example.
+- [x] **8.4b `gf.repaint()`** — the locale switch no longer inflates the funnel. `rerender()`
+      re-emits `step:enter`, `@guideflow/analytics` maps that to `guideflow.step.viewed`, and
+      `computeFunnel` counts it into `reached` — so the recipe the i18n docs gave for moving a live
+      step into another language recorded a phantom view. Three toggles, four views.
+      A **public method**, not the panel's `I18nRegistry.onChange` subscription: cheaper, and it
+      covers `configure({ context })` mid-tour, which changes what `{{token}}` resolves to and has
+      exactly the same problem.
+      Emits nothing; does NOT bump `_renderGeneration` (that would cancel a render legitimately in
+      flight) and defers to one instead; its `catch` does not end the tour, because a bad
+      translation must not destroy a running one. `_paint` extracted and shared so the chapter
+      lookup and flow-wide counters cannot drift between the two paths.
+      10 tests, pinning **both** directions — `repaint()` emits nothing AND `rerender()` still does.
+      **Seventh raise, 15.5 → 16 kB, measured 15.54 — ADR-026.** An 810 B saving was measured
+      (`HotspotManager` off the entry, constructed unconditionally today so every consumer ships it)
+      and deliberately **not** taken: it is breaking, and spending a breaking change to fund an 80 B
+      method is the mirror of what ADR-022 refused. Tracked on its own.
+      Also measured, and now a standing trap: **happy-dom does not re-escape text nodes when it
+      serialises `innerHTML`**, so an escaping assertion written that way tests its serialiser and
+      reads as a vulnerability that is not there.
+- [x] **8.7 The resource centre — built as four additions to `@guideflow/checklist`, not a package** — closes the last quarter of
+      `no-checklists-surveys-banners-resource-centre`, and the only structural reason a user cannot
+      restart a tour they finished. Same dock contract as the other three:
+      **`dock-drift.test.ts` grows to four implementations**, refcounted styles, a fresh
+      `setRecord` suffix, scaffolded at the group's current version, mounted in `apps/demo`.
+      `bottom-end` is already the default for both checklist and survey.
+      **Decided: no thirteenth package — see ADR-023.** Three design proposals and two adversarial
+      reviews ran; one review was commissioned to argue the package should not exist, and it won on
+      four counts. The audit finding's own Fix says "pick **one** adjacent primitive… ship it as
+      `@guideflow/checklist`" — singular; the four-quarters obligation was invented in this plan.
+      All three proposals stripped `store.ts`, `snapshot.ts` and `identity.ts`, leaving ~1,500 of
+      ~1,900 lines a near-copy of the checklist — and one wrote of the disclosure semantics "copy it
+      exactly, divergence here would be a bug". This repo has learned that twice already ("there is
+      exactly one selector builder now") and `dock-drift.test.ts` exists because three copies of
+      *ninety* lines already needed a guard. And §8.7's stated justification had evaporated earlier
+      in the same phase, when the checklist gained replay.
+      Shipped instead: `ChecklistItem.href` (a real `<a>` — `onActivate` is a callback, so a help
+      article could never be a link, which was the one genuinely structural gap), `ChecklistItem.group`
+      (headings with `role="presentation"` so they do not inflate the item count),
+      `ChecklistDefinition.dismissible` and `.showProgress` (`role="progressbar"` over help articles
+      is a lie an AT reads as a percentage). 11 new tests, 88 in the package.
+      Declined rather than deferred: search, a category registry, icons, badges, per-group collapse.
+- [ ] **8.10 `extract_strings` / `translate_flow` MCP tools** — ADR-019's inversion applied to 8.4's
+      catalogue. Read-only, key-free, the client is the model.
+- [ ] **8.8 Recorder: insert / reorder / re-record one step** — the only capture behaviour in the
+      teardown that does not need a clone. Recorder UI only, no library bytes.
+- [ ] **8.11 GA4 + Heap transports** — four of six already ship. Do it when someone asks.
+- [ ] **8.12 Documentation recipes** — interactive changelog, help-centre guides, ABM
+      personalisation, survey answer routing, cross-frame remote control. No new code; goes last so
+      it documents what actually shipped.
+
+> **The budget conversation, once.** Core is at **15.2 / 15.5 kB — 300 B of headroom** after six
+> raises. `exposeGlobal` (~40 B), variables (~150–250 B), content i18n (~150–200 B) and a
+> declarative `Step.advanceOn` (~200–300 B) **do not all fit**. CLAUDE.md: *"the next addition
+> should look for a real saving before asking for a seventh."* Find the saving, then take **at most
+> one** raise for the whole phase, in the changeset that needs it, with a measurement and an ADR.
+> Do not dodge the gate with a `createGuideFlow({ interpolate })` seam — ADR-009's opt-in was right
+> for a 640 B sanitiser most consumers never use and would be wrong here.
 
 ## Suggested first week
 

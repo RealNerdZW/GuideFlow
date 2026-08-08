@@ -1,6 +1,8 @@
 import type { GuideBrain } from '@guideflow/ai'
+import type { BannerController } from '@guideflow/banner'
+import type { ChecklistController } from '@guideflow/checklist'
 import { ExperimentEngine, type AnalyticsCollector, type AnalyticsEvent } from '@guideflow/analytics'
-import type { FlowDefinition, FlowSnapshot, GuideFlowInstance, HintStep, Step } from '@guideflow/core'
+import type { FlowDefinition, FlowSnapshot, GuideFlowInstance, HintStep, Step, TourEvents } from '@guideflow/core'
 import { watchAttributeTour } from '@guideflow/core'
 import {
   ConversationalPanel,
@@ -9,9 +11,11 @@ import {
   useTour,
   useTourStep,
 } from '@guideflow/react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { SurveyController } from '@guideflow/survey'
 
 import {
+  announcementFlow,
   conditionalFlow,
   customActionsFlow,
   type DemoContext,
@@ -24,17 +28,13 @@ import {
 // ---------------------------------------------------------------------------
 type AugmentedGF = GuideFlowInstance & { ai?: GuideBrain }
 
-/** Mirrors PushOptions from @guideflow/cli (which ships no .d.ts currently). */
-interface PushOptions {
-  endpoint: string
-  apiKey?: string
-  env?: string
-}
-
 export interface AppProps {
   instance: AugmentedGF
   collector: AnalyticsCollector
   capturedEvents: AnalyticsEvent[]
+  banners: BannerController
+  surveys: SurveyController
+  checklist: ChecklistController
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +125,14 @@ const FLOW_MAP = { onboardingFlow, fsmBranchFlow, conditionalFlow, customActions
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
-export function App({ instance: gf, collector: _collector, capturedEvents }: AppProps): React.JSX.Element {
+export function App({
+  instance: gf,
+  collector: _collector,
+  capturedEvents,
+  banners,
+  surveys,
+  checklist,
+}: AppProps): React.JSX.Element {
   const { isActive, currentStepIndex, totalSteps, next, prev, stop } = useTour()
   const { ref: headerRef }   = useTourStep<HTMLHeadingElement>('welcome-header')
   const { ref: toursRef }    = useTourStep<HTMLDivElement>('tours-section')
@@ -137,6 +144,26 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
   const [fsmRole, setFsmRole]     = useState<DemoContext['role']>('user')
   const [eventLog, setEventLog]   = useState<{ evt: string; ts: number }[]>([])
   const logEndRef                 = useRef<HTMLDivElement>(null)
+
+  // ── Docked surfaces ─────────────────────────────────────────────────────
+  // `useSyncExternalStore` with the controllers' own pre-bound functions —
+  // exactly what their `subscribe` / `getSnapshot` / `getServerSnapshot` shape
+  // exists for. No adapter package, no wrapper.
+  const bannerState = useSyncExternalStore(
+    banners.subscribe,
+    banners.getSnapshot,
+    banners.getServerSnapshot,
+  )
+  const surveyState = useSyncExternalStore(
+    surveys.subscribe,
+    surveys.getSnapshot,
+    surveys.getServerSnapshot,
+  )
+  const checklistState = useSyncExternalStore(
+    checklist.subscribe,
+    checklist.getSnapshot,
+    checklist.getServerSnapshot,
+  )
 
   // ── Programmatic hotspots ───────────────────────────────────────────────
   const [progHotspotId, setProgHotspotId] = useState<string | null>(null)
@@ -166,25 +193,39 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
   // ── Analytics ticker ────────────────────────────────────────────────────
   const [, forceUpdate]               = useState(0)
   // ── DevTools detection ─────────────────────────────────────────────
-  type WinExt = Window & { __guideflow?: unknown; __GUIDEFLOW_DEVTOOLS__?: boolean }
+  type WinExt = Window & { __guideflow?: unknown }
   const [extDetected, setExtDetected]     = useState<boolean | null>(null)
-  const [studioActive, setStudioActive]   = useState(false)
 
   // ── CLI / Flow exporter ────────────────────────────────────────────
   const [exportFlowKey, setExportFlowKey] = useState('onboardingFlow')
   const [exportedJson, setExportedJson]   = useState<string | null>(null)
   const [copied, setCopied]               = useState(false)
-  const [pushConfig, setPushConfig]       = useState<PushOptions>({
-    endpoint: 'https://api.guideflow.dev/v1/flows',
-    apiKey: '',
-  })
   // ── Subscribe tour events for live log ───────────────────────────────
   useEffect(() => {
-    const EVTS = [
-      'tour:start','tour:complete','tour:abandon','tour:pause','tour:resume',
-      'step:enter','step:exit','step:skip',
-      'hotspot:open','hotspot:close','hint:click',
-    ] as const
+    // Keyed object + `satisfies`, for the same reason as the two devtools
+    // copies: a plain array silently omits whatever core adds later. This one
+    // was missing seven events, `tour:dismiss` among them — so the live log
+    // showed a tour ending with no hint that the user had closed it.
+    const EVTS = Object.keys({
+      'tour:start': true,
+      'tour:complete': true,
+      'tour:abandon': true,
+      'tour:dismiss': true,
+      'tour:pause': true,
+      'tour:resume': true,
+      'tour:error': true,
+      'step:enter': true,
+      'step:exit': true,
+      'step:skip': true,
+      'step:target-missing': true,
+      'step:waiting': true,
+      'step:timeout': true,
+      'hotspot:open': true,
+      'hotspot:close': true,
+      'hint:click': true,
+      'progress:sync': true,
+      'progress:discard': true,
+    } satisfies Record<keyof TourEvents, true>) as Array<keyof TourEvents>
     const drops = EVTS.map((e) =>
       gf.on(e, () => setEventLog((p) => [...p.slice(-79), { evt: e, ts: Date.now() }]))
     )
@@ -199,12 +240,11 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
     const id = setInterval(() => forceUpdate((n) => n + 1), 1500)
     return () => clearInterval(id)
   }, [])
-  // ── Poll for devtools extension + guideflow studio ──────────────────────────
+  // ── Poll for the devtools extension ────────────────────────────────────────
   useEffect(() => {
     const check = () => {
       const w = window as WinExt
       setExtDetected(typeof w.__guideflow !== 'undefined')
-      setStudioActive(w.__GUIDEFLOW_DEVTOOLS__ === true)
     }
     check()
     const id = setInterval(check, 2000)
@@ -333,6 +373,7 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
           ['#gf-ab',          '🧪 A/B Testing'],
           ['#gf-i18n',        '🌍 i18n'],
           ['#gf-persistence', '💾 Persistence'],
+          ['#gf-docked',      '\uD83D\uDCE3 Docked surfaces'],
           ['#gf-config',      '\u2699\uFE0F Config'],
           ['#gf-devtools',    '🛠 DevTools'],
           ['#gf-cli',         '⌨️ CLI'],
@@ -392,6 +433,10 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
             </button>
             <button style={btn('secondary')} onClick={() => void gf.start(conditionalFlow)}>
               showIf Skip Test
+            </button>
+            {/* A single-step `target: null` flow — the announcement recipe. */}
+            <button style={btn('secondary')} onClick={() => void gf.start(announcementFlow)}>
+              📣 Announcement
             </button>
             <button style={btn('secondary')} onClick={() => void gf.start(customActionsFlow)}>
               🎮 Custom Actions
@@ -658,6 +703,110 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
           )}
         </section>
 
+        {/* ── Docked surfaces ───────────────────────────────────────────── */}
+        <section id="gf-docked" style={S.card}>
+          <h2 style={S.cardTitle}>
+            📣 Docked surfaces
+            <span style={badge('purple')}>@guideflow/banner</span>
+            <span style={badge('green')}>@guideflow/survey</span>
+            <span style={badge('amber')}>@guideflow/checklist</span>
+          </h2>
+          <p style={{ margin: '0 0 12px', color: C.muted, fontSize: 13 }}>
+            Non-blocking, one at a time, and inert while a tour runs — scroll up to the bar
+            and look bottom-left for the NPS card. Neither puts anything on the{' '}
+            <code style={S.code}>TourEvents</code> bus: both report through{' '}
+            <code style={S.code}>onEvent</code> into the same collector, so a dismissal never
+            lands in the tour funnel.
+          </p>
+
+          <div style={S.row}>
+            <span style={badge(bannerState.current ? 'green' : 'amber')}>
+              banner: {bannerState.current ? bannerState.current.id : 'none showing'}
+            </span>
+            <span style={badge('blue')}>queued: {bannerState.queued}</span>
+            <span style={badge(surveyState.current ? 'green' : 'amber')}>
+              survey: {surveyState.current ? surveyState.current.phase : 'none showing'}
+            </span>
+            {surveyState.current?.score !== null && surveyState.current !== null && (
+              <span style={badge('purple')}>score: {surveyState.current.score}</span>
+            )}
+            <span style={badge(checklistState.complete ? 'green' : 'blue')}>
+              checklist: {checklistState.doneCount} of {checklistState.totalCount}
+            </span>
+          </div>
+
+          <p style={{ margin: '0 0 8px', color: C.muted, fontSize: 13 }}>
+            The checklist is a <strong>projection</strong>, not a second source of truth. Two of its
+            items name a <code style={S.code}>flowId</code>, so they tick because the tour id is in{' '}
+            <code style={S.code}>progress.getCompletedFlows()</code> — the checklist never writes
+            that array. Run the onboarding tour to the end and watch the first item tick with no
+            checklist write at all.
+          </p>
+          <div style={{ ...S.log, marginBottom: 10 }}>
+            {checklistState.items.map((item) => (
+              <div key={item.id} style={{ color: item.done ? '#86efac' : C.subtle }}>
+                {item.done ? '✓' : '○'} {item.title}
+                {item.source && <span style={{ color: '#93c5fd' }}> {`// via ${item.source}`}</span>}
+                {!item.available && item.blockedBy.length > 0 && (
+                  <span style={{ color: '#fca5a5' }}> {`// blocked by ${item.blockedBy.join(', ')}`}</span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <p style={{ margin: '0 0 8px', color: C.muted, fontSize: 12 }}>
+            Both remember a dismissal in <code style={S.code}>ProgressStore</code>, so they stay
+            gone across a reload. That is correct in production and useless in a demo — hence:
+          </p>
+          <div style={S.row}>
+            <button style={btn('secondary')} onClick={() => void banners.reset()}>
+              Show the banner again
+            </button>
+            <button style={btn('secondary')} onClick={() => void surveys.reset()}>
+              Ask the survey again
+            </button>
+            <button style={btn('secondary')} onClick={() => void checklist.reset()}>
+              Clear manual ticks
+            </button>
+            <button
+              style={btn('danger')}
+              onClick={() => {
+                void (async () => {
+                  // `checklist.reset()` above clears only the checklist's OWN
+                  // record — the manual ticks. A flow-backed item stays ticked
+                  // because ProgressStore still says the tour is completed, and
+                  // the only honest way to un-tick it is to forget the
+                  // completion. That is `clearCompleted`, and this is what it
+                  // is for.
+                  await gf.progress.clearCompleted('demo-user', 'demo-onboarding')
+                  await gf.progress.clearCompleted('demo-user', 'demo-fsm-branch')
+                  await checklist.refresh()
+                })()
+              }}
+            >
+              Forget the completed tours
+            </button>
+          </div>
+          <p style={{ margin: '0 0 10px', color: C.muted, fontSize: 12 }}>
+            Those last two are deliberately separate. <code style={S.code}>checklist.reset()</code>{' '}
+            clears the manual ticks and leaves the flow-backed ones, because they are not the
+            checklist&apos;s to clear — only{' '}
+            <code style={S.code}>progress.clearCompleted()</code> can forget a completed tour.
+          </p>
+
+          <div style={{ ...S.log, marginTop: 8 }}>
+            <div style={{ color: '#86efac' }}>
+              {'// every banner and survey event is in the analytics feed above'}
+            </div>
+            <div>guideflow.banner.show | .action | .dismiss</div>
+            <div>guideflow.survey.show | .response | .dismiss</div>
+            <div>guideflow.checklist.item-complete | .item-activate | .complete | .dismiss</div>
+            <div style={{ color: C.subtle }}>
+              {'// the survey cooldown is 60s here; 90 days is the usual NPS setting'}
+            </div>
+          </div>
+        </section>
+
         {/* ── Config ────────────────────────────────────────────────────── */}
         <section id="gf-config" style={S.card}>
           <h2 style={S.cardTitle}>
@@ -702,9 +851,12 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
             <span style={badge('blue')}>@guideflow/devtools</span>
           </h2>
           <p style={{ margin: '0 0 14px', color: C.muted, fontSize: 13 }}>
-            <code style={S.code}>@guideflow/devtools</code> is a Manifest V3 browser extension.
-            This page exposes <code style={S.code}>window.__guideflow</code> so the extension's
-            content script can detect the running instance automatically.
+            <code style={S.code}>@guideflow/devtools</code> is a Manifest V3 browser extension. It
+            detects a page through <code style={S.code}>window.__guideflow</code>, which the library
+            sets only when you ask: <code style={S.code}>createGuideFlow({'{ exposeGlobal: true }'})</code>.
+            It is opt-in because the global hands any script on the page a driveable tour instance —
+            so this demo gates it on the dev build, and the status below reflects the build you are
+            actually looking at.
           </p>
 
           {/* Live status row */}
@@ -715,15 +867,6 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
                   {extDetected === null ? '⏳ Checking…' : extDetected ? '✓ window.__guideflow exposed' : '✗ Not exposed'}
                 </span>
                 <span style={{ fontSize: 12, color: C.subtle }}>Set by main.tsx on load</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={badge(studioActive ? 'green' : 'amber')}>
-                  {studioActive ? '✓ guideflow studio active' : '○ guideflow studio not detected'}
-                </span>
-                <span style={{ fontSize: 12, color: C.subtle }}>
-                  Run <code style={S.code}>pnpm guideflow studio</code> to inject{' '}
-                  <code style={S.code}>__GUIDEFLOW_DEVTOOLS__</code>
-                </span>
               </div>
             </div>
           </div>
@@ -775,12 +918,10 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
             {([
               ['guideflow init [--dir <path>] [--framework react|vue|svelte]',
                'Scaffold guideflow.ts, an example flow, and optionally a framework provider component.'],
-              ['guideflow studio [-p <port>] [--root <dir>]',
-               'Start a Vite dev server on port 4747 (default) with __GUIDEFLOW_DEVTOOLS__ injected into index.html.'],
-              ['guideflow export <file> [-o <out>] [--pretty]',
-               'Read a .ts/.js/.json flow file and serialise it to <file>.flow.json (or -o path).'],
-              ['guideflow push <file> [-k <apiKey>] [-e <endpoint>] [--env <name>]',
-               'POST the flow JSON to api.guideflow.dev/v1/flows (or a custom endpoint).'],
+              ['guideflow export <file.json> [-o <out>] [--force]',
+               'Validate a .flow.json and rewrite it in the one on-disk format. Refuses an invalid flow; .ts/.js is an error.'],
+              ['guideflow validate <files...> [--strict]',
+               'Check flow files. Exit 1 on any error, or on any warning with --strict. Built for CI.'],
             ] as [string, string][]).map(([cmd, desc]) => (
               <div key={cmd} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid #1e293b` }}>
                 <div style={{ color: '#86efac', fontFamily: 'monospace', marginBottom: 3 }}>{`$ ${cmd}`}</div>
@@ -825,44 +966,6 @@ export function App({ instance: gf, collector: _collector, capturedEvents }: App
               </button>
             </div>
           )}
-
-          <hr style={S.hr} />
-
-          {/* Push config */}
-          <p style={S.label}>Push config — mirrors <code style={S.code}>guideflow push</code> options</p>
-          <p style={{ margin: '0 0 10px', fontSize: 12, color: C.subtle }}>
-            Typed by <code style={S.code}>PushOptions</code> from <code style={S.code}>@guideflow/cli</code>.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <div>
-              <label style={S.label as React.CSSProperties}>endpoint</label>
-              <input
-                style={S.input}
-                value={pushConfig.endpoint}
-                onChange={(e) => setPushConfig((p) => ({ ...p, endpoint: e.target.value }))}
-                placeholder="https://api.guideflow.dev/v1/flows"
-              />
-            </div>
-            <div>
-              <label style={S.label as React.CSSProperties}>apiKey</label>
-              <input
-                style={S.input}
-                type="password"
-                value={pushConfig.apiKey ?? ''}
-                onChange={(e) => setPushConfig((p) => ({ ...p, apiKey: e.target.value }))}
-                placeholder="gf_sk_••••••••"
-              />
-            </div>
-          </div>
-          <div style={S.log as React.CSSProperties}>
-            <span style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 11 }}>
-              {'# Equivalent CLI command:\n'}
-              {'$ guideflow push '}
-              {exportFlowKey}.flow.json
-              {pushConfig.apiKey ? ` -k ${pushConfig.apiKey.slice(0, 8)}…` : ''}
-              {` -e ${pushConfig.endpoint}`}
-            </span>
-          </div>
         </section>
 
         {/* ── Analytics ─────────────────────────────────────────────────── */}

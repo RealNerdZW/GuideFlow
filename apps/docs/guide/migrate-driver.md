@@ -26,7 +26,7 @@ A tour also only emits `tour:complete` when it reaches a state marked `final: tr
 | `driver.reset()` / `driver.destroy()` | `gf.stop()` ends the tour; `gf.destroy()` also releases hotspots, hints, listeners and the cross-tab channel |
 | `onHighlightStarted` | `gf.on('step:enter', ({ stepId, stepIndex, target }) => …)` |
 | `onDestroyStarted` | `gf.on('tour:dismiss', …)` for a user dismissal; `gf.on('tour:abandon', …)` for any early end |
-| — (no equivalent callback) | `gf.on('tour:complete', …)`, fired when a `final: true` state runs out of steps |
+| — (no equivalent callback) | `gf.on('tour:complete', …)`, fired when the tour runs out of steps to render |
 | `element` | `target` — CSS selector, `HTMLElement`, or `null` for a centred step |
 | `popover.title` / `popover.description` | `content.title` / `content.body` |
 | `position` / `side` + `align` | one `placement` value, e.g. `'left-start'` |
@@ -107,7 +107,8 @@ await gf.start({
           placement: 'bottom',
         },
       ],
-      // Without this the tour never emits tour:complete
+      // Not required to complete — the tour ends when it runs out of steps —
+      // but `final` is what stops the walk that computes totalSteps.
       final: true,
     },
   },

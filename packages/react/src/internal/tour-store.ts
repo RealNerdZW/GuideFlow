@@ -13,6 +13,14 @@ export interface TourSnapshot {
   readonly isActive: boolean
   /** True between `gf.pause()` and `gf.resume()`. */
   readonly isPaused: boolean
+  /**
+   * True while the engine waits for a route change or a target element.
+   *
+   * Not derivable from the other fields: the store refreshes on `step:exit`,
+   * which fires *before* the render, so without this React shows the new step
+   * index against no popover and has no way to branch.
+   */
+  readonly isWaiting: boolean
   readonly currentStepId: string | null
   readonly currentStepIndex: number
   readonly totalSteps: number
@@ -22,6 +30,7 @@ export interface TourSnapshot {
 const IDLE: TourSnapshot = Object.freeze({
   isActive: false,
   isPaused: false,
+  isWaiting: false,
   currentStepId: null,
   currentStepIndex: 0,
   totalSteps: 0,
@@ -66,6 +75,7 @@ export function createTourStore(gf: GuideFlowInstance): TourStore {
     return {
       isActive: true,
       isPaused: gf.isPaused,
+      isWaiting: gf.isWaiting,
       currentStepId: gf.currentStepId,
       currentStepIndex: gf.currentStepIndex,
       totalSteps: gf.totalSteps,
@@ -92,6 +102,8 @@ export function createTourStore(gf: GuideFlowInstance): TourStore {
       gf.on('tour:resume', () => refresh()),
       gf.on('step:enter', () => refresh()),
       gf.on('step:exit', () => refresh()),
+      gf.on('step:waiting', () => refresh()),
+      gf.on('step:timeout', () => refresh()),
     ]
   }
 

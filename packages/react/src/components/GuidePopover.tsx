@@ -151,43 +151,96 @@ function ReactPopover({
     }
   }, [state, updatePosition])
 
-  // Move focus into the dialog on every step, and hand it back when the tour
-  // ends or pauses. Closes AUDIT `react-popover-never-focuses`.
+  // Move focus into the dialog when it belongs there, and hand it back when the
+  // tour ends — but only if the tour is what had it. Closes AUDIT
+  // `react-popover-never-focuses`; the two conditions mirror `DefaultRenderer`.
   useEffect(() => {
+    const active = typeof document !== 'undefined' ? document.activeElement : null
+
     if (!state) {
       const previous = restoreFocusRef.current
       restoreFocusRef.current = null
-      if (previous?.isConnected) previous.focus()
+      // The popover is already unmounted here, so focus reads as `body` when
+      // the tour had it. Anything else means the app moved focus deliberately —
+      // a confirm dialog it opened in response to the step's own action — and
+      // yanking it back to a control captured before the tour began is WCAG
+      // 2.4.3. Reachable since `advanceOn`.
+      const loose = active === null || active === document.body
+      if (loose && previous?.isConnected) previous.focus()
       return
     }
+
     const el = popoverRef.current
     if (!el) return
-    const active = typeof document !== 'undefined' ? document.activeElement : null
-    if (active instanceof HTMLElement && !el.contains(active)) {
+
+    // Captured ONCE, when the tour opens. It used to be reassigned on every
+    // step, so a page element the user focused mid-tour became the restore
+    // target and the trigger they actually came from was lost.
+    const opening = restoreFocusRef.current === null
+    if (opening && active instanceof HTMLElement && !el.contains(active)) {
       restoreFocusRef.current = active
     }
-    const focusable = el.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-    ;(focusable ?? el).focus()
+
+    // Not on every render. React reconciles rather than replacing innerHTML, so
+    // a control the user is typing in keeps focus — and stealing it to the
+    // header close button means their next space keystroke ends the tour.
+    // WCAG 3.2.2.
+    if (opening || el.contains(active) || active === null || active === document.body) {
+      const focusable = el.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+      ;(focusable ?? el).focus()
+    }
   }, [state])
 
   // Keep Tab inside the dialog. `aria-modal="true"` tells assistive technology
   // the rest of the page is inert; without a trap Tab walked straight out of it
   // into the page behind the overlay (AUDIT `no-focus-trap-or-restore`).
+  //
+  // On a `clickThrough` step the scope widens to the popover PLUS the
+  // highlighted element, mirroring `DefaultRenderer`. ADR-004 cut a hole in the
+  // overlay so exactly one element stays live to the mouse; the tab order
+  // exposes exactly the same one. Without it a step saying "click Save" is
+  // followable with a mouse and impossible with a keyboard.
   useEffect(() => {
     if (!state) return undefined
     const onKeyDown = (e: KeyboardEvent): void => {
       const el = popoverRef.current
       if (e.key !== 'Tab' || !el) return
-      const focusables = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+
+      // A function target is async and so is not resolvable here — same
+      // limitation as `DefaultRenderer`, which resolves the string and Element
+      // forms only. Such a step keeps the plain popover-only trap.
+      const resolved = state.step.clickThrough === true
+        ? resolveTarget(state.step.target)
+        : null
+      const target = resolved instanceof HTMLElement ? resolved : null
+      const focusables = [
+        ...Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)),
+        ...(target
+          ? [
+              ...(target.matches(FOCUSABLE_SELECTOR) ? [target] : []),
+              ...Array.from(target.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)),
+            ]
+          : []),
+      ]
       if (focusables.length === 0) return
 
       const first = focusables[0]!
       const last = focusables[focusables.length - 1]!
       const active = document.activeElement
 
-      if (!el.contains(active)) {
+      const inScope = el.contains(active) || (target?.contains(active) ?? false)
+      if (!inScope) {
         e.preventDefault()
         ;(e.shiftKey ? last : first).focus()
+      } else if (target) {
+        // Discontiguous scope: the target is elsewhere in the document, so
+        // native Tab would walk into the page instead of into it. Drive every
+        // step rather than only wrapping at the ends.
+        const at = focusables.indexOf(active as HTMLElement)
+        if (at !== -1) {
+          e.preventDefault()
+          focusables[(at + (e.shiftKey ? -1 : 1) + focusables.length) % focusables.length]?.focus()
+        }
       } else if (e.shiftKey && active === first) {
         e.preventDefault()
         last.focus()
@@ -253,7 +306,11 @@ function ReactPopover({
     <div
       ref={popoverRef}
       role="dialog"
-      aria-modal="true"
+      // Omitted on a clickThrough step: `aria-modal` promises the rest of the
+      // page is inert, which ADR-004's hole makes false, and asserting it
+      // confines a screen reader's virtual cursor away from the very control
+      // the step is asking the user to operate.
+      aria-modal={step.clickThrough === true ? undefined : true}
       // A dialog with neither name falls back to "dialog" in a screen
       // reader's landmark list (AUDIT `dangling-aria-labelledby`).
       aria-labelledby={content.title ? titleId : undefined}

@@ -65,10 +65,20 @@ the **workflow around the engine**: a no-code editor, hosted flow storage, audie
 scheduling and frequency capping, checklists, surveys/NPS, banners, a resource centre, and a
 dashboard. None of that exists here.
 
-You do not need all of it. But `packages/cli/src/commands/push.ts` already ships pointing at
-`https://api.guideflow.dev/v1/flows`, **a service that does not exist**, and `guideflow studio` is
-documented as "the visual tour editor" while actually being a Vite dev server that injects one
-boolean. Those two claims are the ones to either build or retract.
+You do not need all of it. Two of those claims used to be made without anything behind them: a
+`guideflow push` pointed at `https://api.guideflow.dev/v1/flows`, a service that never existed, and
+a `guideflow studio` documented as "the visual tour editor" while actually being a Vite dev server
+that injected one boolean. **Both commands were deleted** — `studio` in Phase 7.9, `push` in
+Phase 7.10 (ADR-014) — and hosted flow storage was answered without a backend: a `.flow.json` is a
+static asset you serve from your own CDN (`apps/docs/guide/hosting-flows.md`).
+
+What genuinely remains from that list is the *workflow*, not the delivery: a no-code editor with
+review and rollback, server-side audience selection, a resource centre, and a dashboard. Targeting,
+scheduling, frequency capping, checklists, banners and surveys/NPS have since shipped.
+
+Of those four, only the resource centre and the editor are buildable without a backend — the
+resource centre is `EXPANSION-PLAN.md` §8.7, and the editor is the recorder (Phase D) once it can
+be installed.
 
 ---
 
@@ -82,7 +92,8 @@ done.
 Not new features. Closing the gap between README and reality.
 
 - Fix or retract: intro.js attribute migration, `overlayColor`, per-instance i18n, `guideflow studio`,
-  `guideflow export`, `guideflow push`'s endpoint, the devtools "coming soon" note.
+  `guideflow export`, the dead publish endpoint, the devtools "coming soon" note.
+  *(Done. `studio` and `push` were deleted rather than fixed; the rest were fixed.)*
 - Fix the P0/P1 engine and security findings in `AUDIT.md`.
 - Rebuild the e2e harness so visual behaviour can be verified at all.
 - Publish a browser support matrix and a bundle-size table.
@@ -116,13 +127,25 @@ Turn the state-machine bet into visible advantage.
 - **Targeting rules** as guards on the flow itself — audience, feature flags, route, first-seen date,
   and frequency capping ("show at most once per 7 days"). This is what Appcues sells, and the FSM
   makes it natural rather than bolted on.
-- **Checklists** — a persistent multi-tour progress widget. The single most-requested onboarding
-  primitive after tours, and the FSM already tracks completion.
-- **Announcements / banners / modals** as first-class step types, not hand-rolled `target: null`
-  steps.
+- ~~**Checklists** — a persistent multi-tour progress widget.~~ **Shipped** as
+  `@guideflow/checklist` (Phase 7.8). A projection of `ProgressStore`, not a second source of
+  truth; zero bytes reach core. See ADR-011.
+- **Banners** — a docked, non-blocking announcement surface. This is the part that is genuinely
+  missing.
+  **Correction:** the `target: null` centred modal is *not* a hand-rolled workaround. It is a
+  supported single-step flow that renders `role="dialog"` + `aria-modal="true"`, suppresses the
+  progress bar and step counter, traps and restores focus, and announces through the live region.
+  It is now documented at `apps/docs/guide/announcements.md` and pinned by an e2e spec. Its real
+  limits are that the overlay blocks the page, only one can be up at a time, dismissal lands in
+  the tour funnel as `tour:dismiss` + `tour:abandon`, and the × and Skip button need a custom
+  renderer to remove — not that it is a hack.
 - **Flow versioning** — `flowId@version`, so a persisted snapshot from an old version does not restore
   into a changed state graph. Today it silently can, and `restore()` does not even clamp `stepIndex`.
-- **Surveys / NPS** as a step type feeding the analytics pipeline.
+- ~~**Surveys / NPS** as a step type feeding the analytics pipeline.~~ **Shipped** as
+  `@guideflow/survey` (Phase 7.8c) — and *not* as a step type. A step-type survey lands in the
+  tour funnel, so submitting one would emit `tour:complete` and analytics would count every NPS
+  response as a completed tour. It is a docked card, like the checklist and the banner. See
+  ADR-018.
 
 ### Phase D — The authoring loop (months 3–6)
 
@@ -162,6 +185,37 @@ Do this **after** Phase A, and only with the security model fixed.
 5. **Ship a GuideFlow MCP server** (`list_flows`, `author_flow`, `validate_flow`, `simulate`). It makes
    tour authoring agentic in any MCP client, keeps keys server-side, and shares an engine with
    `validate` and the studio. See `MCP-AND-SKILLS.md` §3.
+
+---
+
+### Phase G — Expansion (Phase 8 in the remediation queue)
+
+See **[`EXPANSION-PLAN.md`](./EXPANSION-PLAN.md)**, which grades
+[`COMPETITOR-TEARDOWN.md`](./COMPETITOR-TEARDOWN.md) — a teardown of **guideflow.com**, a hosted
+demo-automation SaaS that shares this project's name and is a different product.
+
+Three things from it are worth stating here because they change §2 and §5:
+
+1. **`clickThrough` is a half-feature.** ADR-004 spent ~1.3 kB carving a `clip-path` hole so the
+   user can genuinely click the highlighted control, and the engine has no way to notice that they
+   did — its only listener is `document` `keydown`. **`advanceOn` is the highest-leverage single
+   item now on the roadmap**, and it is table stakes against Shepherd and driver.js.
+2. **A `.flow.json` can carry neither variables nor translations.** `Step.content`'s function form
+   covers both for code-authored flows and does not serialise, so the entire ADR-014 static-asset
+   authoring path — recorder, MCP, `export` — emits tours whose copy is frozen in one language at
+   author time. Nothing in the OSS tier has this; the commercial tier sells it.
+3. **The binding constraint is distribution, not capability.** No open P0s, twelve packages, 1260
+   unit and 391 e2e tests. What blocks adoption is that the devtools extension is unlistable
+   (7.9c), the library never sets `window.__guideflow` so the extension detects almost no real
+   application, no manual screen-reader pass has run, and this document's own §1 recommendation to
+   stop leading with "AI-Powered Product Tours" is unactioned.
+
+**Not adopted, with reasoning in `EXPANSION-PLAN.md` §3.4:** capture of any kind, hosting, sandboxes,
+clones, SSO, collaborative editing, AI voice/avatars, visitor enrichment, lead scoring, SOC 2. Those
+require a backend and a company; §4 below already says so.
+
+`EXPANSION-PLAN.md` §8 also records a name-collision risk that is the owner's decision, not an
+engineering one.
 
 ---
 

@@ -286,3 +286,36 @@ export const customActionsFlow: FlowDefinition = {
     },
   },
 }
+
+/**
+ * An announcement is a single-step flow with `target: null`.
+ *
+ * Not a workaround: the renderer has a dedicated unanchored path, and because
+ * the progress bar and the step counter are both gated on `total > 1`, a
+ * one-step flow reads as an announcement rather than a truncated tour. It is
+ * still `role="dialog"` + `aria-modal="true"`, still traps and restores focus,
+ * and still announces through the live region.
+ *
+ * See apps/docs/guide/announcements.md.
+ */
+export const announcementFlow: FlowDefinition = {
+  id: 'demo-announcement',
+  initial: 'main',
+  states: {
+    main: {
+      final: true,
+      steps: [
+        {
+          id: 'announcement',
+          target: null,
+          content: {
+            title: '📣 GuideFlow 0.2 is out',
+            body: 'Targeting rules, SPA route handling and a docked onboarding checklist.',
+          },
+          actions: [{ label: 'Got it', variant: 'primary', action: 'next' } as StepAction],
+        },
+      ],
+      on: {},
+    },
+  },
+}

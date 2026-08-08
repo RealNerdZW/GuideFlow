@@ -149,6 +149,10 @@ export default defineConfig({
           { text: '@guideflow/svelte', link: '/packages/svelte' },
           { text: '@guideflow/ai', link: '/packages/ai' },
           { text: '@guideflow/analytics', link: '/packages/analytics' },
+          { text: '@guideflow/checklist', link: '/packages/checklist' },
+          { text: '@guideflow/banner', link: '/packages/banner' },
+          { text: '@guideflow/survey', link: '/packages/survey' },
+          { text: '@guideflow/mcp', link: '/packages/mcp' },
           { text: '@guideflow/cli', link: '/packages/cli' },
           { text: '@guideflow/devtools', link: '/packages/devtools' },
         ],
@@ -173,7 +177,19 @@ export default defineConfig({
             { text: 'Flows & Steps', link: '/guide/flows-and-steps' },
             { text: 'State Machine', link: '/guide/state-machine' },
             { text: 'Spotlight & Popover', link: '/guide/spotlight-popover' },
+            { text: 'Advancing on interaction', link: '/guide/advance-on' },
+            { text: 'Variables & chapters', link: '/guide/content-variables' },
+            { text: 'Routing & SPAs', link: '/guide/routing' },
             { text: 'Persistence', link: '/guide/persistence' },
+            { text: 'Targeting & frequency', link: '/guide/targeting' },
+            { text: 'Checklist', link: '/guide/checklist' },
+            { text: 'Announcements', link: '/guide/announcements' },
+            { text: 'Banners', link: '/guide/banners' },
+            { text: 'Surveys', link: '/guide/surveys' },
+            { text: 'Authoring', link: '/guide/authoring' },
+            { text: 'Hosting flows', link: '/guide/hosting-flows' },
+            { text: 'MCP server', link: '/guide/mcp' },
+            { text: 'Flow file', link: '/reference/flow-file' },
             { text: 'Accessibility', link: '/guide/accessibility' },
             { text: 'Privacy', link: '/guide/privacy' },
             { text: 'i18n', link: '/guide/i18n' },
@@ -273,6 +289,23 @@ export default defineConfig({
         },
       ],
 
+      '/reference/': [
+        {
+          text: 'Reference',
+          items: [
+            { text: 'Flow file', link: '/reference/flow-file' },
+          ],
+        },
+        {
+          text: 'Related',
+          items: [
+            { text: 'Authoring', link: '/guide/authoring' },
+            { text: 'FlowDefinition', link: '/api/flow-definition' },
+            { text: 'CLI commands', link: '/api/cli' },
+          ],
+        },
+      ],
+
       '/themes/': [
         {
           text: 'Themes',
@@ -299,6 +332,10 @@ export default defineConfig({
             { text: '@guideflow/svelte', link: '/packages/svelte' },
             { text: '@guideflow/ai', link: '/packages/ai' },
             { text: '@guideflow/analytics', link: '/packages/analytics' },
+            { text: '@guideflow/checklist', link: '/packages/checklist' },
+            { text: '@guideflow/banner', link: '/packages/banner' },
+            { text: '@guideflow/survey', link: '/packages/survey' },
+            { text: '@guideflow/mcp', link: '/packages/mcp' },
             { text: '@guideflow/cli', link: '/packages/cli' },
             { text: '@guideflow/devtools', link: '/packages/devtools' },
           ],

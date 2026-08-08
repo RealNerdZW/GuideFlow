@@ -129,18 +129,18 @@ await gf.start({
 # Scaffold configuration files
 npx @guideflow/cli init
 
-# Serve your project with Vite and flag the page for the DevTools extension
-npx @guideflow/cli studio
+# Check every flow file and print each problem with its fix
+npx @guideflow/cli validate flows/*.flow.json
 
-# Read a flow file (.ts, .js or .json) and write it out as JSON
-npx @guideflow/cli export my-tour.ts --output my-tour.flow.json
-
-# POST a flow JSON file to an HTTP endpoint you control
-npx @guideflow/cli push my-tour.flow.json \
-  --endpoint https://example.com/api/flows \
-  --api-key "$GUIDEFLOW_API_KEY"
+# Validate a JSON flow and write it back as a pretty-printed flow file
+npx @guideflow/cli export my-tour.json --output my-tour.flow.json
 ```
 
-`studio` needs Vite, which is an optional peer dependency — install it in your
-project (`pnpm add -D vite`) if you do not already have it. It binds
-`127.0.0.1` by default; pass `--host` to expose it.
+`validate` exits 1 on any error, so it belongs in CI next to your linter; add
+`--strict` to fail on warnings too. `export` reads `.json` only and refuses to
+write a flow that does not validate — see the
+[CLI reference](/api/cli) for every flag.
+
+To change a tour without redeploying your app, serve the `.flow.json` from a CDN
+and fetch it at runtime — [Hosting flows](/guide/hosting-flows) has the recipe,
+the caching headers and the versioning rules.

@@ -36,7 +36,10 @@ const states = (flowName: string): Record<string, StateNode> => {
 describe('e2e fixture flows', () => {
   it('defines the flows the specs reference', () => {
     expect(Object.keys(flows).sort()).toEqual(
-      ['basic', 'final', 'multistate', 'persisted', 'scroll'],
+      [
+        'advance', 'basic', 'blocking', 'clickThrough', 'deepLinked', 'final',
+        'missingTarget', 'multistate', 'notLinked', 'persisted', 'routed', 'scroll',
+      ],
     )
   })
 
@@ -137,8 +140,14 @@ describe('e2e fixture flows', () => {
 describe('e2e fixture page', () => {
   const html = readFileSync(FIXTURE_HTML, 'utf8')
 
-  it('exposes window.__guideflow, which the library never sets itself', () => {
-    expect(html).toContain('window.__guideflow = gf')
+  it('opts into window.__guideflow rather than hand-assigning it', () => {
+    // The fixture used to write `window.__guideflow = gf` itself, because the
+    // library had no way to do it — which is also why the devtools extension
+    // detected nothing outside this repo. Phase 8.2 made it a config option, so
+    // every spec here that reaches through the global is now live coverage of
+    // that option in four browsers.
+    expect(html).toContain('exposeGlobal: true')
+    expect(html).not.toContain('window.__guideflow =')
   })
 
   it('loads the built artefacts rather than a bundler-resolved specifier', () => {

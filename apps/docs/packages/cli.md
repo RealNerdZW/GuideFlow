@@ -1,19 +1,18 @@
 ---
-description: "@guideflow/cli — Command-line helper for GuideFlow: scaffold starter files, serve your project with Vite, convert flow files to JSON, and POST a flow to your own API."
-keywords: "@guideflow/cli, GuideFlow CLI, scaffold product tour, guideflow init, guideflow export"
+description: "@guideflow/cli — Command-line helper for GuideFlow: scaffold starter files, validate flow files in CI, and normalise a flow to JSON."
+keywords: "@guideflow/cli, GuideFlow CLI, scaffold product tour, guideflow init, guideflow validate, guideflow export"
 ---
 
 # @guideflow/cli
 
-**Command-line helper for GuideFlow — scaffold starter files, serve your project, convert flow files to JSON, and POST a flow to an endpoint.**
+**Command-line helper for GuideFlow — scaffold starter files, validate flow files, and normalise a flow to JSON.**
 
 [![npm version](https://img.shields.io/npm/v/@guideflow/cli.svg)](https://www.npmjs.com/package/@guideflow/cli)
 
-::: warning Early and incomplete
-There is no visual tour editor yet: `guideflow studio` starts a Vite dev server and nothing more.
-`guideflow export` only produces a usable file from `.json` input, and `guideflow push` needs an API
-you host yourself. Check the [CLI reference](/api/cli) for each command's limitations before
-depending on it.
+::: warning Know what each command does
+`validate` is the command built for CI, `export` runs the same validator, and `init` runs unattended
+with `--yes`. Check the [CLI reference](/api/cli) for each command's limitations before depending on
+it. Shipping a flow is not a CLI job — see [Hosting flows](/guide/hosting-flows).
 :::
 
 ## Installation
@@ -22,16 +21,17 @@ depending on it.
 npm install -g @guideflow/cli
 ```
 
-Requires Node.js >= 18. Vite is an optional peer dependency, needed only by `guideflow studio`.
+Requires Node.js >= 18. No optional peer dependencies.
 
 ## Commands
 
+Three of them.
+
 | Command | What it actually does |
 |---------|-----------------------|
-| `guideflow init` | Writes `guideflow.ts`, `my-tour.ts` (+ `GuideFlowProvider.tsx` for React) into a directory |
-| `guideflow studio` | Serves your project with Vite on `127.0.0.1:4747` and injects one (currently unread) global |
-| `guideflow export` | Reformats a `.json` flow; emits a stub, not a flow, for `.ts`/`.js` input |
-| `guideflow push` | POSTs a flow JSON file to the endpoint given by `--endpoint` |
+| `guideflow init` | Writes `guideflow.ts`, `my-tour.ts` and one framework file into a directory. `--yes` for CI; existing files are skipped unless `--force` |
+| `guideflow export` | Validates a `.json` flow and rewrites it as a pretty-printed flow file; refuses to write an invalid one |
+| `guideflow validate` | Checks flow files and prints every issue with its fix. `--strict` fails on warnings too |
 
 See the [CLI reference](/api/cli) for every flag, default and caveat.
 

@@ -36,23 +36,141 @@ runtime; `gf.configure({ context })` merges a context patch, which is how you se
 | `key` | `(userId: string) => string` | `` (userId) => `gf:${userId}:progress` `` | Key prefix factory |
 | `ttl` | `number` | `2592000000` (30 days) | Expiry in milliseconds |
 
-The prefix returned by `key` is suffixed per record —
-`…:<flowId>:snapshot`, `…:<flowId>:dismissed`, `…:completed` — so one user's
-data shares a prefix and `gf.progress.resetUser(userId)` can clear it in one go.
+The prefix returned by `key` is suffixed per record, so one user's data shares a
+prefix and `gf.progress.resetUser(userId)` can clear it in one go.
+
+### Reserved key suffixes
+
+| Suffix | Owner | Contents |
+|---|---|---|
+| `<flowId>:snapshot` | core | Resume point for one flow |
+| `<flowId>:dismissed` | core | "Don't show again" for one flow |
+| `completed` | core | The completed-flows array, entries `flowId` or `flowId@version`. **Reserved** |
+| `caps` | `@guideflow/core/targeting` | Frequency caps. **Reserved** |
+| `checklist` | `@guideflow/checklist` | Every checklist on the page, in one record |
+
+`gf.progress.getRecord` / `setRecord` let a sibling package store its own record under this
+prefix. Use a **single-segment** suffix: every flow-scoped key carries a second segment, so a
+one-segment suffix cannot collide with a flow id.
+
+::: danger `completed` and `caps` are taken
+`setRecord(userId, 'completed', …)` overwrites core's completed-flows array **byte for byte** —
+`getRecord` and `getCompletedFlows` read the identical `{ value, expiresAt }` wrapper — and
+`@guideflow/ai` reads that key too. Pick a name nothing else owns.
+:::
 
 ## What gets written, and when
 
 - **On every navigation** (`start`, `next`, `prev`, `goTo`, `send`) and on
-  abandonment, a snapshot of `{ flowId, currentState, stepIndex }` is saved. The
-  snapshot's `completed` field is always `false` — it only exists while a tour is
-  live.
-- **On `tour:complete`**, the flow id is added to the completed list and the
-  snapshot is deleted.
+  abandonment, a snapshot of `{ flowId, currentState, stepIndex, stepId, version }`
+  is saved. The snapshot's `completed` field is always `false` — it only exists
+  while a tour is live.
+- **On `tour:complete`**, the flow is added to the completed list — as
+  `flowId@version` when the flow declares a `version`, as a bare `flowId` when
+  it does not — and the snapshot is deleted. The version is captured *before*
+  the active flow is cleared, so the record names the revision the user
+  actually finished.
 - **On dismissal**, if the flow opted in with `persistDismissal`.
 
-On the next `gf.start(flow)` the engine, in order: returns early if the flow was
-dismissed, returns early if it was completed, otherwise restores the snapshot and
-re-renders at the saved step.
+The write happens the moment the **machine** moves, not when the render lands. With
+[route waiting](/guide/routing) a render can take seconds, and a tab closed mid-wait
+would otherwise lose the advance.
+
+On the next `gf.start(flow)` the engine, in order:
+
+1. returns early if the flow was dismissed;
+2. returns early if it was completed **at this flow's `version`** — see
+   [Completion is version-scoped](#completion-is-version-scoped);
+3. **discards the snapshot if `version` does not match the flow's** — see below;
+4. otherwise restores, preferring `stepId` over `stepIndex`, and re-renders.
+
+## Versioning a flow
+
+A stored `{ state, stepIndex }` is a coordinate into a structure. Rename a state,
+delete a step or reorder two, redeploy — and every returning user resumes into a
+position that means something different than it did when it was written.
+
+Two independent gates prevent that, cheapest first.
+
+**`stepId` is preferred over `stepIndex`.** An index means nothing once a step has
+been inserted above it. If the stored step id no longer exists anywhere in that
+state, the resume is **rejected** rather than clamped — there is no honest
+coordinate to fall back to.
+
+**An explicit `version` catches the rest**, including a renamed state:
+
+```ts
+gf.start({ id: 'onboarding', version: 'v2', initial: 'intro', states: { /* … */ } })
+```
+
+Or derive one from the flow's own shape, so you cannot forget to bump it:
+
+```ts
+import { withFingerprint } from '@guideflow/core/versioning'
+
+const flow = withFingerprint({ id: 'onboarding', initial: 'intro', states: { /* … */ } })
+```
+
+`flowFingerprint` hashes only what changes the meaning of a coordinate — `initial`,
+state names, `final` flags, step ids **in order**, and the transition table. It
+ignores everything cosmetic: content, target, placement, padding, media, `showIf`,
+`onEntry`/`onExit`, `context`, `targeting`, and the flow id itself. Fixing a typo
+does not restart anybody's tour.
+
+When a snapshot is thrown away, the tour starts from the beginning and emits:
+
+```ts
+gf.on('progress:discard', ({ flowId, reason }) => {
+  // reason: 'version'   — the flow's version changed
+  //       | 'structure' — the version matched but the position did not survive
+})
+```
+
+## Completion is version-scoped
+
+Completion is recorded against the version the user actually finished, so
+republishing a structurally changed flow reaches the people who completed the
+old one. The record is stored as `flowId@version`:
+
+```ts
+await gf.progress.markCompleted('user-123', 'onboarding', 'v2')
+// stored entry: "onboarding@v2"
+
+await gf.progress.isCompleted('user-123', 'onboarding', 'v2')  // true
+await gf.progress.isCompleted('user-123', 'onboarding', 'v3')  // false — v3 shows
+```
+
+`version` is optional on both methods. Omitting it on `markCompleted` writes the
+bare `flowId`, byte-identical to what this wrote before the change; omitting it
+on `isCompleted` asks "has this user finished this flow at *any* version".
+
+`gf.start()` passes `flow.version`, so this is automatic — a flow that carries a
+`version` (declared, or stamped by `withFingerprint` / `stringifyFlowFile`) is
+shown again after a structural change. A flow with **no** `version` records a
+bare id and behaves exactly as before: finishing it once suppresses it forever.
+
+::: warning A record written before this release suppresses every version
+A bare `flowId` entry — written by an older build, or by a flow that declares no
+`version` — matches **every** version. That is deliberate and conservative:
+there is no way to know which revision an unversioned record meant, and an
+upgrade must never resurrect a tour somebody already dismissed by completing it.
+Those users see the new revision only if you clear the record yourself
+(`resetUser`, or a `setRecord(userId, 'completed', …)` rewrite). There is still
+no `clearCompleted`.
+:::
+
+::: tip `getCompletedFlows` still returns bare ids
+Its signature and its output are unchanged: version suffixes are stripped and
+duplicates removed, so `['onboarding@v1', 'onboarding@v2']` reads back as
+`['onboarding']`. `@guideflow/checklist` matches an item's `flowId` against this
+array and `@guideflow/ai` reads the same key — both would silently stop matching
+if raw `id@version` entries leaked out.
+:::
+
+`@guideflow/core/targeting` calls `isCompleted` **without** a version, so a
+`completed` targeting rule suppresses a flow the user finished at any revision.
+That is the right default for eligibility: republishing should not re-fire a
+frequency-capped campaign.
 
 ## Drivers
 
@@ -116,11 +234,19 @@ GuideFlow on read, not by the driver.
 When `context.userId` is set and the browser supports `BroadcastChannel`,
 GuideFlow publishes each saved snapshot on the `guideflow:progress` channel.
 
-A receiving tab acts on the message **only if** it belongs to the same user *and*
-that tab is currently running the same flow — it then restores the position and
-re-renders. Tabs that are idle, or running a different tour, ignore it: nothing
-is queued and no tour is started remotely. Since a message is only published when
-a snapshot is written, sync happens on step changes, not on arbitrary UI events.
+A receiving tab acts on the message **only if** it belongs to the same user, that
+tab is currently running the same flow, *and* the snapshot's `version` matches
+the flow that tab is running — it then restores the position and re-renders.
+Tabs that are idle, running a different tour, or holding a different revision of
+the same tour ignore it: nothing is queued and no tour is started remotely. Since
+a message is only published when a snapshot is written, sync happens on step
+changes, not on arbitrary UI events.
+
+The version check matters once flows are fetched at runtime rather than bundled.
+Two tabs of the same build can hold different revisions of the same
+`.flow.json`, and restoring one tab's `stepIndex` into the other's machine would
+clamp a stale coordinate into a different index space — see
+[Hosting flows](/guide/hosting-flows).
 
 ```ts
 const gf = createGuideFlow({ context: { userId: 'user-123' } })
@@ -157,8 +283,10 @@ gf.on('tour:dismiss', ({ flowId, stepId, stepIndex }) => {
 `gf.progress` is the live `ProgressStore`:
 
 ```ts
-await gf.progress.isCompleted('user-123', 'welcome')     // boolean
-await gf.progress.getCompletedFlows('user-123')          // string[]
+await gf.progress.isCompleted('user-123', 'welcome')       // any version
+await gf.progress.isCompleted('user-123', 'welcome', 'v2') // this version
+await gf.progress.markCompleted('user-123', 'welcome', 'v2')
+await gf.progress.getCompletedFlows('user-123')          // string[], bare ids
 await gf.progress.isDismissed('user-123', 'welcome')     // boolean
 await gf.progress.clearDismissed('user-123', 'welcome')  // let it run again
 await gf.progress.loadSnapshot('user-123', 'welcome')    // FlowSnapshot | null

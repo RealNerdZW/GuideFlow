@@ -4,16 +4,22 @@
 // ---------------------------------------------------------------------------
 
 import { FlowMachine } from '../fsm/machine.js'
+import type { I18nRegistry } from '../i18n/index.js'
 import type {
   FlowDefinition,
   GuidanceContext,
+  NavigationAdapter,
+  ResolveTargetResult,
   Step,
   StepContent,
   RendererContract,
+  TimeoutReason,
   TourEvents,
   SpotlightOptions,
+  StateNode,
 } from '../types/index.js'
 import { EventEmitter } from '../utils/emitter.js'
+import { interpolate } from '../utils/interpolate.js'
 import { isBrowser } from '../utils/ssr.js'
 
 import { scrollTargetIntoView } from './popover.js'
@@ -46,9 +52,18 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 interface TourEngineOptions<TContext extends GuidanceContext = GuidanceContext> {
   renderer: RendererContract
+  navigation?: NavigationAdapter<TContext>
   spotlight?: SpotlightOptions
   context?: TContext
   debug?: boolean
+  /**
+   * The instance registry, for per-locale step content and chapter labels.
+   *
+   * The engine needs it because content is resolved BEFORE `renderStep` — a
+   * custom `RendererContract` must receive finished content, and core never
+   * assumes the default renderer.
+   */
+  i18n?: I18nRegistry
 }
 
 export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
@@ -66,7 +81,23 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   /** True when step:exit has already been emitted for the active step (prevents double-emission). */
   private _stepExitEmitted = true
   private _paused = false
-  /** Monotonically increasing counter — used to cancel stale async _renderCurrentStep() calls. */
+  private _waiting: TimeoutReason | null = null
+  /** The element the current step is anchored to — read by the re-anchor check. */
+  private _anchoredTo: Element | null = null
+  private _navOff: (() => void) | null = null
+  /** Aborts the in-flight render's waiter. Paired with every generation bump. */
+  private _renderAbort: AbortController | null = null
+  /**
+   * Monotonically increasing counter — used to cancel stale async
+   * _renderCurrentStep() calls.
+   *
+   * **Every entry point that starts a render must bump this first.** It used to
+   * be bumped only by rerender/start/pause/resume/_doEnd, so two next() calls
+   * inside the 150 ms settle — a double-click on Next, or keyboard autorepeat —
+   * captured the SAME generation, both passed every check, and the older render
+   * could land last (AUDIT `generation-not-bumped-on-navigation`). Harmless at
+   * 150 ms; not harmless once a step can wait seconds for a route to arrive.
+   */
   private _renderGeneration = 0
 
   constructor(options: TourEngineOptions<TContext>) {
@@ -95,6 +126,20 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     return this._paused
   }
 
+  /**
+   * Waiting for a route change, or for a target element to appear.
+   *
+   * `isActive` stays true and `isPaused` stays false — deliberately a separate
+   * flag rather than reusing `_paused`, which would break three ways:
+   * `pause()` early-returns when it is already true, so a host pausing during a
+   * wait would be a silent no-op; `resume()` would clear the internal wait and
+   * start a *second* waiter; and the keyboard handler gates on it, which would
+   * kill Escape exactly when the user most wants out.
+   */
+  get isWaiting(): boolean {
+    return this._waiting !== null
+  }
+
   get currentStepId(): string | null {
     return this._machine?.currentStep?.id ?? null
   }
@@ -119,6 +164,18 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   }
 
   /** Expose the internal FSM for snapshot/restore operations. */
+  /**
+   * The guidance context predicates see.
+   *
+   * The running machine's context while a tour is live, and the configured
+   * default otherwise — so a caller can read `context.userId` without having to
+   * start a tour first. `@guideflow/core/targeting` needs exactly that to
+   * evaluate audience rules before anything has started.
+   */
+  get context(): TContext {
+    return this._machine?.context ?? (this._options.context ?? ({} as TContext))
+  }
+
   get machine(): FlowMachine<TContext> | null {
     return this._machine
   }
@@ -172,6 +229,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     this._log('Tour started:', flow.id)
 
     this._attachKeyboard()
+    this._attachNavigation()
     await this._renderCurrentStep()
   }
 
@@ -191,6 +249,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       return
     }
 
+    this._renderGeneration++
     await this._renderCurrentStep()
   }
 
@@ -204,6 +263,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     if (!moved) return
 
     this._emitStepExit()
+    this._renderGeneration++
     await this._renderCurrentStep('backward')
   }
 
@@ -217,6 +277,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     }
 
     this._emitStepExit()
+    this._renderGeneration++
     await this._renderCurrentStep()
   }
 
@@ -234,6 +295,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       this._doEnd(true)
       return
     }
+    this._renderGeneration++
     await this._renderCurrentStep()
   }
 
@@ -267,6 +329,10 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     // Cancel any render still awaiting content resolution or the scroll settle,
     // otherwise it lands after the pause and re-shows what we just hid.
     this._renderGeneration++
+    // Cancel an in-flight wait: a paused tour must not keep polling for a
+    // target, and must not paint when one finally appears.
+    this._renderAbort?.abort()
+    this._exitWaiting()
     this._spotlight.hide()
     this._renderer.hideStep()
     const flowId = this._flow?.id ?? 'unknown'
@@ -287,6 +353,10 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
 
   destroy(): void {
     this._doEnd(false)
+    // Here, not in _doEnd(): that early-returns on `!this._active`, so an
+    // engine destroyed without ever starting a tour would leak the adapter's
+    // history patch.
+    this._options.navigation?.destroy?.()
     this._spotlight.destroy()
     this.removeAllListeners()
   }
@@ -296,8 +366,13 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
   private async _renderCurrentStep(direction: 'forward' | 'backward' = 'forward'): Promise<void> {
     if (!this._machine) return
 
-    // Capture generation so we can detect if a newer render has been started
+    // Capture generation so we can detect if a newer render has been started.
+    // The controller travels with it: a navigation adapter can wait seconds,
+    // and a superseded wait has to be cancelled, not merely ignored on return.
     const gen = this._renderGeneration
+    this._renderAbort?.abort()
+    const ac = new AbortController()
+    this._renderAbort = ac
 
     let step = this._machine.currentStep
     if (!step) return
@@ -339,8 +414,58 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // Abort if a newer render or tour end has superseded this one
       if (gen !== this._renderGeneration) return
 
-      // Find target element
-      const target = this._resolveTarget(step)
+      // ── Target resolution ──────────────────────────────────────────────
+      // Without an adapter this is one querySelector, exactly as before. With
+      // one it can wait — for a route to arrive, for a lazy chunk to mount, for
+      // a drawer to open — so every branch below ends in a generation check.
+      const resolved = step
+      let target: Element | null
+      const nav = this._options.navigation
+
+      if (nav && isBrowser()) {
+        let waited = false
+        let res: ResolveTargetResult
+        try {
+          res = await nav.resolveTarget({
+            step: resolved,
+            state: this._machine.currentStateNode ?? ({} as StateNode<TContext>),
+            context: this._machine.context,
+            direction,
+            signal: ac.signal,
+            onWaiting: (reason) => {
+              waited = true
+              this._enterWaiting(reason, resolved as Step)
+            },
+          })
+        } catch (e) {
+          // A third-party adapter must not be able to kill tours.
+          this._log('navigation adapter threw; falling back to a plain lookup', e)
+          res = { target: await this._resolveTarget(resolved) }
+        }
+        if (gen !== this._renderGeneration) return
+        if (waited) this._exitWaiting()
+
+        if (res.timedOut !== undefined) {
+          this.emit('step:timeout', { stepId: resolved.id, reason: res.timedOut })
+          // emit() runs listeners inline; one calling next() has already moved
+          // the machine and bumped the generation by the time we get here.
+          if (gen !== this._renderGeneration) return
+        }
+        target = res.target
+      } else {
+        target = await this._resolveTarget(resolved)
+        if (gen !== this._renderGeneration) return
+      }
+
+      if (target === null && resolved.target != null) {
+        // A missing target used to render as a silent full-screen modal,
+        // indistinguishable from a deliberate `target: null` step.
+        this.emit('step:target-missing', {
+          stepId: resolved.id,
+          selector: typeof resolved.target === 'string' ? resolved.target : null,
+        })
+        if (gen !== this._renderGeneration) return
+      }
 
       // Scroll into view if needed
       if (target && step.scrollIntoView !== false) {
@@ -363,6 +488,7 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // Store current step/content so external consumers (e.g. React GuidePopover) can read them
       this._currentStep = step
       this._currentContent = content
+      this._anchoredTo = target
       this._stepExitEmitted = false
 
       // Emit event
@@ -376,12 +502,9 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // Flow-wide counters, not per-state: the renderer derives "Back", "Next"
       // and "Done" from index/total, so per-state numbers put a Done button on
       // the first step of a multi-state tour.
-      this._renderer.renderStep(
-        step as Step,
-        content,
-        this._machine.flowStepIndex,
-        this._machine.flowTotalSteps,
-      )
+      // The chapter label, translated if a catalogue supplies one. Falls back to
+      // the flow's own `label`, exactly as step content falls back to its own.
+      this._paint(step, content)
     } catch (err) {
       // Error boundary — log, emit, and clean up so the page is not left in a broken state
       const flowId = this._flow?.id ?? 'unknown'
@@ -392,21 +515,171 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     }
   }
 
-  private async _resolveContent(step: Step<TContext>): Promise<StepContent> {
-    if (typeof step.content === 'function') {
-      return await step.content()
-    }
-    return step.content
+  /**
+   * Hand a resolved step to the renderer.
+   *
+   * Shared by the render pipeline and `repaint()` so the chapter lookup and the
+   * flow-wide counters cannot drift between them — per-state numbers put a Done
+   * button on step one of a multi-state tour, and that bug cost 1.3 kB once.
+   */
+  private _paint(step: Step<TContext>, content: StepContent): void {
+    const machine = this._machine
+    if (!machine) return
+    this._renderer.renderStep(
+      step as Step,
+      content,
+      machine.flowStepIndex,
+      machine.flowTotalSteps,
+      this._options.i18n?.stateLabel(machine.state) ?? machine.currentStateNode?.label,
+    )
   }
 
-  private _resolveTarget(step: Step<TContext>): Element | null {
-    if (!isBrowser() || step.target == null) return null
-    if (step.target instanceof Element) return step.target
-    if (typeof step.target === 'string') {
-      return document.querySelector(step.target)
+  /**
+   * Re-resolve the current step's content and repaint it, emitting nothing.
+   *
+   * The counterpart to `rerender()`, and the difference is the whole point:
+   * `rerender()` re-runs the render pipeline and re-emits `step:enter`, which
+   * `@guideflow/analytics` maps to `guideflow.step.viewed`. So the documented
+   * way to move a live step into a new language — `i18n.use('es')` then
+   * `rerender()` — recorded a second view of that step and inflated its
+   * `reached` count in `computeFunnel`. Three toggles produced four views.
+   *
+   * Use this after anything that changes what the current step *says* rather
+   * than which step it is: `i18n.use()`, `i18n.registerContent()`, or a
+   * `configure({ context })` that feeds `{{token}}` values.
+   *
+   * No machine movement, no `showIf`, no target re-resolution, no events. It
+   * deliberately does **not** bump `_renderGeneration` — bumping would cancel a
+   * step render that is legitimately in flight — so it defers to one instead,
+   * via the two guards across its single `await`.
+   */
+  async repaint(): Promise<void> {
+    const step = this._currentStep
+    if (!step || !this._machine || !this._active || this._paused || this._waiting !== null) {
+      return
     }
+    const gen = this._renderGeneration
+    try {
+      const content = await this._resolveContent(step)
+      // A navigation started while we were resolving, or one finished and has
+      // already painted the new step in the new locale — the registry is read
+      // live, so that render is not stale and this repaint is.
+      if (gen !== this._renderGeneration || this._currentStep !== step) return
+      this._currentContent = content
+      this._paint(step, content)
+    } catch (err) {
+      // Its own boundary, and unlike `_renderCurrentStep` it must NOT end the
+      // tour: a translation that throws is not a reason to destroy a running
+      // one. Callers are fire-and-forget, so an unhandled rejection here would
+      // surface as a console error rather than as `tour:error`.
+      this._log('repaint failed; keeping the rendered step', err)
+    }
+  }
+
+  /**
+   * The content pipeline, in one place and in this order:
+   *
+   *   the step's own content  →  locale catalogue override  →  {{token}} interpolation
+   *
+   * The order is the whole point of resolving both here rather than in two
+   * seams: a *translated* string containing `{{firstName}}` has to work, and it
+   * only does if the catalogue is applied before interpolation.
+   *
+   * **The catalogue may set `html`; a `{{token}}` may not.** They are different
+   * trust levels and only one of them is runtime data:
+   *
+   * | Source | Trust | Reaches `content.html` |
+   * |---|---|---|
+   * | the flow's own content | ships with your app | yes |
+   * | the locale catalogue | a file in your repo, reviewed in a PR | yes |
+   * | a `{{token}}` value | **runtime, routinely a URL parameter** | **no** |
+   *
+   * "Interpolate then sanitise" is not good enough for the third row, for two
+   * reasons. **Attribute context:** in `<a href="/r?next={{to}}">` a value
+   * containing a quote closes the attribute *before* the sanitiser parses
+   * anything, so untrusted data shapes the parse tree and every gap in the
+   * allowlist becomes reachable from a URL — and `AUDIT.md` §SEC is a list of
+   * gaps that allowlist has already had. **And `sanitizeHTML` is opt-in**
+   * (ADR-009), so the exposed configuration would be the one a developer chose
+   * *believing it was the hardened one*. That is the worst possible shape.
+   *
+   * `title` and `body` are unconditional: both leave through the renderer's
+   * `_esc`, so a token value can only ever become visible characters.
+   * Interpolating after the renderer, or inside it, would put attacker-
+   * influenced text past that boundary — do not move this.
+   */
+  private async _resolveContent(step: Step<TContext>): Promise<StepContent> {
+    let content = typeof step.content === 'function' ? await step.content() : step.content
+
+    const override = this._options.i18n?.stepContent(step.id)
+    if (override) content = { ...content, ...override }
+
+    const values = this._machine?.context
+    if (!values) return content
+
+    // Rebuilt rather than mutated: `step.content` is the author's object and
+    // may be the same reference on every render, so writing to it would bake
+    // the first user's values into the flow definition permanently.
+    return {
+      ...content,
+      ...(content.title !== undefined && { title: interpolate(content.title, values) }),
+      ...(content.body !== undefined && { body: interpolate(content.body, values) }),
+    }
+  }
+
+  private async _resolveTarget(step: Step<TContext>): Promise<Element | null> {
+    // isBrowser() must stay first: the `instanceof Element` below is only safe
+    // because of it.
+    if (!isBrowser() || step.target == null) return null
+    if (typeof step.target === 'function') return await step.target(this._machine!.context)
+    if (step.target instanceof Element) return step.target
+    if (typeof step.target === 'string') return document.querySelector(step.target)
     return null
   }
+
+  /**
+   * Show that the engine is waiting, without unmounting anything.
+   *
+   * The spotlight goes down immediately: after a route change the previous
+   * target is usually detached, and `_update()` would read a zeroed rect off
+   * it. `hide()` also sets `pointer-events: none`, so **the page stays
+   * clickable during the wait** — a user waiting to reach /settings has to be
+   * able to click the nav link. A modal that blocks the navigation it is
+   * waiting for can never succeed.
+   */
+  private _enterWaiting(reason: TimeoutReason, step: Step): void {
+    if (this._waiting !== null) return
+    this._waiting = reason
+    this._spotlight.hide()
+    this._renderer.setWaiting?.(true, step)
+    this.emit('step:waiting', { stepId: step.id, reason })
+  }
+
+  private _exitWaiting(): void {
+    if (this._waiting === null) return
+    this._waiting = null
+    this._renderer.setWaiting?.(false)
+  }
+
+  private _attachNavigation(): void {
+    if (!isBrowser()) return
+    this._detachNavigation()
+    this._navOff = this._options.navigation?.attach?.(() => {
+      if (!this._active || this._paused || this._waiting !== null) return
+      // A route change that left the target mounted needs no work — and a
+      // rerender() would re-emit step:enter and double-count in analytics.
+      if (this._anchoredTo !== null && this._anchoredTo.isConnected) return
+      void this.rerender()
+    }) ?? null
+  }
+
+  private _detachNavigation(): void {
+    if (this._navOff) {
+      this._navOff()
+      this._navOff = null
+    }
+  }
+
 
   private _doEnd(completed: boolean): void {
     if (!this._active) return
@@ -418,8 +691,15 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     this._emitStepExit()
 
     this._spotlight.hide()
-    this._renderer.hideStep()
+    this._renderer.hideStep(completed ? 'complete' : undefined)
     this._detachKeyboard()
+    this._detachNavigation()
+    this._exitWaiting()
+    // Cancel any waiter still running. Without this an adapter waiting 15s for
+    // a route keeps a timer alive after the tour has ended.
+    this._renderAbort?.abort()
+    this._renderAbort = null
+    this._anchoredTo = null
 
     const flowId = this._flow?.id ?? 'unknown'
     if (completed) {

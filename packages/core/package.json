@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/core",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "GuideFlow core engine — framework-agnostic, zero dependencies",
   "keywords": [
     "guided-tour",
@@ -45,6 +45,66 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./navigation": {
+      "import": {
+        "types": "./dist/navigation/index.d.ts",
+        "default": "./dist/navigation/index.js"
+      },
+      "require": {
+        "types": "./dist/navigation/index.d.cts",
+        "default": "./dist/navigation/index.cjs"
+      }
+    },
+    "./targeting": {
+      "import": {
+        "types": "./dist/targeting/index.d.ts",
+        "default": "./dist/targeting/index.js"
+      },
+      "require": {
+        "types": "./dist/targeting/index.d.cts",
+        "default": "./dist/targeting/index.cjs"
+      }
+    },
+    "./versioning": {
+      "import": {
+        "types": "./dist/versioning.d.ts",
+        "default": "./dist/versioning.js"
+      },
+      "require": {
+        "types": "./dist/versioning.d.cts",
+        "default": "./dist/versioning.cjs"
+      }
+    },
+    "./selector": {
+      "import": {
+        "types": "./dist/selector.d.ts",
+        "default": "./dist/selector.js"
+      },
+      "require": {
+        "types": "./dist/selector.d.cts",
+        "default": "./dist/selector.cjs"
+      }
+    },
+    "./authoring": {
+      "import": {
+        "types": "./dist/authoring.d.ts",
+        "default": "./dist/authoring.js"
+      },
+      "require": {
+        "types": "./dist/authoring.d.cts",
+        "default": "./dist/authoring.cjs"
+      }
+    },
+    "./html": {
+      "import": {
+        "types": "./dist/html.d.ts",
+        "default": "./dist/html.js"
+      },
+      "require": {
+        "types": "./dist/html.d.cts",
+        "default": "./dist/html.cjs"
+      }
+    },
     "./global": {
       "default": "./dist/index.global.js"
     },
@@ -64,7 +124,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup && node ../../scripts/fsx.mjs cp src/styles dist/styles",
+    "build": "node ../../scripts/fsx.mjs rm dist && tsup && node ../../scripts/fsx.mjs cp src/styles dist/styles",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -86,7 +146,43 @@
     {
       "name": "core entry (tree-shaken)",
       "path": "./dist/index.js",
-      "limit": "14.5 kB",
+      "limit": "16 kB",
+      "gzip": true
+    },
+    {
+      "name": "html sanitiser subpath",
+      "path": "./dist/html.js",
+      "limit": "1 kB",
+      "gzip": true
+    },
+    {
+      "name": "navigation subpath",
+      "path": "./dist/navigation/index.js",
+      "limit": "2.5 kB",
+      "gzip": true
+    },
+    {
+      "name": "targeting subpath",
+      "path": "./dist/targeting/index.js",
+      "limit": "3 kB",
+      "gzip": true
+    },
+    {
+      "name": "versioning subpath",
+      "path": "./dist/versioning.js",
+      "limit": "500 B",
+      "gzip": true
+    },
+    {
+      "name": "selector subpath",
+      "path": "./dist/selector.js",
+      "limit": "2.5 kB",
+      "gzip": true
+    },
+    {
+      "name": "authoring subpath",
+      "path": "./dist/authoring.js",
+      "limit": "5.5 kB",
       "gzip": true
     }
   ],

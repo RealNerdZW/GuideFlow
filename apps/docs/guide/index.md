@@ -31,7 +31,7 @@ first-class rather than bolted on:
 | `@guideflow/svelte` | Svelte 4/5 `createTourStore` |
 | `@guideflow/ai` | `GuideBrain` plus Proxy / OpenAI / Anthropic / Ollama / Mock providers |
 | `@guideflow/analytics` | Event collection, 5 transports, A/B testing |
-| `@guideflow/cli` | `guideflow init / studio / export / push` |
+| `@guideflow/cli` | `guideflow init / export / validate` |
 | `@guideflow/devtools` | Manifest V3 browser extension — **not published**; load it unpacked from the repo |
 
 ## Design Principles

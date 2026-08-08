@@ -51,6 +51,46 @@ jobs:
       - name: Test
         run: pnpm turbo run test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
+  # ── Docs gate ──────────────────────────────────────────────────────────────
+  # Every task above passes `--filter=!docs`, and `docs.yml` only fires on push
+  # to master — so until this job existed the docs site was built for the FIRST
+  # time after merge, at deploy. Two breaks reached master that way and were
+  # found by hand during the 0.2.0 release:
+  #
+  #   1. A dead link (`./security`, a page that does not exist). VitePress fails
+  #      the build on it, at `renderStart` — which ABORTS BEFORE SSR and so
+  #      masked the second one entirely.
+  #   2. `{{user.name}}` in a markdown table. Vue compiles `{{ }}` in markdown
+  #      as a real expression, so it evaluated `user.name` against an undefined
+  #      `user` and died with "Cannot read properties of undefined".
+  #
+  # The scan below catches what a build CANNOT: a token like `{{plan}}` that
+  # does not crash and instead renders as an empty string. Five of those were
+  # live on the two pages documenting token syntax, including the security
+  # example, where `<a href="/r?next={{to}}">` rendered as `href="/r?next="` —
+  # erasing the exact thing the passage warns about.
+  docs:
+    name: Docs site builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The docs import the packages, so they must exist first.
+      - run: pnpm turbo run build --filter='@guideflow/core' --filter='@guideflow/react' --filter='@guideflow/ai' --filter='@guideflow/analytics'
+
+      - name: Guard against unescaped Vue interpolation
+        run: node scripts/check-docs-interpolation.mjs
+
+      - name: Build docs
+        run: pnpm docs:build
+
   # ── Coverage gate ──────────────────────────────────────────────────────────
   # Per-package thresholds are ratchets set just below what each suite achieves
   # today (see each vitest.config.ts), so a regression fails rather than
@@ -72,7 +112,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          for pkg in core react vue svelte ai analytics cli; do
+          for pkg in core react vue svelte ai analytics cli checklist devtools; do
             if [ -f "packages/$pkg/vitest.config.ts" ]; then
               echo "::group::coverage $pkg"
               pnpm exec vitest run --root "packages/$pkg" --coverage --coverage.reporter=text-summary --coverage.reporter=lcov
@@ -133,12 +173,20 @@ jobs:
   # spec imported an export that does not exist. All three are fixed; this job
   # keeps it that way.
   e2e:
-    name: E2E (${{ matrix.browser }})
+    name: E2E (${{ matrix.project }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        # `project` and `browser` are separate on purpose: the extension project
+        # runs in Chromium but is not named `chromium`, and
+        # `playwright install extension` is not a thing. Keying the cache on
+        # `browser` also lets the two Chromium jobs share one download.
+        include:
+          - { project: chromium, browser: chromium }
+          - { project: firefox, browser: firefox }
+          - { project: webkit, browser: webkit }
+          - { project: extension, browser: chromium }
 
     steps:
       - uses: actions/checkout@v5
@@ -172,6 +220,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ matrix.browser }}
 
       - name: Install Playwright browser
+        # `chromium` here installs BOTH the headless shell and the full
+        # Chromium build. The extension project needs the full one —
+        # `channel: 'chromium'` — because the headless shell cannot load an
+        # extension at all, and fails by loading nothing rather than by erroring.
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
 
       - name: Save Playwright browsers
@@ -188,15 +240,57 @@ jobs:
         # No `--` before the flag: pnpm 8 forwards the separator itself, so
         # `test:e2e -- --project=x` reached Playwright as `test "--" "--project=x"`,
         # where `--` was read as a test-file regex — "No tests found", every run.
-        run: pnpm --filter e2e test:e2e --project=${{ matrix.browser }}
+        run: pnpm --filter e2e test:e2e --project=${{ matrix.project }}
 
       - name: Upload report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ matrix.browser }}
+          name: playwright-report-${{ matrix.project }}
           path: apps/e2e/playwright-report/
           retention-days: 7
+
+  # ── The extension, as a downloadable artifact ──────────────────────────────
+  # Until this existed the only way to obtain the extension was to clone the
+  # repo and build it, which is not a path a non-engineer completes.
+  extension-zip:
+    name: Package extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `turbo run`, not `pnpm --filter`. The extension imports
+      # `@guideflow/core/selector` (7.9a: there is exactly one selector builder),
+      # so building it in isolation leaves those imports unresolvable — and Vite
+      # does not error on that. It silently drops the three HTML entries and
+      # emits only the plain-TS ones, which is why the failure surfaces as
+      # "Expected Vite to emit src/panel/index.html" from the copy-static plugin
+      # rather than as a resolve error. Measured: 46 modules transformed with
+      # core's dist present, 8 without.
+      #
+      # This job never ran green — it was added alongside the extension in 7.9b
+      # and its first Linux run was the 0.2.0 release PR. It passed locally
+      # throughout because a developer's `packages/core/dist` already exists.
+      # `E2E (extension)` did NOT catch it: that job builds core first, and its
+      # `webServer.command` builds core and devtools together.
+      #
+      # devtools declares `@guideflow/core: workspace:*`, so `^build` orders
+      # this correctly instead of hardcoding the dependency here.
+      - run: pnpm turbo run build --filter=@guideflow/devtools
+      - run: pnpm --filter @guideflow/devtools package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guideflow-devtools-extension
+          path: guideflow-devtools-*.zip
+          retention-days: 30
 
   # ── Dependency audit ───────────────────────────────────────────────────────
   # Split deliberately. The blocking check covers only what a consumer actually

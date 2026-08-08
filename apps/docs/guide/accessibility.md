@@ -147,13 +147,54 @@ has to say what the user is looking at.
 **Write step text that stands on its own.** "Click here" is meaningless to someone who cannot see
 where "here" is. Name the control.
 
-**Test `clickThrough` steps by keyboard.** If a step asks the user to interact with the page, make
-sure the thing they are meant to interact with is reachable by `Tab` from where focus is.
+**`clickThrough` steps are keyboard-reachable.** The focus trap widens to include the highlighted
+element, so `Tab` reaches it and `Shift`+`Tab` returns — the same hole the `clip-path` cuts for the
+mouse, cut in the tab order — and `aria-modal` is dropped, because on those steps the page provably
+is not inert. The widening is exactly one element: everything else stays trapped.
+
+Still worth testing by keyboard, for one reason the library cannot fix for you. `Enter` on a native
+`<button>` or `<a href>` synthesises a click; a `<div role="button" tabindex="0">` with an
+`onKeyDown` handler does not, so an `advanceOn` click rule will not notice it. Give those steps an
+app-dispatched `CustomEvent` instead — see [Advancing on interaction](./advance-on).
 
 **The overlay is not `inert`.** Background content stays focusable and in the accessibility tree.
-This is a deliberate trade: making it inert would break `clickThrough` entirely. If your tour never
+This is a deliberate trade: making it inert would break `clickThrough` entirely. The focus trap is
+what keeps `Tab` out of it — belt to that brace. If your tour never
 uses `clickThrough` and you want stricter isolation, apply `inert` to your app root yourself while
 a tour is running.
+
+## The checklist widget
+
+`@guideflow/checklist` ships a docked UI, and a shipped surface absent from this page is an
+undocumented accessibility claim. What it does:
+
+- **A disclosure, not a dialog.** No `role="dialog"`, no `aria-modal`, and **no focus trap** — a
+  persistent docked surface that swallowed `Tab` would be a keyboard trap under WCAG 2.1.2, and a
+  second capture-phase trap competing with the renderer's would deadlock the keyboard outright. An
+  e2e spec asserts focus can leave the widget in both directions.
+- **Hidden and `inert` during a tour.** `visibility: hidden` removes the subtree from the tab
+  order *and* the accessibility tree; `inert` is set alongside it, because on a browser without
+  `inert` focus would otherwise land on an invisible widget. Its z-index sits below
+  `--gf-z-overlay`, so the overlay dims and covers it.
+- **Its own polite live region**, outside the panel, announcing the aggregate only — "Invite your
+  team, complete. 3 of 5 complete." — never per-item chatter. Announcements are held while a tour
+  is up and flushed afterwards, so the two regions never talk over each other.
+- **Blocked rows are `aria-disabled="true"`, never `disabled`**, so they stay focusable and can
+  describe which item unblocks them — by title, not by internal id.
+- **Progress is a count, not a percentage**: `role="progressbar"` with `aria-valuetext` reading
+  "3 of 5 complete".
+- **Done is a glyph plus visually-hidden text**, never colour alone.
+- `prefers-reduced-motion` and `forced-colors` blocks ship inside the widget's own stylesheet, so
+  they apply even to consumers who never import `@guideflow/core/styles`. Every de-emphasis is an
+  opacity, which is not a colour and therefore survives a forced palette — each one is reset to
+  `1` explicitly. `forced-color-adjust: none` is deliberately **not** used.
+- **RTL is the browser's job.** `inset-inline-end` plus flexbox; zero `[dir="rtl"]` rules and zero
+  JS mirroring.
+- Touch targets: launcher ≥ 44 × 44, rows ≥ 44 px tall, every control ≥ 24 × 24.
+
+What is **not** verified: `forced-colors: active` is not emulable in Playwright, so that block is
+reviewed rather than tested — and the warning at the top of this page applies here too. No manual
+screen-reader pass has been run on the checklist either.
 
 ## Custom renderers
 

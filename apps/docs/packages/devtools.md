@@ -25,18 +25,60 @@ The DevTools extension is currently in development and not yet published to brow
 - Content script injects into inspected pages
 - Background service worker manages state
 
-## Development
+## Letting it see your app
+
+The panel finds a page through the `window.__guideflow` global, and **the library does not set it
+unless you ask**:
+
+```ts
+const gf = createGuideFlow({
+  exposeGlobal: import.meta.env.DEV,   // or process.env.NODE_ENV !== 'production'
+})
+```
+
+It is opt-in rather than automatic because the global hands *any* script on the page a driveable
+tour instance — an analytics tag, a chat widget or an ad script could start, skip or end a tour and
+read `gf.progress`. Gate it on a development build and the panel works while you are building,
+without shipping the handle to production.
+
+`destroy()` clears the global again, and only if it still points at that instance — so two opted-in
+instances on one page cannot have the second's teardown unregister the first.
+
+Without it the panel says plainly that the page is not running GuideFlow. That message is almost
+always this setting, not a bug.
+
+## Installing
+
+::: warning Not on the Chrome Web Store yet
+There is no store listing. Publishing one needs a Google developer account, a US$5 fee, a
+privacy policy and a manual review — none of which is a code change. The listing copy,
+the privacy policy and a step-by-step runbook are written and waiting in
+[`packages/devtools/store/`](https://github.com/RealNerdZW/GuideFlow/tree/master/packages/devtools/store).
+
+Until then, install it from a release zip or build it yourself.
+:::
+
+### From a release zip
+
+Download `guideflow-devtools-<version>.zip` from the
+[CI artifacts](https://github.com/RealNerdZW/GuideFlow/actions), unzip it, then load the
+unzipped folder as below.
+
+### From source
 
 ```bash
-# Build the extension
 pnpm --filter @guideflow/devtools build
-
-# Load in Chrome
-# 1. Navigate to chrome://extensions
-# 2. Enable "Developer mode"
-# 3. Click "Load unpacked"
-# 4. Select packages/devtools/dist
 ```
+
+Then in Chrome:
+
+1. Navigate to `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select `packages/devtools/dist`
+
+The extension makes **no network calls of any kind** — a test fails the build if one
+appears — and stores everything in your own browser profile.
 
 ## Links
 

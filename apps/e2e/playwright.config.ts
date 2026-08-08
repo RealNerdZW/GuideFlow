@@ -10,8 +10,17 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env['E2E_PORT'] ?? 4173);
 const BASE = `http://127.0.0.1:${PORT}/apps/e2e/fixtures/`;
 
+/**
+ * The extension specs live in their own directory and their own project.
+ *
+ * They are Chromium-only — `--load-extension` exists nowhere else — and they
+ * build their own browser context, so nothing in `use` applies to them. The
+ * four browser projects therefore match `./tests` only, and the extension
+ * project matches `./tests-extension` only, so neither can silently pick up
+ * the other's specs.
+ */
 export default defineConfig({
-  testDir: './tests',
+  testDir: '.',
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
@@ -30,16 +39,39 @@ export default defineConfig({
   },
 
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
-    { name: 'Mobile Chrome', use: { ...devices['Pixel 5'] } },
+    { name: 'chromium', testDir: './tests', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', testDir: './tests', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', testDir: './tests', use: { ...devices['Desktop Safari'] } },
+    { name: 'Mobile Chrome', testDir: './tests', use: { ...devices['Pixel 5'] } },
+    {
+      // No `use.browserName` and no device: the context fixture calls
+      // chromium.launchPersistentContext itself, so project launch options are
+      // bypassed entirely. `baseURL` is threaded through by hand inside the
+      // fixture — this is the extension-project version of the goto('/') trap.
+      name: 'extension',
+      testDir: './tests-extension',
+      // NOT parallel. Every test here launches its own full Chromium with a
+      // fresh profile and an unpacked extension, which is far heavier than a
+      // browser context. Running nine at once exhausted the machine and
+      // produced "Tearing down context exceeded the test timeout" on all of
+      // them — a resource failure that reads exactly like nine product bugs.
+      fullyParallel: false,
+      // And a longer budget, because profile creation plus extension load is
+      // seconds before the first assertion runs.
+      timeout: 60_000,
+    },
   ],
 
   webServer: {
-    // Build core first: the fixture loads dist/index.global.js and dist/styles,
-    // so without this a stale bundle would silently be under test.
-    command: 'pnpm --filter @guideflow/core build && node serve.mjs',
+    // Build core and the docked-surface packages first: the fixture loads
+    // dist/index.global.js, dist/styles, packages/checklist/dist,
+    // packages/banner/dist and packages/survey/dist, so without this a stale bundle — or an absent one —
+    // would silently be under test.
+    // The extension's dist/ is the artefact under test, so it is built here
+    // for the same reason core is: otherwise a stale — or absent — bundle is
+    // silently what the suite exercises.
+    command:
+      'pnpm --filter @guideflow/core --filter @guideflow/checklist --filter @guideflow/banner --filter @guideflow/survey --filter @guideflow/devtools build && node serve.mjs',
     url: BASE,
     reuseExistingServer: !process.env['CI'],
     timeout: 120 * 1000,

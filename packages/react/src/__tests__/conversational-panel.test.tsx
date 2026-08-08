@@ -182,6 +182,60 @@ describe('ConversationalPanel', () => {
     expect(error).not.toHaveBeenCalled()
   })
 
+  it('ignores a second question typed into the disabled field while thinking', async () => {
+    const pending = deferred<Answer>()
+    const chat = vi.fn(() => pending.promise)
+    attachAi(chat)
+    mount()
+
+    await ask('first question')
+    expect(chat).toHaveBeenCalledTimes(1)
+
+    // `disabled` is the browser's guard; the `loading` guard in handleSubmit is
+    // ours, and it is what stops a scripted or autofilled submit queueing a
+    // second request whose answer would land out of order.
+    await ask('second question')
+
+    expect(chat).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('second question')).toBeNull()
+
+    await act(async () => {
+      pending.resolve({ text: 'ANSWER' })
+      await Promise.resolve()
+    })
+    expect(screen.getByText('ANSWER')).toBeTruthy()
+  })
+
+  it('discards a failed request that lands after the panel is gone', async () => {
+    const pending = deferred<Answer>()
+    attachAi(() => pending.promise)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const view = mount()
+
+    await ask('slow question')
+    view.unmount()
+
+    await act(async () => {
+      pending.reject(new Error('provider exploded'))
+      await Promise.resolve()
+    })
+
+    // The rejection arrives on an unmounted panel: nothing to log, nothing to
+    // render, and no setState on a dead component.
+    expect(error).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain('Something went wrong')
+  })
+
+  it('appends the className to the panel', () => {
+    render(
+      <TourProvider instance={gf}>
+        <ConversationalPanel open className="tenant-theme" />
+      </TourProvider>,
+    )
+
+    expect(screen.getByRole('dialog').className).toBe('gf-chat-panel tenant-theme')
+  })
+
   it('ignores an empty question', async () => {
     const chat = vi.fn(() => Promise.resolve({ text: 'nope' }))
     attachAi(chat)

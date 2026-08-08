@@ -88,7 +88,7 @@ new AnthropicProvider(options?: AnthropicProviderOptions)
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `apiKey` | `string` | `process.env.ANTHROPIC_API_KEY` | Your Anthropic API key. Server-side only. |
-| `model` | `string` | `"claude-3-haiku-20240307"` | Model identifier. |
+| `model` | `string` | `"claude-haiku-4-5"` | Model identifier. Ids retire — pin one you control if that matters to you. |
 | `maxTokens` | `number` | `2048` | Maximum tokens per response. |
 
 ```ts

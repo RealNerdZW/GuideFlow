@@ -16,6 +16,8 @@ Start at [`../CLAUDE.md`](../CLAUDE.md) for the operating manual, then come here
 | [`TESTING-STRATEGY.md`](docs/TESTING-STRATEGY.md) | Current coverage reality, the e2e harness rebuild, and the test pyramid target. | Adding tests, or fixing the Playwright suite. |
 | [`SECURITY-MODEL.md`](docs/SECURITY-MODEL.md) | Trust boundaries, threat model, and the rules for the sanitizer, the extension bridge and AI key handling. | Touching the renderer, the extension, or `@guideflow/ai`. |
 | [`PRODUCT-ROADMAP.md`](docs/PRODUCT-ROADMAP.md) | Competitive gap analysis and the feature sequence to a credible 1.0. | Deciding what to build next. |
+| [`EXPANSION-PLAN.md`](docs/EXPANSION-PLAN.md) | **Phase 8.** Grades the competitor teardown into shipped / adopt / reframe / different-product, and sequences the part that transfers. | Before acting on anything in `COMPETITOR-TEARDOWN.md`. |
+| [`COMPETITOR-TEARDOWN.md`](docs/COMPETITOR-TEARDOWN.md) | Teardown of **guideflow.com** — a *different product* that shares this project's name. Source material, not a plan. Truncated at §11.7. | Understanding what the adjacent category sells. Read `EXPANSION-PLAN.md` first. |
 | [`MCP-AND-SKILLS.md`](docs/MCP-AND-SKILLS.md) | Recommended MCP servers and skills for this project, with rationale and setup. | Setting up the workspace, or wondering "is there a tool for this?". |
 | [`DECISIONS.md`](docs/DECISIONS.md) | Architecture decision log. Append-only. | Making or reversing a structural choice. |
 

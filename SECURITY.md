@@ -48,11 +48,31 @@ puts a few responsibilities on the integrator.
 
 | Input | Why |
 |---|---|
-| Flow definitions fetched from a server or CMS | they reach `content.html` and `step.actions` |
-| Flows produced by the devtools recorder or `guideflow push` | same path, plus selectors |
+| `.flow.json` documents fetched over the network — a CDN, a static host, your CMS | they reach `content.html` and `step.actions` |
+| Flows produced by the devtools recorder | same path, plus selectors |
 | LLM responses via `@guideflow/ai` | model output becomes selectors and displayed text |
 | Values already in `localStorage` / IndexedDB | another script, or the user, can edit them |
 | `data-gf-*` attributes in the page (`autoInit`) | if any part of your page is user-generated |
+
+### Fetched flows: validate before you render
+
+Serving flows as static files is a
+[supported and documented](https://realnerdzw.github.io/GuideFlow/guide/hosting-flows) way to change
+a tour without a deploy. The recipe is `fetch` → `parseFlowFile` → `gf.createFlow()`, and
+**`parseFlowFile` is what enforces the boundary** — pass the fetched text through it and hand
+`createFlow()` nothing that did not come back `valid`:
+
+```ts
+import { parseFlowFile } from '@guideflow/core/authoring'
+
+const parsed = parseFlowFile(await (await fetch(url)).text())
+if (!parsed.valid || !parsed.flow) return   // log parsed.errors; run without the tour
+gf.createFlow(parsed.flow)
+```
+
+It never throws and never repairs a document — it rejects it. Note that this is a *structural* gate:
+it stops shapes the engine mishandles, not hostile content. A structurally valid flow can still
+carry hostile `content.html`, so the rules below still apply to anything you fetched.
 
 ### `content.html`
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 
 import { SpotlightOverlay } from '../engine/spotlight.js'
 
@@ -39,5 +39,189 @@ describe('SpotlightOverlay', () => {
   it('destroy cleans up', () => {
     spotlight = new SpotlightOverlay()
     expect(() => spotlight.destroy()).not.toThrow()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Target-only interaction.
+//
+// ADR-004 recorded this as a known limitation: the overlay is a single
+// full-viewport div, so `clickThrough: true` dropped pointer capture entirely
+// and made the WHOLE PAGE interactive. "Let the user actually click the button
+// I am pointing at" — the one thing the option is named for — was therefore
+// unimplementable (AUDIT `clickthrough-exposes-whole-page`).
+//
+// happy-dom has no layout engine and does not hit-test clip-path, so these
+// assert the *geometry* the browser then acts on. `apps/e2e` asserts that the
+// click actually lands.
+// ---------------------------------------------------------------------------
+
+describe('clickThrough carves a hole rather than removing the overlay', () => {
+  let spotlight: SpotlightOverlay
+
+  function overlay(): HTMLElement {
+    const el = document.querySelector<HTMLElement>('[data-gf-overlay]')
+    if (!el) throw new Error('no overlay')
+    return el
+  }
+
+  function makeTarget(): Element {
+    const el = document.createElement('div')
+    el.id = 'ct-target'
+    el.getBoundingClientRect = () =>
+      ({ top: 100, left: 200, width: 300, height: 50, right: 500, bottom: 150, x: 200, y: 100 }) as DOMRect
+    document.body.appendChild(el)
+    return el
+  }
+
+  beforeEach(() => {
+    spotlight = new SpotlightOverlay({ padding: 10 })
+  })
+
+  afterEach(() => {
+    spotlight.destroy()
+    document.body.innerHTML = ''
+  })
+
+  it('keeps capturing pointer events when clickThrough is on', () => {
+    // The old behaviour set pointer-events: none, which is what made the whole
+    // page interactive. Capture has to stay on for the clip-path to mean
+    // anything.
+    spotlight.show(makeTarget())
+    spotlight.setClickThrough(true)
+
+    expect(overlay().style.pointerEvents).toBe('all')
+  })
+
+  it('clips the target rect out of the overlay', () => {
+    spotlight.show(makeTarget())
+    spotlight.setClickThrough(true)
+
+    const clip = overlay().style.clipPath
+    expect(clip).toContain('evenodd')
+    // Target rect grown by the 10px padding, matching the cutout exactly.
+    expect(clip).toContain('190px 90px')
+    expect(clip).toContain('510px 160px')
+  })
+
+  it('matches the cutout it is meant to line up with', () => {
+    spotlight.show(makeTarget())
+    spotlight.setClickThrough(true)
+
+    const cutout = document.querySelector<HTMLElement>('[data-gf-spotlight-cutout]')!
+    expect(cutout.style.left).toBe('190px')
+    expect(cutout.style.top).toBe('90px')
+    expect(cutout.style.width).toBe('320px')
+    expect(cutout.style.height).toBe('70px')
+  })
+
+  it('leaves the overlay solid when clickThrough is off', () => {
+    spotlight.show(makeTarget())
+    spotlight.setClickThrough(false)
+
+    expect(overlay().style.clipPath).toBe('none')
+  })
+
+  it('defaults to no hole', () => {
+    spotlight.show(makeTarget())
+    expect(overlay().style.clipPath).toBe('none')
+  })
+
+  it('has no hole in modal mode, where there is no target', () => {
+    spotlight.show(null)
+    spotlight.setClickThrough(true)
+
+    expect(overlay().style.clipPath).toBe('none')
+  })
+
+  it('moves the hole when the target moves', () => {
+    const target = makeTarget()
+    spotlight.show(target)
+    spotlight.setClickThrough(true)
+    expect(overlay().style.clipPath).toContain('190px 90px')
+
+    target.getBoundingClientRect = () =>
+      ({ top: 400, left: 0, width: 100, height: 20, right: 100, bottom: 420, x: 0, y: 400 }) as DOMRect
+    window.dispatchEvent(new Event('scroll'))
+
+    expect(overlay().style.clipPath).toContain('-10px 390px')
+  })
+
+  it('closes the hole again when clickThrough is turned off mid-tour', () => {
+    // Step-to-step: one step opts in, the next does not.
+    spotlight.show(makeTarget())
+    spotlight.setClickThrough(true)
+    expect(overlay().style.clipPath).toContain('evenodd')
+
+    spotlight.setClickThrough(false)
+    expect(overlay().style.clipPath).toBe('none')
+  })
+
+  it('still suppresses backdrop dismissal on a clickThrough step', () => {
+    // A step that asks the user to interact should not vanish because they
+    // clicked somewhere else on the way.
+    const dismissed = vi.fn()
+    spotlight.setOverlayClickHandler(dismissed)
+    spotlight.show(makeTarget())
+    spotlight.setClickThrough(true)
+
+    overlay().dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    expect(dismissed).not.toHaveBeenCalled()
+  })
+
+  it('still dismisses on a backdrop click when clickThrough is off', () => {
+    const dismissed = vi.fn()
+    spotlight.setOverlayClickHandler(dismissed)
+    spotlight.show(makeTarget())
+
+    overlay().dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    expect(dismissed).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a detached target does not black out the page', () => {
+  let spotlight: SpotlightOverlay
+
+  afterEach(() => {
+    spotlight.destroy()
+    document.body.innerHTML = ''
+  })
+
+  it('falls back to modal mode when the target leaves the DOM', () => {
+    // `_update()` branched on `!this._currentTarget`, but a target removed
+    // mid-step is still a non-null Element — it just returns a zero rect. The
+    // cutout collapsed to 0x0 while keeping `box-shadow: 0 0 0 9999px`, which
+    // paints a fully black, click-blocking screen
+    // (AUDIT `detached-target-paints-black-screen`). A route change, a list
+    // re-render or a closing modal all do this.
+    const target = document.createElement('div')
+    target.getBoundingClientRect = () =>
+      ({ top: 10, left: 10, width: 100, height: 20, right: 110, bottom: 30, x: 10, y: 10 }) as DOMRect
+    document.body.appendChild(target)
+
+    spotlight = new SpotlightOverlay()
+    spotlight.show(target)
+
+    const cutout = document.querySelector<HTMLElement>('[data-gf-spotlight-cutout]')!
+    expect(cutout.style.width).toBe('116px')
+
+    target.remove()
+    window.dispatchEvent(new Event('scroll'))
+
+    // Modal mode: no cutout box and, critically, no 9999px shadow around a
+    // zero-sized element.
+    expect(cutout.style.boxShadow).toBe('none')
+    // happy-dom normalises '0' to '0px'; either is a zero-sized cutout.
+    expect(parseFloat(cutout.style.width)).toBe(0)
+  })
+
+  it('still treats a deliberate null target as modal mode', () => {
+    spotlight = new SpotlightOverlay()
+    spotlight.show(null)
+
+    const cutout = document.querySelector<HTMLElement>('[data-gf-spotlight-cutout]')!
+    expect(cutout.style.boxShadow).toBe('none')
   })
 })

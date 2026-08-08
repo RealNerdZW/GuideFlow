@@ -13,7 +13,13 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
-      "passThroughEnv": ["CI"]
+      // TEMP/TMP/TMPDIR as well as CI: turbo filters the environment, and on
+      // Windows `os.tmpdir()` reads TEMP then TMP before falling back. With
+      // neither passed through it returns the string "undefined\temp", so
+      // `mkdtempSync(join(tmpdir(), …))` fails with ENOENT — inside turbo only,
+      // which makes it look like a flaky test rather than a config gap.
+      // @guideflow/mcp's sandbox tests are the first here to need a temp dir.
+      "passThroughEnv": ["CI", "TEMP", "TMP", "TMPDIR"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
@@ -26,11 +32,21 @@
       // cold-cache lint races the builds it depends on and fails in whichever
       // package happens to be scheduled first — intermittently, which is worse
       // than failing every time. Found by the Phase 4 docs verification.
-      "dependsOn": ["^build"],
+      //
+      // `build` (own package) as well as `^build` (dependencies), because a
+      // package can resolve its OWN types by package name: packages/core's
+      // fixture-guard test imports apps/e2e/fixtures/flows.d.ts, which imports
+      // `@guideflow/core` — resolved through package.json `types` to
+      // `dist/index.d.ts`. Core has no workspace dependencies, so `^build` is
+      // empty for it, and its lint raced its own `fsx rm dist`. That surfaced
+      // as `no-unsafe-member-access` on an "error typed value" in whichever
+      // file happened to be reading dist when it vanished.
+      "dependsOn": ["^build", "build"],
       "outputs": []
     },
     "type-check": {
-      "dependsOn": ["^build"],
+      // Same race, same reason — tsc resolves the identical self-reference.
+      "dependsOn": ["^build", "build"],
       "outputs": []
     },
     "size": {

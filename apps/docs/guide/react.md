@@ -104,7 +104,9 @@ export const welcomeFlow: FlowDefinition = {
 };
 ```
 
-A flow with no `final: true` state never emits `tour:complete`.
+A flow with no `final: true` state still emits `tour:complete` — a tour ends when there is nothing
+left to render. Mark the last state `final: true` anyway: it is what stops the walk that computes
+`totalSteps`, and [`guideflow validate`](/guide/authoring#validating-a-flow) warns when it is missing.
 
 ## Hooks
 

@@ -38,8 +38,10 @@ features:
     title: A/B Testing Built-in
     details: Deterministic variant assignment with zero server round-trips. Plug into PostHog, Mixpanel, Amplitude, and more.
   - icon: ♿
-    title: Accessible by Default
-    details: ARIA roles, keyboard navigation, focus management, high-contrast mode, and RTL support out of the box.
+    title: Accessibility, Tested Not Assumed
+    details: ARIA roles, focus trap and restore, keyboard navigation, high-contrast and RTL — asserted in Chromium, Firefox and WebKit, with axe clean on an open popover. No manual screen-reader pass has been run yet, and we say so rather than implying otherwise.
+    link: /guide/accessibility
+    linkText: What is and is not verified
   - icon: 🧩
     title: DevTools Extension
     details: Visual tour builder, flow inspector, and AI-assist — all from a browser extension panel (Manifest V3).

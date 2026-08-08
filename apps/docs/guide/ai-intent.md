@@ -1,17 +1,17 @@
 ---
-description: GuideFlow intent detection buffers user events and asks your AI provider to classify them, emitting an intent signal you wire to your own tours.
-keywords: GuideFlow intent detection, behavioural onboarding, user behaviour monitoring, IntentSignal
+description: GuideFlow intent detection buffers user events, asks your AI provider to classify them, and can start a tour automatically when a signal matches a trigger you configure.
+keywords: GuideFlow intent detection, behavioural onboarding, user behaviour monitoring, IntentSignal, intent triggers
 ---
 
 # Intent Detection
 
-`GuideBrain` can buffer user interactions and ask your AI provider to classify what the user is
-doing. It emits an `intent:detected` signal with the result.
+`GuideBrain` buffers user interactions and asks your AI provider to classify what the user is doing.
+It emits an `intent:detected` signal with the result, and — if you configure `intentTriggers` — can
+start a tour in response.
 
-::: warning The signal is not wired to anything
-GuideFlow does **not** start, branch, or suppress a tour in response to an intent signal. There is no
-auto-triggering. `intent:detected` is an event you subscribe to, and every reaction to it is code you
-write. Treat this page as documenting a classifier, not an automation.
+::: tip Opt-in by default
+Nothing auto-starts a tour unless you pass `intentTriggers`. Without them, `intent:detected` is an
+event you subscribe to and every reaction is code you write.
 :::
 
 ## Setup
@@ -31,6 +31,60 @@ const gf = createAI(
 Use `ProxyProvider` — see [Running AI through your own server](./ai-proxy). Intent detection issues a
 provider call every time the user goes quiet, so this is the feature most likely to run up a bill on
 a leaked browser key.
+
+## Auto-starting a tour
+
+```ts
+const gf = createAI(
+  new ProxyProvider({ endpoint: '/api/guideflow-ai' }),
+  createGuideFlow(),
+  {
+    autoWatch: true,
+    intentTriggers: [
+      { type: 'stuck', minConfidence: 0.8, flow: checkoutHelpFlow },
+      { type: 'confused', minConfidence: 0.7, flow: generalHelpFlow },
+    ],
+  },
+)
+```
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `type` | `'confused' \| 'stuck' \| 'exploring' \| 'engaged'` | — | Which signal fires this rule |
+| `minConfidence` | `number` | `0.7` | Floor on the model's self-reported confidence |
+| `flow` | `FlowDefinition` | — | The tour to start |
+| `once` | `boolean` | `true` | Fire at most once per instance |
+
+Triggers are evaluated in order and **the first match wins**, so put the specific ones first.
+
+Three behaviours are deliberate and not configurable:
+
+- **A tour already on screen is never interrupted.** Replacing a tour mid-step is worse than not
+  helping.
+- **`minConfidence` defaults to 0.7, not 0.** A failed provider call falls back to
+  `{ type: 'exploring', confidence: 0 }`, so a rule on `exploring` with no floor would fire on every
+  error.
+- **`once` defaults to true.** A tour that reopens every time the user looks confused *at the tour*
+  is a loop, not a feature.
+
+## Cost control
+
+Every automatic detection is a provider round trip. The defaults cap that:
+
+| Option | Default | What it does |
+|---|---|---|
+| `minEventsBeforeDetect` | `5` | Skip the call until this many *new* events have accumulated |
+| `detectCooldownMs` | `30_000` | Minimum gap between two automatic calls |
+| `maxDetectsPerSession` | `20` | Hard ceiling for the life of the instance |
+| `intentDebounceMs` | `2000` | Inactivity before a detection is considered |
+
+Read what has actually been spent:
+
+```ts
+gf.ai.stats // { autoDetects, bufferedEvents, analysedEvents }
+```
+
+An explicit `gf.ai.detectIntent()` is never capped — that call is yours.
 
 ## Start Watching
 

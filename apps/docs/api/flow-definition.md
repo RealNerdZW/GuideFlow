@@ -47,6 +47,8 @@ interface TransitionConfig<TContext> {
 | `initial` | `string` | Yes | Name of the starting state |
 | `context` | `TContext` | No | Initial context data |
 | `states` | `Record<string, FlowState>` | Yes | Map of state names to state definitions |
+| `version` | `string \| number` | No | Revision marker for the flow's *structure*. A snapshot written under a different value is discarded on resume — see [Persistence](/guide/persistence#versioning-a-flow) |
+| `targeting` | `FlowTargeting` | No | Who sees this flow, where, and how often. **Inert** without [`@guideflow/core/targeting`](/guide/targeting) |
 
 ### FlowState Fields
 
@@ -57,6 +59,7 @@ interface TransitionConfig<TContext> {
 | `onEntry` | `(ctx) => void` | No | Called when entering this state |
 | `onExit` | `(ctx) => void` | No | Called when leaving this state |
 | `final` | `boolean` | No | If `true`, the tour ends after this state's steps |
+| `route` | `string \| RegExp \| ((url) => boolean)` | No | The route this state's steps live on. **Inert** without [`@guideflow/core/navigation`](/guide/routing) |
 
 ## Example
 

@@ -60,9 +60,14 @@ cat packages/core/dist/index.d.ts
 - The packages table calls devtools "coming soon" while `packages/devtools` is built and shipped in
   the repo.
 - `@guideflow/vue` and `@guideflow/svelte` descriptions and keywords say "components". Verify.
-- README CLI table describes `guideflow studio` as "Launch the visual tour editor". Verify what
-  `commands/studio.ts` actually serves and whether those files exist.
-- `guideflow push` documents a `GUIDEFLOW_API_KEY` env var while `--api-key` is a `requiredOption`.
+- `guideflow studio` was deleted in Phase 7.9 and `guideflow push` in Phase 7.10. Any surviving
+  mention of either in a README, a docs page or a package manifest is stale — the CLI is
+  `init` / `export` / `validate`, and there is no publish path, no endpoint and no API key.
+- Shipping a flow is a static-asset job (`apps/docs/guide/hosting-flows.md`). Any doc implying a
+  hosted service, an account, a `loadFlows()` helper or a server package is describing something
+  that does not exist.
+- `@guideflow/core/selector` and `@guideflow/core/authoring` are the only implementations of selector
+  building and flow validation. Any doc describing a second one is stale.
 - Bundle-size and "zero dependencies" claims — check against `size-limit` output and the manifests.
 - Live demo / documentation URLs in the README — do the workflows actually publish to those paths?
 - Author identity. Fixed in Phase 4.3: source headers, `LICENSE` and the manifests now all agree with

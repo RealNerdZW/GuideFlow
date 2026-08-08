@@ -66,6 +66,10 @@ describe('TourEngine', () => {
       // simpleFlow's three single-step states reported "1 of 1" and the
       // renderer therefore drew a Done button on step one.
       3,
+      // The chapter label — the fifth argument since 8.9. `undefined` here
+      // because these states carry no `label`, and asserting it explicitly is
+      // what stops the arity drifting back unnoticed.
+      undefined,
     )
   })
 
@@ -427,6 +431,78 @@ describe('TourEngine', () => {
       expect.objectContaining({ title: 'Async Title' }),
       0,
       1,
+      undefined,
     )
+  })
+})
+
+describe('stale render cancellation', () => {
+  let engine: TourEngine
+  let renderer: RendererContract
+
+  afterEach(() => {
+    engine?.destroy()
+  })
+
+  it('cancels the older render when two navigations race', async () => {
+    // _renderGeneration used to be bumped only by rerender/start/pause/resume/
+    // _doEnd — never by next/prev/goTo/send. Two next() calls inside the 150 ms
+    // settle therefore captured the SAME generation, both passed every check,
+    // and whichever finished last won — which is not necessarily the newer one
+    // (AUDIT `generation-not-bumped-on-navigation`).
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    await engine.start(simpleFlow)
+
+    const before = (renderer.renderStep as ReturnType<typeof vi.fn>).mock.calls.length
+
+    // Fire two without awaiting the first, the way a double-click does.
+    const first = engine.next()
+    const second = engine.next()
+    await Promise.all([first, second])
+
+    const calls = (renderer.renderStep as ReturnType<typeof vi.fn>).mock.calls.slice(before)
+    // The last render must be the one the machine actually landed on.
+    const last = calls.at(-1)
+    expect((last?.[0] as { id: string } | undefined)?.id).toBe(engine.currentStepId)
+  })
+
+  it('bumps the generation on every navigation entry point', async () => {
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    await engine.start(simpleFlow)
+
+    const read = (): number =>
+      (engine as unknown as { _renderGeneration: number })._renderGeneration
+
+    const afterStart = read()
+    await engine.next()
+    expect(read()).toBeGreaterThan(afterStart)
+
+    const afterNext = read()
+    await engine.prev()
+    expect(read()).toBeGreaterThan(afterNext)
+
+    const afterPrev = read()
+    await engine.goTo('step-2')
+    expect(read()).toBeGreaterThan(afterPrev)
+
+    const afterGoTo = read()
+    await engine.send('NEXT')
+    expect(read()).toBeGreaterThan(afterGoTo)
+  })
+
+  it('does not bump when a navigation is a no-op', async () => {
+    // prev() at index 0 returns early, and a bump there would cancel a render
+    // that is legitimately still in flight.
+    renderer = createMockRenderer()
+    engine = new TourEngine({ renderer })
+    await engine.start(simpleFlow)
+
+    const before = (engine as unknown as { _renderGeneration: number })._renderGeneration
+    await engine.prev()
+    await engine.goTo('no-such-step')
+
+    expect((engine as unknown as { _renderGeneration: number })._renderGeneration).toBe(before)
   })
 })

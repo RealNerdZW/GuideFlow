@@ -16,10 +16,11 @@
 // removes the `.skip` from each one.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi, type MockInstance } from 'vitest'
 
 import { DefaultRenderer } from '../renderer/default-renderer.js'
 import type { Step, StepAction, StepContent, GuideFlowConfig } from '../types/index.js'
+import { sanitizeHTML } from '../utils/sanitize.js'
 
 describe('DefaultRenderer HTML sanitizer', () => {
   let renderer: DefaultRenderer
@@ -33,7 +34,7 @@ describe('DefaultRenderer HTML sanitizer', () => {
   /** Render `html` as `content.html` and hand back the mounted popover. */
   function render(html: string): HTMLElement {
     renderer = new DefaultRenderer()
-    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+    renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
     const step: Step = { id: 'sanitize', content: { html } }
     const content: StepContent = { html }
@@ -278,7 +279,7 @@ describe('DefaultRenderer HTML sanitizer', () => {
      */
     function renderActions(actions: unknown[]): HTMLElement {
       renderer = new DefaultRenderer()
-      renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+      renderer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
 
       const step: Step = {
         id: 'actions',
@@ -348,5 +349,94 @@ describe('DefaultRenderer HTML sanitizer', () => {
       expect(btn!.getAttributeNames().filter((n) => n.startsWith('on'))).toEqual([])
       expect(btn!.getAttribute('class')).toContain('onfocus')
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The sanitiser is opt-in now.
+//
+// It parses into an inert <template> and keeps an explicit allowlist — the
+// right implementation (ADR-007 replaced a regex denylist that a direct test
+// defeated with 6 of 8 trivial payloads) — but it is ~420 B gzip that every
+// consumer was paying, including the majority who only ever set `content.body`.
+// ADR-008 named moving it out as the precondition for any further budget raise.
+//
+// What matters is that the degradation without it is SAFE, not silent.
+// ---------------------------------------------------------------------------
+
+describe('content.html without an opt-in sanitiser', () => {
+  let renderer: DefaultRenderer
+  let warn: MockInstance<Parameters<Console['warn']>, void>
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    // The once-per-page flag is static by design — the advice does not change,
+    // and repeating it per step would be noise. That makes it survive between
+    // tests in this file, so reset it or the assertion below is order-dependent.
+    ;(DefaultRenderer as unknown as { _warnedNoSanitizer: boolean })._warnedNoSanitizer = false
+    renderer = new DefaultRenderer()
+    // Deliberately no sanitizeHTML.
+    renderer.onInit({ injectStyles: false } as GuideFlowConfig)
+  })
+
+  afterEach(() => {
+    renderer.hideStep()
+    warn.mockRestore()
+    document.body.innerHTML = ''
+  })
+
+  function render(html: string): HTMLElement {
+    const step: Step = { id: 's1', content: { html } }
+    renderer.renderStep(step, { html }, 0, 1)
+    return document.querySelector<HTMLElement>('.gf-popover')!
+  }
+
+  it('escapes the markup instead of injecting it', () => {
+    const popover = render('<b>bold</b>')
+    // Rendered as text, so the user sees the tags — visible, and safe.
+    expect(popover.querySelector('b')).toBeNull()
+    expect(popover.textContent).toContain('<b>bold</b>')
+  })
+
+  it('does not execute a script payload', () => {
+    // The safe degradation is the whole point: passing content.html through
+    // unsanitised would be an XSS hole in a library that injects markup into
+    // other people's pages.
+    const popover = render('<img src=x onerror=alert(1)>')
+
+    expect(popover.querySelector('img')).toBeNull()
+    const withHandlers = Array.from(popover.querySelectorAll('*')).filter((el) =>
+      el.getAttributeNames().some((n) => n.startsWith('on')),
+    )
+    expect(withHandlers).toEqual([])
+  })
+
+  it('does not silently drop the content', () => {
+    // A blank popover with no explanation would be the worst of the three
+    // options.
+    const popover = render('<p>Something important</p>')
+    expect(popover.textContent).toContain('Something important')
+  })
+
+  it('says what to do about it, once', () => {
+    render('<b>one</b>')
+    render('<b>two</b>')
+
+    const messages = warn.mock.calls.map((c) => String(c[0]))
+    const relevant = messages.filter((m) => m.includes('sanitizeHTML'))
+    // Once per page, not once per step — the advice does not change.
+    expect(relevant).toHaveLength(1)
+    expect(relevant[0]).toContain('@guideflow/core/html')
+  })
+
+  it('injects the markup once a sanitiser is supplied', () => {
+    const withSanitizer = new DefaultRenderer()
+    withSanitizer.onInit({ injectStyles: false, sanitizeHTML } as GuideFlowConfig)
+    const step: Step = { id: 's2', content: { html: '<b>bold</b>' } }
+    withSanitizer.renderStep(step, { html: '<b>bold</b>' }, 0, 1)
+
+    const popover = document.querySelector<HTMLElement>('.gf-popover')!
+    expect(popover.querySelector('b')?.textContent).toBe('bold')
+    withSanitizer.hideStep()
   })
 })

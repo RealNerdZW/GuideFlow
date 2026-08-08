@@ -16,13 +16,32 @@ There are five boundaries, and only the first is trusted.
 | # | Boundary | Trust | Enters the system at |
 |---|---|---|---|
 | 1 | Flow definitions written in the host app's own source | **trusted** | `createFlow()`, `start()` |
-| 2 | Flow definitions fetched over the network — CMS, `guideflow push`, devtools recorder | **untrusted** | `content.html`, `step.actions[].action`, `step.target` |
+| 2 | `.flow.json` documents fetched over the network — a CDN or static host, a CMS, the devtools recorder | **untrusted** | `content.html`, `step.actions[].action`, `step.target` |
 | 3 | The host page's DOM | **untrusted** | `serializeDOM()`, `autoInit()`'s `data-gf-*` attributes |
 | 4 | LLM provider responses | **untrusted** | `validateSteps()`, `validateGuidedAnswer()` → selectors and rendered text |
 | 5 | Page-world ↔ extension message channel | **untrusted** | `window.postMessage` in `bridge.ts` / `inspector.ts` |
 
 Data that has crossed 2–5 must be treated as attacker-controlled at every subsequent sink, no matter
 how many functions it has passed through.
+
+### Boundary 2 is a supported path, and `parseFlowFile` is what enforces it
+
+Remote flows are no longer hypothetical. [`apps/docs/guide/hosting-flows.md`](../../apps/docs/guide/hosting-flows.md)
+documents the recipe we support, and it is `fetch` + `parseFlowFile` from
+`@guideflow/core/authoring` + `gf.createFlow()`. There is no `loadFlows()`, no server package and no
+hosted service; the library's whole contribution is the document format, the validator and the
+versioning semantics.
+
+**`parseFlowFile` is the boundary.** It parses, never repairs, never throws, and returns
+`{ valid, errors, warnings, flow }`. A document that does not come back `valid` must not reach
+`createFlow()`. It is a *structural* gate — it rejects shapes the engine mishandles (a dangling
+transition, a duplicate step id, the truncating shape that also records a completion) — and it is
+**not** a substitute for the sinks below: a structurally valid flow can still carry hostile
+`content.html`, a hostile `step.actions[].action`, or a hostile `step.target`. Escaping,
+allowlist sanitisation and the `querySelector` try/catch all still apply.
+
+There is no `guideflow push`. That command was deleted in Phase 7.10 along with the endpoint it
+posted to, which never existed; the CLI is `init`, `export`, `validate`.
 
 ---
 
@@ -234,14 +253,19 @@ public by construction. Document it as a low-privilege ingest token, never a rea
 
 ## 8. CLI
 
+The CLI is three commands: `init`, `export`, `validate`. It makes no network calls and handles no
+credential, so it has no `--api-key` and no `--endpoint` to get wrong. `push` and `studio` are both
+gone — `push` was deleted in Phase 7.10, and with it the credential-in-`argv` and
+`--endpoint`-accepts-any-URL problems this section used to list.
+
 - `init` and `export` write files at user-supplied paths. Resolve, confine to the project root, and
   never overwrite without a prompt or `--force`.
-- `push --api-key <key>` puts a credential in shell history and process listings. Prefer
-  `GUIDEFLOW_API_KEY`, and make that path actually reachable (today `--api-key` is a
-  `requiredOption`, so the env-var fallback can never run).
-- `push --endpoint` accepts any URL. At minimum warn on non-HTTPS.
-- `studio` starts a Vite dev server over the user's project root. Bind to `127.0.0.1`, never
-  `0.0.0.0`, and say so in the docs.
+- `validate` reads user-supplied paths and parses untrusted JSON. It must never `eval`, never import
+  a `.ts`/`.js` flow module, and never exit 0 on an unreadable file.
+- **Do not add a command that takes a credential.** Anything in `argv` lands in shell history and
+  process listings. If publishing ever needs auth, it belongs in the user's own deploy tool — see
+  [`hosting-flows.md`](../../apps/docs/guide/hosting-flows.md), which deliberately ends at
+  `aws s3 cp`.
 
 ---
 

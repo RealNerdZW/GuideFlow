@@ -69,8 +69,9 @@ worked. See [Module format](/api/svelte/create-tour-store#module-format).
 ```
 
 A flow is a **state machine**, not a step array — see [Flows and steps](/guide/flows-and-steps).
-A flat `{ id, steps: [...] }` object is not a valid `FlowDefinition`, and a flow with no
-`final: true` state never completes.
+A flat `{ id, steps: [...] }` object is not a valid `FlowDefinition`. A flow with no `final: true`
+state still completes — a tour ends when there is nothing left to render — but mark the last state
+final anyway: it is what stops the walk that computes `totalSteps`.
 
 ## createTourStore API
 

@@ -49,8 +49,9 @@ import type { FlowDefinition } from '@guideflow/vue'
 
 const { start, isActive, currentStepIndex, totalSteps } = useTour()
 
-// A flow is a state machine. A flat `{ id, steps: [...] }` object is not valid,
-// and a flow with no `final: true` state never completes.
+// A flow is a state machine. A flat `{ id, steps: [...] }` object is not valid.
+// Mark the last state `final: true`: the tour completes either way, but `final`
+// is what stops the walk that computes `totalSteps`.
 const flow: FlowDefinition = {
   id: 'welcome',
   initial: 'main',

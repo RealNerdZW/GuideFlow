@@ -2,10 +2,22 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["node"],
+    "types": [
+      "node",
+      "chrome"
+    ],
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true
   },
-  "include": ["tests/**/*.ts", "playwright.config.ts", "global.d.ts"],
-  "exclude": ["node_modules", "playwright-report", "test-results"]
+  "include": [
+    "tests/**/*.ts",
+    "tests-extension/**/*.ts",
+    "playwright.config.ts",
+    "global.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "playwright-report",
+    "test-results"
+  ]
 }

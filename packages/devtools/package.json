@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/devtools",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Browser DevTools extension for GuideFlow.js — visual tour builder and flow inspector",
   "private": true,
   "type": "module",
@@ -10,7 +10,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
     "clean": "node ../../scripts/fsx.mjs rm dist .turbo",
-    "test": "vitest run"
+    "test": "vitest run",
+    "package": "node ../../scripts/pack-extension.mjs"
   },
   "dependencies": {
     "@guideflow/core": "workspace:*",
@@ -29,5 +30,12 @@
   },
   "author": "John Mugabe (https://github.com/RealNerdZW)",
   "homepage": "https://github.com/RealNerdZW/GuideFlow#readme",
-  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues"
+  "bugs": "https://github.com/RealNerdZW/GuideFlow/issues",
+  "files": [
+    "dist",
+    "src",
+    "manifest.json",
+    "store",
+    "README.md"
+  ]
 }

@@ -30,11 +30,26 @@
  * defence in depth rather than a single point of failure.
  */
 
+import {
+  FLOW_KEY_PREFIX,
+  PORT_DEVTOOLS,
+  PORT_RECORDER,
+  TAB_REPORTS,
+  type RecordedStep,
+} from '../messages.js';
+
 // ---------------------------------------------------------------------------
-// In-memory state (ephemeral — lost on service worker restart)
+// In-memory state
 // ---------------------------------------------------------------------------
+//
+// Ephemeral, and that is a deliberate trade rather than an oversight: an MV3
+// worker can be evicted at any time. What matters is that the state lives HERE
+// and not in a panel's React state, because the worker outlives every UI that
+// talks to it. Recording used to die when the DevTools panel closed, and the
+// captured steps died with it.
 
 const devtoolsPorts = new Map<number, chrome.runtime.Port>();
+const recorderPorts = new Map<number, chrome.runtime.Port>();
 const detectedTabs = new Set<number>();
 const eventCounts = new Map<number, number>();
 const lastEvents = new Map<number, Array<{ event: string; ts: number }>>();
@@ -43,32 +58,94 @@ const activeTours = new Map<
   { flowId: string; stepIndex: number; totalSteps: number }
 >();
 
+/** Tabs currently recording. Survives a page navigation; the content script re-asks. */
+const recordingTabs = new Set<number>();
+/** Captured steps per tab, buffered so no UI has to be open to receive them. */
+const recordedSteps = new Map<number, RecordedStep[]>();
+/** A runaway page cannot exhaust the worker's memory. */
+const MAX_RECORDED = 200;
+
+/**
+ * Mirror of the recording buffer in `chrome.storage.session`.
+ *
+ * The in-memory maps above are the fast path; this is what makes them survive.
+ * An MV3 service worker is evicted aggressively — roughly every 30 seconds of
+ * inactivity — and taking a user's in-progress recording with it is exactly
+ * the class of loss this phase set out to fix. Everything in the worker's
+ * memory is a cache of this.
+ *
+ * `session` rather than `local`: a recording is an editing session. It should
+ * outlive the worker and the browser tab, and not next week's browsing.
+ */
+const SESSION_KEY = 'gf_recording';
+
+interface SessionShape {
+  recording: number[];
+  steps: Record<string, RecordedStep[]>;
+}
+
+async function readSession(): Promise<SessionShape> {
+  try {
+    const items = await chrome.storage.session.get(SESSION_KEY);
+    const raw = items[SESSION_KEY] as Partial<SessionShape> | undefined;
+    return {
+      recording: Array.isArray(raw?.recording) ? raw.recording : [],
+      steps: raw?.steps && typeof raw.steps === 'object' ? raw.steps : {},
+    };
+  } catch {
+    return { recording: [], steps: {} };
+  }
+}
+
+/** Write the current in-memory state through. Fire and forget. */
+function persistSession(): void {
+  const steps: Record<string, RecordedStep[]> = {};
+  for (const [tabId, list] of recordedSteps) steps[String(tabId)] = list;
+  void chrome.storage.session
+    .set({ [SESSION_KEY]: { recording: [...recordingTabs], steps } })
+    .catch(() => {
+      // storage.session can be unavailable very early in worker startup. The
+      // in-memory copy still works for this worker's lifetime.
+    });
+}
+
+/** Rehydrate after an eviction. Called once, at worker startup. */
+async function restoreSession(): Promise<void> {
+  const saved = await readSession();
+  for (const tabId of saved.recording) recordingTabs.add(tabId);
+  for (const [key, list] of Object.entries(saved.steps)) {
+    const tabId = Number.parseInt(key, 10);
+    if (Number.isFinite(tabId) && Array.isArray(list)) recordedSteps.set(tabId, list);
+  }
+}
+
+void restoreSession();
+
+function bufferStep(tabId: number, step: RecordedStep): void {
+  const steps = recordedSteps.get(tabId) ?? [];
+  steps.push(step);
+  if (steps.length > MAX_RECORDED) steps.splice(0, steps.length - MAX_RECORDED);
+  recordedSteps.set(tabId, steps);
+  persistSession();
+}
+
+/** Post to whichever of the tab's extension pages are open. Neither is required. */
+function toPages(tabId: number, message: { type: string; payload?: unknown }): void {
+  devtoolsPorts.get(tabId)?.postMessage(message);
+  recorderPorts.get(tabId)?.postMessage(message);
+}
+
 // ---------------------------------------------------------------------------
 // Message provenance
 // ---------------------------------------------------------------------------
 
 /**
- * Types a content script is allowed to send. Mirrors `RELAYABLE` in
- * content/inspector.ts plus the types the content script raises on its own
- * behalf (inspection and recording lifecycle). All are read-only reports; none
- * touches storage.
+ * Types a content script is allowed to send.
+ *
+ * Sourced from `TAB_REPORTS` rather than re-spelled here: the two used to be
+ * separate literal arrays that had to be kept in step by hand.
  */
-const TAB_MESSAGES = new Set([
-  'GF_DETECTED',
-  'GF_FLOWS_LIST',
-  'GF_TOUR_EVENT',
-  'GF_ACTIVE_TOUR_STATE',
-  'GF_ELEMENT_SELECTED',
-  'GF_QUICK_TOUR_ELEMENT',
-  'GF_RECORDED_STEP',
-  'GF_RECORDING_STARTED',
-  'GF_RECORDING_STOPPED',
-  'GF_INSPECT_STARTED',
-  'GF_INSPECT_STOPPED',
-]);
-
-/** Namespace every saved flow lives under in chrome.storage.local. */
-const FLOW_KEY_PREFIX = 'gf_flow_';
+const TAB_MESSAGES = new Set<string>(TAB_REPORTS);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -97,6 +174,15 @@ function updateBadge(tabId: number): void {
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onInstalled.addListener(() => {
+  // removeAll first: onInstalled fires on every update and reload, and
+  // create() with an id that already exists sets runtime.lastError. The menus
+  // then silently stop being registered.
+  chrome.contextMenus.removeAll(() => {
+    registerContextMenus();
+  });
+});
+
+function registerContextMenus(): void {
   chrome.contextMenus.create({
     id: 'gf-add-element',
     title: 'Add Element to GuideFlow Tour',
@@ -112,7 +198,7 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Quick Tour from Here',
     contexts: ['all'],
   });
-});
+}
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
@@ -140,14 +226,25 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name.startsWith('devtools:')) {
-    const tabId = parseInt(port.name.split(':')[1] ?? '0', 10);
-    devtoolsPorts.set(tabId, port);
+  const isDevtools = port.name.startsWith(PORT_DEVTOOLS);
+  const isRecorder = port.name.startsWith(PORT_RECORDER);
+  if (!isDevtools && !isRecorder) return;
 
-    port.onDisconnect.addListener(() => {
-      devtoolsPorts.delete(tabId);
-    });
-  }
+  const tabId = parseInt(port.name.split(':')[1] ?? '0', 10);
+  const registry = isDevtools ? devtoolsPorts : recorderPorts;
+  registry.set(tabId, port);
+
+  // Replay on connect. A page that opens mid-session — or reopens after the
+  // worker was evicted — gets the buffered steps and the live recording flag
+  // instead of an empty list it would silently treat as "nothing recorded".
+  port.postMessage({
+    type: 'GF_RECORDING_STATE',
+    payload: { recording: recordingTabs.has(tabId), steps: recordedSteps.get(tabId) ?? [] },
+  });
+
+  port.onDisconnect.addListener(() => {
+    registry.delete(tabId);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -168,6 +265,14 @@ chrome.runtime.onMessage.addListener(
     const fromContentScript = tabId !== undefined && TAB_MESSAGES.has(type);
     /** One of our own extension pages — the DevTools panel or the popup. */
     const fromExtensionPage = sender.tab === undefined;
+
+    // A content script asking about its own tab. Answered before the allowlist
+    // gate because it is a read of state the worker holds about that very tab —
+    // it names no other tab and touches no storage.
+    if (type === 'GF_GET_RECORDING_FOR_SENDER' && tabId !== undefined) {
+      sendResponse({ recording: recordingTabs.has(tabId) });
+      return undefined;
+    }
 
     // --- Track state from content script messages ---
     if (fromContentScript && tabId !== undefined) {
@@ -190,12 +295,15 @@ chrome.runtime.onMessage.addListener(
 
           // Track active tour
           if (evt.event === 'tour:start') {
-            const args = evt.args as Array<{ id?: string; steps?: unknown[] }> | undefined;
-            const flow = args?.[0];
+            // `tour:start` carries `{ flowId }` and nothing else
+            // (core/src/types/index.ts). This used to read `.id` and `.steps`
+            // off it, so every tracked tour was `flowId: 'unknown'` with a
+            // total of 1. The real total arrives on `step:enter`.
+            const args = evt.args as Array<{ flowId?: string }> | undefined;
             activeTours.set(tabId, {
-              flowId: flow?.id ?? 'unknown',
+              flowId: args?.[0]?.flowId ?? 'unknown',
               stepIndex: 0,
-              totalSteps: Array.isArray(flow?.steps) ? flow.steps.length : 1,
+              totalSteps: 1,
             });
           } else if (evt.event === 'step:enter') {
             const tour = activeTours.get(tabId);
@@ -211,13 +319,27 @@ chrome.runtime.onMessage.addListener(
         }
       }
 
-      // Route content-script messages to the connected DevTools panel.
-      // Only allowlisted types reach this line, so the panel can never be
-      // driven by a type it does not expect.
-      const panel = devtoolsPorts.get(tabId);
-      if (panel) {
-        panel.postMessage({ type, payload: message.payload });
+      // --- Recording lifecycle, owned here rather than by a UI ---
+      if (type === 'GF_RECORDING_STARTED') {
+        recordingTabs.add(tabId);
+        persistSession();
       }
+      if (type === 'GF_RECORDING_STOPPED') {
+        recordingTabs.delete(tabId);
+        persistSession();
+      }
+      if (type === 'GF_RECORDED_STEP' && isPlainObject(message.payload)) {
+        // Buffered unconditionally. This used to be posted straight at
+        // `devtoolsPorts.get(tabId)` and dropped on the floor when that was
+        // undefined — which is every step of a popup-armed recording, and
+        // every step after the DevTools window is closed.
+        bufferStep(tabId, message.payload as unknown as RecordedStep);
+      }
+
+      // Relay to whichever extension pages are open. Only allowlisted types
+      // reach this line, so a page can never be driven by a type it does not
+      // expect.
+      toPages(tabId, { type, payload: message.payload });
     }
 
     // --- Everything below is reachable only from our own extension pages ---
@@ -240,6 +362,66 @@ chrome.runtime.onMessage.addListener(
         sendResponse({ detected: false, eventCount: 0, activeTour: null, lastEvents: [] });
       }
       return undefined; // Synchronous response
+    }
+
+    // --- Recording, queried and controlled by any extension page ---
+    if (type === 'GF_GET_RECORDING') {
+      const reqTabId = (message.payload as { tabId?: number } | undefined)?.tabId;
+      sendResponse(
+        typeof reqTabId === 'number'
+          ? { recording: recordingTabs.has(reqTabId), steps: recordedSteps.get(reqTabId) ?? [] }
+          : { recording: false, steps: [] },
+      );
+      return undefined;
+    }
+
+    if (type === 'GF_CLEAR_RECORDING') {
+      const reqTabId = (message.payload as { tabId?: number } | undefined)?.tabId;
+      if (typeof reqTabId === 'number') {
+        recordedSteps.delete(reqTabId);
+        persistSession();
+      }
+      sendResponse({ ok: true });
+      return undefined;
+    }
+
+    /**
+     * One routed path from an extension page to a tab.
+     *
+     * Every page used to call `chrome.tabs.sendMessage(...).catch(() => {})`
+     * itself, so a command that never arrived — no content script, a
+     * chrome:// tab, a page still loading — was indistinguishable from one
+     * that worked. Routing through here gives one place that reports the
+     * failure, and the caller gets `{ ok: false, error }` to render.
+     */
+    if (type === 'GF_SEND_TO_TAB') {
+      const p = message.payload as { tabId?: number; message?: unknown } | undefined;
+      if (typeof p?.tabId !== 'number' || !isPlainObject(p.message)) {
+        sendResponse({ ok: false, error: 'malformed request' });
+        return undefined;
+      }
+      chrome.tabs
+        .sendMessage(p.tabId, p.message)
+        .then((reply: unknown) => sendResponse({ ok: true, reply }))
+        .catch((err: unknown) =>
+          sendResponse({
+            ok: false,
+            error: err instanceof Error ? err.message : 'the page did not respond',
+          }),
+        );
+      return true;
+    }
+
+    /** Open the Recorder in its own tab, aimed at the tab being recorded. */
+    if (type === 'GF_OPEN_RECORDER') {
+      const reqTabId = (message.payload as { tabId?: number } | undefined)?.tabId;
+      if (typeof reqTabId !== 'number') {
+        sendResponse({ ok: false });
+        return undefined;
+      }
+      const url = chrome.runtime.getURL(`recorder.html?tabId=${String(reqTabId)}`);
+      void chrome.tabs.create({ url }, () => sendResponse({ ok: true }));
+      return true;
     }
 
     // --- Storage operations (async sendResponse) ---
@@ -298,4 +480,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   lastEvents.delete(tabId);
   activeTours.delete(tabId);
   devtoolsPorts.delete(tabId);
+  recorderPorts.delete(tabId);
+  recordingTabs.delete(tabId);
+  recordedSteps.delete(tabId);
+  persistSession();
 });

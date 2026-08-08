@@ -275,3 +275,181 @@ describe('configure()', () => {
     expect(gf.currentStepId).toBe('admin-only')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Themes.
+//
+// Five themes ship in @guideflow/core/styles and nothing in the library ever
+// set the attribute they key on, so choosing one was impossible without writing
+// the setAttribute yourself — a documented feature that did nothing.
+//
+// Applied on <html>, not on the popover: the spotlight overlay, hotspot beacons
+// and hint badges are all portalled to document.body and all read the same
+// custom properties. Only the root themes every surface.
+// ---------------------------------------------------------------------------
+
+describe('theme', () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute('data-gf-theme')
+  })
+
+  it('sets data-gf-theme on the document root', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('bold')
+  })
+
+  it('never touches the attribute when no theme is configured', () => {
+    // A host page that sets its own theme must not be clobbered by an instance
+    // that has no opinion.
+    document.documentElement.setAttribute('data-gf-theme', 'set-by-the-host')
+    gf = createGuideFlow({ injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('set-by-the-host')
+  })
+
+  it('updates through configure()', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    gf.configure({ theme: 'glass' })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('glass')
+  })
+
+  it('leaves the theme alone when configure() patches something else', () => {
+    // configure() merges by spread, so an omitted key keeps its value — this
+    // has to hold for theme like every other field.
+    gf = createGuideFlow({ theme: 'brutalist', injectStyles: false })
+    gf.configure({ debug: true })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('brutalist')
+  })
+
+  it('removes the attribute for an empty string', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    gf.configure({ theme: '' })
+    expect(document.documentElement.hasAttribute('data-gf-theme')).toBe(false)
+  })
+
+  it('accepts a custom theme name', () => {
+    gf = createGuideFlow({ theme: 'acme-dark', injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('acme-dark')
+  })
+
+  it('is an attribute value, never an HTML sink', () => {
+    // setAttribute cannot execute markup. This pins that the value is never
+    // routed into the renderer's template string.
+    gf = createGuideFlow({
+      theme: '"><img src=x onerror=alert(1)>',
+      injectStyles: false,
+    })
+
+    expect(document.documentElement.getAttribute('data-gf-theme'))
+      .toBe('"><img src=x onerror=alert(1)>')
+    expect(document.querySelector('img')).toBeNull()
+  })
+
+  it('is last-writer-wins across two instances', () => {
+    gf = createGuideFlow({ theme: 'bold', injectStyles: false })
+    const second = createGuideFlow({ theme: 'glass', injectStyles: false })
+    expect(document.documentElement.getAttribute('data-gf-theme')).toBe('glass')
+    second.destroy()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// exposeGlobal (Phase 8.2)
+//
+// The devtools extension detects a page through `window.__guideflow`. Until
+// this option existed, nothing in `packages/*` ever assigned it — only
+// `apps/demo` and the e2e fixture did — so the extension detected essentially
+// no real application. It is opt-in because the global hands any script on the
+// page a driveable tour instance.
+// ---------------------------------------------------------------------------
+
+type WinExt = Window & { __guideflow?: unknown }
+const win = (): WinExt => window as WinExt
+
+describe('exposeGlobal', () => {
+  afterEach(() => {
+    delete win().__guideflow
+  })
+
+  it('does NOT set window.__guideflow by default', () => {
+    gf = createGuideFlow({ injectStyles: false })
+    expect(win().__guideflow).toBeUndefined()
+  })
+
+  it('does not set it for `exposeGlobal: false` either', () => {
+    gf = createGuideFlow({ exposeGlobal: false, injectStyles: false })
+    expect(win().__guideflow).toBeUndefined()
+  })
+
+  it('exposes the instance when opted in', () => {
+    gf = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(gf)
+  })
+
+  it('exposes the full instance, not the bare engine', () => {
+    // `createGuideFlow` mutates a TourEngine via Object.assign, and the
+    // extension reads `start`/`listFlows` — which live on the literal, not the
+    // prototype. Assigning before the assign would expose a half-built object.
+    gf = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    const exposed = win().__guideflow as GuideFlowInstance
+    expect(typeof exposed.start).toBe('function')
+    expect(typeof exposed.listFlows).toBe('function')
+    expect(typeof exposed.on).toBe('function')
+  })
+
+  it('clears the global on destroy()', () => {
+    const local = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(local)
+    local.destroy()
+    expect('__guideflow' in win()).toBe(false)
+  })
+
+  it('destroying a second instance does not unregister the first', () => {
+    // Two opted-in instances on one page: the second overwrites the global.
+    // An unconditional `delete` in destroy() would then have the second's
+    // teardown remove whatever is currently registered — including the first.
+    const first = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(first)
+    const second = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    expect(win().__guideflow).toBe(second)
+
+    second.destroy()
+    expect(win().__guideflow).toBeUndefined()
+
+    // And the reverse order: destroying the one that is NOT registered must
+    // leave the registration alone.
+    const third = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    const fourth = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    third.destroy()
+    expect(win().__guideflow).toBe(fourth)
+    fourth.destroy()
+  })
+
+  it('configure({ exposeGlobal }) is a real switch, not a silent no-op', () => {
+    // AUDIT `configure-mostly-ignored`, which this key would otherwise join.
+    // The whole security argument for the flag is that the developer stays in
+    // control of it, so turning it off has to actually turn it off.
+    gf = createGuideFlow({ injectStyles: false })
+    expect(win().__guideflow).toBeUndefined()
+
+    gf.configure({ exposeGlobal: true })
+    expect(win().__guideflow).toBe(gf)
+
+    gf.configure({ exposeGlobal: false })
+    expect(win().__guideflow).toBeUndefined()
+  })
+
+  it('configure({ exposeGlobal: false }) on a foreign registration leaves it alone', () => {
+    const other = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    gf = createGuideFlow({ injectStyles: false })
+
+    gf.configure({ exposeGlobal: false })
+    expect(win().__guideflow).toBe(other)
+    other.destroy()
+  })
+
+  it('does not throw when destroy() runs twice', () => {
+    const local = createGuideFlow({ exposeGlobal: true, injectStyles: false })
+    local.destroy()
+    expect(() => { local.destroy() }).not.toThrow()
+  })
+})
