@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/checklist",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "GuideFlow onboarding checklist — a persistent, accessible task list built on the tour engine",
   "keywords": [
     "onboarding-checklist",

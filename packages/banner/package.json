@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/banner",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "GuideFlow announcement banner — a docked, non-blocking, accessible announcement surface built on the tour engine",
   "keywords": [
     "announcement-banner",

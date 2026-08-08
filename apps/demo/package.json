@@ -2,7 +2,7 @@
   "name": "@guideflow/demo",
   "version": "0.1.0",
   "private": true,
-  "description": "GuideFlow demo app \u2014 exercises core, react, analytics, and ai packages",
+  "description": "GuideFlow demo app — exercises core, react, analytics, and ai packages",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -1,6 +1,6 @@
 {
   "name": "@guideflow/mcp",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "GuideFlow MCP server — expose tour authoring and validation as tools for any MCP client",
   "keywords": [
     "mcp",
