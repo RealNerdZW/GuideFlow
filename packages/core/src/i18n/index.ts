@@ -31,8 +31,35 @@ const EN: Locale = {
   progressLabel: 'Tour progress',
 }
 
+/**
+ * Per-locale overrides for a flow's own copy.
+ *
+ * Kept **beside** the flow rather than inside `StepContent`, which is the whole
+ * design. Three reasons:
+ *
+ * 1. Changing `StepContent` would touch the validator, the exporter, the
+ *    devtools panel, the MCP tools and every `.flow.json` in existence — a
+ *    migration for no gain.
+ * 2. **Translators want a file of strings, not your state machine.** This shape
+ *    is flat, diffable, reviewable in a pull request, and generatable.
+ * 3. Untranslated keys fall through to the flow's own content, so a partial
+ *    translation degrades one string at a time instead of failing.
+ *
+ * `steps` and `states` are separate maps because step ids and state ids are
+ * **separate namespaces** — step ids are unique within a flow, but nothing
+ * stops a state being called `welcome` while a step is too. One flat map would
+ * silently collide.
+ */
+export interface ContentCatalogue {
+  /** Step id → the fields to override. Omit a field to keep the original. */
+  steps?: Record<string, { title?: string; body?: string; html?: string }>
+  /** State id → its chapter label. */
+  states?: Record<string, string>
+}
+
 export class I18nRegistry {
   private _locales = new Map<string, Locale>([['en', EN]])
+  private _content = new Map<string, ContentCatalogue>()
   private _active = 'en'
 
   register(locale: string, strings: Partial<Locale>): void {
@@ -66,6 +93,47 @@ export class I18nRegistry {
 
   getLocale(locale?: string): Locale {
     return this._locales.get(locale ?? this._active) ?? EN
+  }
+
+  /**
+   * Register per-locale copy for a flow's steps and chapter labels.
+   *
+   * Merges, like `register()`, so a catalogue can arrive in pieces — one fetch
+   * per flow is a normal shape when flows are static assets.
+   *
+   * ```ts
+   * gf.i18n.registerContent('es', {
+   *   steps: { welcome: { title: 'Bienvenido de nuevo, {{firstName}}' } },
+   *   states: { setup: 'Configuración' },
+   * })
+   * ```
+   *
+   * Tokens survive translation: the catalogue is applied first and interpolated
+   * second, so a translated string containing `{{firstName}}` still resolves.
+   */
+  registerContent(locale: string, catalogue: ContentCatalogue): void {
+    const prev = this._content.get(locale)
+    this._content.set(locale, {
+      steps: { ...prev?.steps, ...catalogue.steps },
+      states: { ...prev?.states, ...catalogue.states },
+    })
+  }
+
+  /**
+   * Overrides for one step in the active locale, or `undefined`.
+   *
+   * No fall-through to English: the flow's own content **is** the fallback, and
+   * it is what the engine merges over. Read by the engine, not by renderers —
+   * content is resolved before `renderStep` so a custom renderer needs to know
+   * nothing about any of this.
+   */
+  stepContent(stepId: string): { title?: string; body?: string; html?: string } | undefined {
+    return this._content.get(this._active)?.steps?.[stepId]
+  }
+
+  /** Chapter label for a state in the active locale, or `undefined`. */
+  stateLabel(stateId: string): string | undefined {
+    return this._content.get(this._active)?.states?.[stateId]
   }
 }
 

@@ -98,12 +98,12 @@ Run from the repo root. `turbo` orchestrates; `pnpm` is the only supported packa
 pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filter=!docs --filter=!e2e
 ```
 
-### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1/8.2/8.5/8.6, 2026-08-08)
+### Known-good baseline (Phases 0–6 complete, Phase 7 through 7.11, Phase 8.1–8.6 + 8.9, 2026-08-08)
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1348 unit tests pass**, 1 skipped
-(core 544, ai 153, analytics 118, react 114, survey 79, checklist 73, banner 62, devtools 54,
+Build, type-check, lint and unit tests are **all green**: **1376 unit tests pass**, 1 skipped
+(core 572, ai 153, analytics 118, react 114, survey 79, checklist 73, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.3 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
@@ -149,9 +149,11 @@ default" marketing claim until someone has run it.
 
 > The size budget: 12 → 12.5 kB (Phase 1) → 13 kB (ADR-007, the sanitiser) → 14.5 kB (ADR-008,
 > accessibility) → 15 kB (ADR-010, the navigation seam) → **15.5 kB** (ADR-014, version-scoped
-> completion). Core measures **15.29 kB with ~210 B of headroom**. Six raises is a lot; the next
-> addition should look for a real saving before asking for a seventh — and 8.3 (content variables)
-> and 8.4 (content i18n) both want core bytes, so that conversation is next, not hypothetical.
+> completion) → **16 kB** (ADR-022, the content pipeline). Core measures **15.68 kB with ~320 B of
+> headroom**. Seven raises is a lot, and ADR-022 records a 330 B "saving" that was found and
+> **declined**: moving the token-adapter re-exports off the entry changes the measured figure
+> without changing what a tree-shaking consumer downloads, which is papering over the gate rather
+> than respecting it. Look for a real saving before an eighth.
 >
 > **ADR-020 did the same for the *navigation* subpath, 2 → 2.5 kB**, to land `advanceOn`: measured
 > 2.19 kB, core entry unchanged. **ADR-021 took *targeting* 2.75 → 3 kB** for the deep-link start,
@@ -579,12 +581,20 @@ does not reach step content, which is the real gap (`EXPANSION-PLAN.md` §8.4).
   **And a `click` rule is mouse-only today** — the renderer traps focus in the popover and sets
   `aria-modal` on every step, so Tab never reaches the target (8.1b). The accessible integration is
   an app-dispatched `CustomEvent`, which fires whatever the input modality.
-- **A `.flow.json` can carry neither variables nor translations, and that is structural.**
-  `Step.content` accepts `() => MaybePromise<StepContent>`, so a *code-authored* flow personalises
-  and localises freely — and a function does not serialise. Every flow file the recorder, the MCP
-  server and `guideflow export` produce therefore has copy frozen in one language at author time.
-  Before "fixing" this by making `content` a function somewhere, note that the whole ADR-014
-  delivery model is a static JSON asset. See `EXPANSION-PLAN.md` §§8.3–8.4.
+- **The content pipeline is `content → locale catalogue → {{token}} → renderer`, in that order,
+  in `_resolveContent`.** The order is the whole reason 8.3 and 8.4 shipped together: a *translated*
+  string containing `{{firstName}}` only resolves if the catalogue is applied first. It lives in the
+  engine, not `DefaultRenderer`, because core never assumes the default renderer.
+  **`content.html` is deliberately NOT interpolated** — "interpolate then sanitise" is safe for
+  element content and not for attribute context (`<a href="/r?next={{to}}">` with a quote in the
+  value closes the attribute before the sanitiser parses anything), and `sanitizeHTML` being opt-in
+  would make the exposed configuration the one a developer chose believing it was hardened. The
+  catalogue MAY set `html`: the rule is about where the data came from, not which field it is in.
+  See ADR-022.
+- **Do NOT assert escaping through `innerHTML` in happy-dom.** MEASURED: it parses `&lt;img&gt;`
+  into a text node correctly and then hands `innerHTML` back with the entities **decoded**, so a
+  string check there tests happy-dom's serialiser and reads as a vulnerability that is not present.
+  Assert `querySelector` and `textContent`; `apps/e2e` is where serialisation is real.
 - **`step:exit` is NOT emitted on every terminal path, so "subscribe to it, it covers every ending"
   is false.** `send()` moves the machine *before* calling `_emitStepExit()`, which reads the
   machine's *current* step — for an ordinary `done: { final: true }` state carrying no steps that is

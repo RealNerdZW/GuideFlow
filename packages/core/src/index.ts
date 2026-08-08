@@ -254,6 +254,9 @@ export function createGuideFlow<TContext extends GuidanceContext = GuidanceConte
     ...(_config.spotlight !== undefined && { spotlight: _config.spotlight }),
     ...(_config.context !== undefined && { context: _config.context as TContext }),
     ...(_config.debug !== undefined && { debug: _config.debug }),
+    // The engine resolves content, so it needs the registry the renderer also
+    // gets — per-locale copy and chapter labels are applied before renderStep.
+    i18n,
     ...(_config.navigation !== undefined && {
       navigation: // Through `unknown`: `Step<T>` is contravariant in T (showIf and the
       // function target form both consume it), so TypeScript will not accept

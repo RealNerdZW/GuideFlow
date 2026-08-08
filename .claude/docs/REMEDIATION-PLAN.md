@@ -891,7 +891,7 @@ transfers to an embedded tour library.
       collector tracks the running flow now; a step with no tour open still reports `undefined`
       rather than a guess. `computeFunnel` also falls back to a positional walk, so streams recorded
       before the fix still reduce.
-- [ ] **8.3 + 8.4 + 8.9 Content variables, localisation and chapters** — the differentiating pair,
+- [x] **8.3 + 8.4 + 8.9 Content variables, localisation and chapters** — the differentiating pair,
       shipped together because they share one resolution pipeline
       (`raw → locale catalogue → {{token}} interpolation → renderer`). `Step.content`'s function
       form covers both today and **does not serialise**, so every `.flow.json` the recorder, MCP and
@@ -900,6 +900,25 @@ transfers to an embedded tour library.
       `StateNode` and must not ship before localisation. **Interpolate into text only, never
       `content.html`.** Delete the stale React `GuidePopover` i18n warning from `CLAUDE.md` §5.5 and
       `apps/docs/guide/i18n.md` in the same change — it is fixed in code.
+      **Done, and the panel caught a real security slip in the first implementation.** It
+      interpolated `content.html`, under a docstring asserting that was safe. It is not:
+      "interpolate then sanitise" holds for element content but not for **attribute context** —
+      `<a href="/r?next={{to}}">` with a quote in the value closes the attribute *before* the
+      sanitiser parses anything, so untrusted data shapes the parse tree and every gap in the
+      allowlist becomes reachable from a URL. Compounded by `sanitizeHTML` being opt-in, which would
+      make the exposed configuration the one a developer chose *believing it was the hardened one*.
+      The catalogue may still translate `html` — a translation file is the same trust level as the
+      flow beside it. **The rule is about where data came from, not which field it is in.**
+      The catalogue is `{ steps, states }` rather than one flat map because step ids and state ids
+      are **separate namespaces** — `duplicate-step-id` makes step ids unique within a flow, and
+      nothing stops a state sharing a name with one.
+      28 unit tests. **Seventh raise, 15.5 → 16 kB, measured 15.68 — ADR-022.** A 330 B saving was
+      found and **declined**: moving the token-adapter re-exports off the entry changes the measured
+      figure without changing what a tree-shaking consumer downloads. Trimming dotted-path tokens
+      would have saved 30 B and cost `{{user.name}}`; there is no other fat.
+      Also measured, and now a standing trap: **happy-dom does not re-escape text nodes when it
+      serialises `innerHTML`**, so an escaping assertion written that way tests its serialiser and
+      reads as a vulnerability that is not there.
 - [ ] **8.7 `@guideflow/resource-centre`** — closes the last quarter of
       `no-checklists-surveys-banners-resource-centre`, and the only structural reason a user cannot
       restart a tour they finished. Same dock contract as the other three:

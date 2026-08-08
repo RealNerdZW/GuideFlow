@@ -48,7 +48,9 @@ const POPOVER_CSS = `
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 .gf-popover-header { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:10px; }
-.gf-popover-title { font-weight:600; font-size:15px; margin:0; flex:1; }
+.gf-popover-header > div { flex:1; min-width:0; }
+.gf-popover-title { font-weight:600; font-size:15px; margin:0; }
+.gf-popover-chapter { font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; opacity:var(--gf-muted-opacity,.72); margin:0 0 2px; }
 .gf-popover-close { appearance:none; background:none; border:none; color:inherit; opacity:var(--gf-muted-opacity,.72); cursor:pointer; padding:2px 6px; border-radius:4px; font-size:18px; line-height:1; transition:opacity 100ms; }
 .gf-popover-close:hover { opacity:.9; }
 .gf-popover-close:focus-visible { outline:2px solid var(--gf-accent-color,#4f46e5); outline-offset:2px; opacity:.9; }
@@ -67,7 +69,7 @@ const POPOVER_CSS = `
 .gf-btn-ghost { background:transparent; color:inherit; opacity:var(--gf-muted-opacity,.72); font-size:12px; padding:6px 10px; }
 .gf-btn-ghost:hover { opacity:.9; }
 @media (prefers-reduced-motion:reduce){.gf-popover{animation:none}.gf-progress-bar-fill,.gf-btn,.gf-popover-close{transition:none}}
-@media (forced-colors:active){.gf-popover{border:2px solid ButtonText;background:Canvas;color:CanvasText}.gf-btn,.gf-popover-close,.gf-popover-body,.gf-popover-step-info{opacity:1}.gf-btn{border:1px solid ButtonText}.gf-progress-bar{border:1px solid CanvasText}}
+@media (forced-colors:active){.gf-popover{border:2px solid ButtonText;background:Canvas;color:CanvasText}.gf-btn,.gf-popover-close,.gf-popover-body,.gf-popover-step-info,.gf-popover-chapter{opacity:1}.gf-btn{border:1px solid ButtonText}.gf-progress-bar{border:1px solid CanvasText}}
 `
 
 type OnAction = (action: string) => void
@@ -147,7 +149,7 @@ export class DefaultRenderer implements RendererContract {
     return this._esc(html)
   }
 
-  renderStep(step: Step, content: StepContent, index: number, total: number): void {
+  renderStep(step: Step, content: StepContent, index: number, total: number, chapter?: string): void {
     if (!isBrowser()) return
 
     this._ensurePopover()
@@ -161,7 +163,7 @@ export class DefaultRenderer implements RendererContract {
     }
 
     // Build inner HTML
-    el.innerHTML = this._buildHTML(step, content, index, total)
+    el.innerHTML = this._buildHTML(step, content, index, total, chapter)
     el.setAttribute('role', 'dialog')
     el.setAttribute('aria-modal', 'true')
 
@@ -393,7 +395,7 @@ export class DefaultRenderer implements RendererContract {
     }
   }
 
-  private _buildHTML(step: Step, content: StepContent, index: number, total: number): string {
+  private _buildHTML(step: Step, content: StepContent, index: number, total: number, chapter?: string): string {
     const i18n = this._i18n ?? defaultI18n
     const progressPct = total > 1 ? Math.round(((index + 1) / total) * 100) : 100
     const isFirst = index === 0
@@ -420,7 +422,10 @@ export class DefaultRenderer implements RendererContract {
         </div>
       ` : ''}
       <div class="gf-popover-header">
-        ${content.title ? `<h2 class="gf-popover-title" id="${this._popoverId}-title">${this._esc(content.title)}</h2>` : '<span></span>'}
+        <div>
+          ${chapter ? `<p class="gf-popover-chapter">${this._esc(chapter)}</p>` : ''}
+          ${content.title ? `<h2 class="gf-popover-title" id="${this._popoverId}-title">${this._esc(content.title)}</h2>` : ''}
+        </div>
         <button class="gf-popover-close" data-gf-action="end" aria-label="${this._esc(i18n.t('close'))}" type="button">×</button>
       </div>
       ${content.body
@@ -529,11 +534,5 @@ export class DefaultRenderer implements RendererContract {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;')
   }
-
-  /**
-   * Sanitize HTML content to prevent XSS.
-   * Strips <script>, <style>, <iframe>, <object>, <embed>, <form>, <base>,
-   * on* event handlers, and javascript:/data: URLs in href/src/action.
-   */
 
 }

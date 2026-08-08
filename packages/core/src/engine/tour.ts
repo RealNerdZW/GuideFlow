@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { FlowMachine } from '../fsm/machine.js'
+import type { I18nRegistry } from '../i18n/index.js'
 import type {
   FlowDefinition,
   GuidanceContext,
@@ -18,6 +19,7 @@ import type {
   StateNode,
 } from '../types/index.js'
 import { EventEmitter } from '../utils/emitter.js'
+import { interpolate } from '../utils/interpolate.js'
 import { isBrowser } from '../utils/ssr.js'
 
 import { scrollTargetIntoView } from './popover.js'
@@ -54,6 +56,14 @@ interface TourEngineOptions<TContext extends GuidanceContext = GuidanceContext> 
   spotlight?: SpotlightOptions
   context?: TContext
   debug?: boolean
+  /**
+   * The instance registry, for per-locale step content and chapter labels.
+   *
+   * The engine needs it because content is resolved BEFORE `renderStep` — a
+   * custom `RendererContract` must receive finished content, and core never
+   * assumes the default renderer.
+   */
+  i18n?: I18nRegistry
 }
 
 export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
@@ -492,11 +502,18 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
       // Flow-wide counters, not per-state: the renderer derives "Back", "Next"
       // and "Done" from index/total, so per-state numbers put a Done button on
       // the first step of a multi-state tour.
+      // The chapter label, translated if a catalogue supplies one. Falls back to
+      // the flow's own `label`, exactly as step content falls back to its own.
+      const stateId = this._machine.state
+      const chapter = this._options.i18n?.stateLabel(stateId)
+        ?? this._machine.currentStateNode?.label
+
       this._renderer.renderStep(
         step as Step,
         content,
         this._machine.flowStepIndex,
         this._machine.flowTotalSteps,
+        chapter,
       )
     } catch (err) {
       // Error boundary — log, emit, and clean up so the page is not left in a broken state
@@ -508,11 +525,55 @@ export class TourEngine<TContext extends GuidanceContext = GuidanceContext>
     }
   }
 
+  /**
+   * The content pipeline, in one place and in this order:
+   *
+   *   the step's own content  →  locale catalogue override  →  {{token}} interpolation
+   *
+   * The order is the whole point of resolving both here rather than in two
+   * seams: a *translated* string containing `{{firstName}}` has to work, and it
+   * only does if the catalogue is applied before interpolation.
+   *
+   * **The catalogue may set `html`; a `{{token}}` may not.** They are different
+   * trust levels and only one of them is runtime data:
+   *
+   * | Source | Trust | Reaches `content.html` |
+   * |---|---|---|
+   * | the flow's own content | ships with your app | yes |
+   * | the locale catalogue | a file in your repo, reviewed in a PR | yes |
+   * | a `{{token}}` value | **runtime, routinely a URL parameter** | **no** |
+   *
+   * "Interpolate then sanitise" is not good enough for the third row, for two
+   * reasons. **Attribute context:** in `<a href="/r?next={{to}}">` a value
+   * containing a quote closes the attribute *before* the sanitiser parses
+   * anything, so untrusted data shapes the parse tree and every gap in the
+   * allowlist becomes reachable from a URL — and `AUDIT.md` §SEC is a list of
+   * gaps that allowlist has already had. **And `sanitizeHTML` is opt-in**
+   * (ADR-009), so the exposed configuration would be the one a developer chose
+   * *believing it was the hardened one*. That is the worst possible shape.
+   *
+   * `title` and `body` are unconditional: both leave through the renderer's
+   * `_esc`, so a token value can only ever become visible characters.
+   * Interpolating after the renderer, or inside it, would put attacker-
+   * influenced text past that boundary — do not move this.
+   */
   private async _resolveContent(step: Step<TContext>): Promise<StepContent> {
-    if (typeof step.content === 'function') {
-      return await step.content()
+    let content = typeof step.content === 'function' ? await step.content() : step.content
+
+    const override = this._options.i18n?.stepContent(step.id)
+    if (override) content = { ...content, ...override }
+
+    const values = this._machine?.context
+    if (!values) return content
+
+    // Rebuilt rather than mutated: `step.content` is the author's object and
+    // may be the same reference on every render, so writing to it would bake
+    // the first user's values into the flow definition permanently.
+    return {
+      ...content,
+      ...(content.title !== undefined && { title: interpolate(content.title, values) }),
+      ...(content.body !== undefined && { body: interpolate(content.body, values) }),
     }
-    return step.content
   }
 
   private async _resolveTarget(step: Step<TContext>): Promise<Element | null> {

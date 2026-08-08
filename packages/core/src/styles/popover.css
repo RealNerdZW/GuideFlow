@@ -26,6 +26,15 @@
   margin-bottom: var(--gf-spacing-sm);
 }
 
+.gf-popover-chapter {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: var(--gf-muted-opacity, 0.72);
+  margin: 0 0 2px;
+}
+
 .gf-popover-title {
   font-weight: 600;
   font-size: calc(var(--gf-font-size) + 1px);

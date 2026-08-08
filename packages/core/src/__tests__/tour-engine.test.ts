@@ -66,6 +66,10 @@ describe('TourEngine', () => {
       // simpleFlow's three single-step states reported "1 of 1" and the
       // renderer therefore drew a Done button on step one.
       3,
+      // The chapter label — the fifth argument since 8.9. `undefined` here
+      // because these states carry no `label`, and asserting it explicitly is
+      // what stops the arity drifting back unnoticed.
+      undefined,
     )
   })
 
@@ -427,6 +431,7 @@ describe('TourEngine', () => {
       expect.objectContaining({ title: 'Async Title' }),
       0,
       1,
+      undefined,
     )
   })
 })

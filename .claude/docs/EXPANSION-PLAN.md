@@ -295,6 +295,9 @@ name*". It is not in `AUDIT.md`.
 
 ### 8.4 Content localisation, and 8.9 chapters with it
 
+> **Shipped with 8.3** as one pipeline. See ADR-022 — including the seventh size raise and
+> the `content.html` rule, which the first implementation got wrong.
+
 **Same root cause, same seam.** `Locale` is a closed interface of **eleven chrome strings**.
 `apps/docs/guide/i18n.md:11` says so outright: *"it does not translate your step content"* — and
 offers the same `content`-as-function workaround a flow file cannot hold.
@@ -519,10 +522,10 @@ The instruction was to upgrade without regressing. The specific hazards:
 
 - [x] A `clickThrough` step advances when the user clicks the highlighted control, proven in e2e
 - [x] `createGuideFlow({ exposeGlobal: true })` makes the devtools extension detect a real app
-- [ ] A `.flow.json` with no JavaScript at all renders personalised, translated content
-- [ ] `{{token}}` resolves from `GuidanceContext`, with fallbacks, escaped in every path, never into `content.html`
-- [ ] A locale catalogue is registrable, partial, and falls through per key
-- [ ] The stale React `GuidePopover` i18n warning is gone from `CLAUDE.md` and `apps/docs`
+- [x] A `.flow.json` with no JavaScript at all renders personalised, translated content
+- [x] `{{token}}` resolves from `GuidanceContext`, with fallbacks, escaped in every path, never into `content.html`
+- [x] A locale catalogue is registrable, partial, and falls through per key
+- [x] The stale React `GuidePopover` i18n warning is gone from `CLAUDE.md` and `apps/docs`
 - [x] A link starts a named tour in the recipient's own app, including for a user who already finished it
 - [ ] `no-checklists-surveys-banners-resource-centre` fully closed — all four surfaces shipped
 - [ ] Four docked surfaces coexist on one page with a clean announcement audit

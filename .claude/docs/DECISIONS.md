@@ -1225,3 +1225,111 @@ user", and a URL does not get to overrule them. Two calls to rules already in th
 - **happy-dom cannot observe the strip.** `history.replaceState` does not move `location.href` there
   — measured, and the same limitation CLAUDE.md already records for `pushState`. The unit tests spy
   on the call; `apps/e2e` checks the address bar for real.
+
+---
+
+## ADR-022 — The content pipeline, and the seventh raise (15.5 → 16 kB)
+
+**Status.** Accepted (Phase 8.3 + 8.4 + 8.9).
+
+**Context.** `Step.content` accepts `StepContent | (() => MaybePromise<StepContent>)`. The function
+form computes anything, so a **code-authored** flow personalises and localises freely — and
+`apps/docs/guide/i18n.md` recommended exactly that.
+
+**A function does not serialise.** So a `.flow.json` — what the devtools recorder (7.9b),
+`@guideflow/mcp` (7.11) and `guideflow export` all produce, and what ADR-014 made *the* delivery
+format — carries copy frozen in one language with no personalisation. The authoring loop this
+project spent three phases building emits tours a PM cannot change without a deploy, and
+`I18nRegistry` translates eleven chrome strings and nothing else.
+
+**Decision 1 — one pipeline, in the engine.**
+
+```
+the step's own content  →  locale catalogue override  →  {{token}} interpolation  →  renderer
+```
+
+In `TourEngine._resolveContent`, not in `DefaultRenderer`: core never assumes the default renderer,
+and a custom `RendererContract` must receive finished content. It is one seam because the order is
+load-bearing — a **translated** string containing `{{firstName}}` only resolves if the catalogue is
+applied before interpolation, and that is the case a two-seam design gets wrong.
+
+It is also the security boundary, and the boundary is drawn between **trust levels, not between
+fields**:
+
+| Source | Trust | May reach `content.html` |
+|---|---|---|
+| the flow's own content | ships with your app | yes |
+| the locale catalogue | a file in your repo, reviewed in a PR | **yes** |
+| a `{{token}}` value | **runtime, routinely a URL parameter** | **no** |
+
+`title` and `body` are interpolated unconditionally: both leave through the renderer's `_esc`, so a
+token value can only ever become visible characters.
+
+**`content.html` is deliberately not interpolated**, and the first implementation of this got it
+wrong — it did, under a docstring asserting the opposite. "Interpolate then sanitise" is genuinely
+safe for element content, and not for **attribute context**: in `<a href="/r?next={{to}}">` a value
+carrying a quote closes the attribute *before* the sanitiser parses anything, so untrusted data
+shapes the parse tree and every gap in the allowlist becomes reachable from a URL. `AUDIT.md` §SEC
+is a list of gaps that allowlist has already had, and CLAUDE.md's standing instruction for it is
+"fix it by parsing, not by adding another regex" — "probably safe, the sanitiser is good" is not the
+bar. Compounding it, **`sanitizeHTML` is opt-in** (ADR-009), so the exposed configuration would be
+the one a developer chose *believing it was the hardened one*. That is the worst possible shape for
+a security-relevant default.
+
+The catalogue may still translate `html`, because a translation file is the same trust level as the
+flow file sitting beside it. The rule is about where the data came from, not which field it is in.
+
+**Decision 2 — the catalogue sits beside the flow, and has two maps.** Changing `StepContent` would
+touch the validator, the exporter, the devtools panel, the MCP tools and every existing flow file —
+a migration for no gain. A flat side catalogue is also what a translator actually wants: strings,
+diffable, reviewable in a PR, generatable.
+
+`{ steps, states }` rather than one flat map because **step ids and state ids are separate
+namespaces**. Step ids are unique within a flow (`duplicate-step-id` enforces it), but nothing stops
+a state being called `welcome` while a step is too. One map would silently collide.
+
+**Decision 3 — chapters are a `label` on `StateNode`, shipped with the catalogue.** A state already
+*is* a chapter, and `flowStepIndex`/`flowTotalSteps` already walk the whole flow — a twelve-step
+tour across four states renders "Step 7 of 12" and nothing saying which section. This is the name.
+On the state for the same reason `route` is: anything that moves a state off the NEXT-only walk
+reintroduces the per-state counter bug ADR-008 paid 1.3 kB to fix. It ships **with** 8.4 because a
+hardcoded English chapter label would be the one untranslatable string in an otherwise fully
+translatable flow file.
+
+**Decision 4 — take the seventh raise, 15.5 → 16 kB. Measured 15.68 kB, from 15.3.**
+
+CLAUDE.md asks for a real saving before a seventh raise. I looked, and found one — and declined it.
+
+Removing the `fromTailwind` / `fromRadix` / `fromShadcn` re-export from the entry drops the measured
+figure by **330 B**, more than this whole feature costs. But `size-limit` bundles `./dist/index.js`
+with every export live, whereas `sideEffects` is `["**/*.css"]` — so a real consumer importing only
+`createGuideFlow` **already tree-shakes those helpers away and pays none of it**. Moving them would
+change the number without changing what anybody downloads. That is papering over a gate, not
+respecting it.
+
+*(The move may still be right on design grounds — theme adapters for three specific design systems
+are exactly the "opt-in thing most consumers never need" category that `/html`, `/selector`,
+`/authoring` and `/versioning` all live in. Worth doing on its own merits, in its own changeset,
+where it cannot launder 380 real bytes.)*
+
+Genuine trims inside the feature were measured and mostly rejected: dropping dotted-path tokens
+saves **30 B** and costs `{{user.name}}`, which is not a good trade. There is no other fat.
+
+So the honest accounting is: **this feature costs ~380 B and the budget moves.** The bar ADR-014 set
+for a raise was "the difference between republishing a tour working and silently reaching nobody".
+This clears it — it is the difference between the static-asset authoring model being usable by a
+non-engineer and not.
+
+**Consequences.**
+- Seventh raise: 12 → 12.5 → 13 → 14.5 → 15 → 15.5 → **16 kB**. Measured 15.68, ~320 B of headroom.
+  Every docs figure quoting a bundle size must now say **~15.7 kB**.
+- `RendererContract.renderStep` gains an optional fifth argument. Additive: an existing renderer
+  that ignores it still satisfies the interface.
+- **Do not assert escaping through `innerHTML` in happy-dom.** MEASURED: it parses `&lt;img&gt;`
+  into a text node correctly, then returns `innerHTML` with the entities *decoded*. A string check
+  there tests happy-dom's serialiser and reads as a vulnerability that is not present. Assert
+  `querySelector` and `textContent`; `apps/e2e` is where serialisation is real.
+- An unresolved token renders **as written**, not as a gap. A visible `{{plan}}` gets fixed; an empty
+  space in a sentence does not, because nobody notices it.
+- Interpolation is one pass, so a context value containing `{{...}}` cannot reach back into the
+  context. Pinned by a test.

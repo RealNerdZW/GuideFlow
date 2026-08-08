@@ -146,7 +146,7 @@
     {
       "name": "core entry (tree-shaken)",
       "path": "./dist/index.js",
-      "limit": "15.5 kB",
+      "limit": "16 kB",
       "gzip": true
     },
     {

@@ -228,6 +228,24 @@ export interface StateNode<TContext = GuidanceContext> {
    * Inert unless a navigation adapter is configured.
    */
   route?: RoutePattern
+  /**
+   * Human-readable name for this section of the tour — its chapter.
+   *
+   * **A state already IS a chapter**, which is why this is a label and not a
+   * new grouping concept. `flowStepIndex` / `flowTotalSteps` already walk the
+   * whole flow, so a twelve-step tour across four states renders "Step 7 of 12"
+   * and nothing saying which section the user is in. This supplies the name.
+   *
+   * Passed to `RendererContract.renderStep` as the fifth argument. Translate it
+   * through `gf.i18n.registerContent(locale, { states: { … } })` — a hardcoded
+   * English label would be the one untranslatable string in an otherwise fully
+   * translatable flow file.
+   *
+   * On the state for the same reason `route` is: the default-path walk follows
+   * NEXT only, and anything that moves a state off that walk reintroduces the
+   * per-state counter bug ADR-008 paid 1.3 kB to fix.
+   */
+  label?: string
 }
 
 export interface FlowDefinition<TContext = GuidanceContext> {
@@ -523,7 +541,23 @@ export interface TourEvents {
 
 /** What core calls on the renderer — adapters implement this */
 export interface RendererContract {
-  renderStep(step: Step, resolvedContent: StepContent, index: number, total: number): void
+  /**
+   * `resolvedContent` has already been through the whole content pipeline —
+   * locale catalogue applied, then `{{token}}` interpolation. A renderer never
+   * has to know that any of that exists, which is why it happens in the engine
+   * rather than in `DefaultRenderer`.
+   *
+   * `chapter` is the current state's `label`, when it has one. Optional and
+   * positional-last, so an existing renderer that ignores it still satisfies
+   * this interface.
+   */
+  renderStep(
+    step: Step,
+    resolvedContent: StepContent,
+    index: number,
+    total: number,
+    chapter?: string,
+  ): void
   hideStep(): void
   /**
    * The engine is waiting for a route change or for a target element to appear.
