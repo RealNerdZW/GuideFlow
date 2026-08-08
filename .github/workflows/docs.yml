@@ -35,8 +35,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Build every publishable package, not a hardcoded list. This step used to
+      # name four — core, react, ai, analytics — and went stale the moment the
+      # demo started mounting @guideflow/banner, checklist and survey (7.8b,
+      # 7.8c). Their .d.ts never got emitted, so "Build demo" died with a wall of
+      # TS2307 "Cannot find module" and the docs site stopped deploying. It fails
+      # HERE, at deploy, on master, after review — the same late-failure shape
+      # that the `docs` job in ci.yml exists to prevent.
+      #
+      # An exclude list cannot rot when a package is added; an include list can.
       - name: Build packages
-        run: pnpm turbo run build --filter='@guideflow/core' --filter='@guideflow/react' --filter='@guideflow/ai' --filter='@guideflow/analytics'
+        run: pnpm turbo run build --filter=!@guideflow/storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
       - name: Build docs
         run: pnpm docs:build

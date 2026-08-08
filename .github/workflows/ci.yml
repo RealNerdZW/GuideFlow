@@ -82,14 +82,28 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The docs import the packages, so they must exist first.
-      - run: pnpm turbo run build --filter='@guideflow/core' --filter='@guideflow/react' --filter='@guideflow/ai' --filter='@guideflow/analytics'
+      # This job must MIRROR docs.yml, or it proves nothing. Its first version
+      # copied docs.yml's hardcoded four-package list and stopped at `docs:build`
+      # — so it passed while the real deploy died one step later on `Build demo`,
+      # which is exactly the failure it was added to catch. A gate that runs a
+      # subset of the thing it guards is worse than no gate: it reports safety it
+      # has not established.
+      #
+      # Exclude list, not include list: it cannot go stale when a package is added.
+      - run: pnpm turbo run build --filter=!@guideflow/storybook --filter=!docs --filter=!e2e --filter=!@guideflow/demo
 
       - name: Guard against unescaped Vue interpolation
         run: node scripts/check-docs-interpolation.mjs
 
       - name: Build docs
         run: pnpm docs:build
+
+      # The demo is built and copied into the docs output by docs.yml, so a demo
+      # that does not compile takes the whole docs deploy down with it. ci.yml
+      # excludes @guideflow/demo from every other task, so this is the only place
+      # in CI it is built at all.
+      - name: Build demo
+        run: pnpm --filter @guideflow/demo build
 
   # ── Coverage gate ──────────────────────────────────────────────────────────
   # Per-package thresholds are ratchets set just below what each suite achieves
