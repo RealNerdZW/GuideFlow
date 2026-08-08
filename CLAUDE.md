@@ -102,8 +102,8 @@ pnpm turbo run build type-check lint test --filter=!@guideflow/storybook --filte
 
 **The audit has no open P0s.** The last one — `no-spa-route-change-handling` — closed in Phase 7.1.
 
-Build, type-check, lint and unit tests are **all green**: **1391 unit tests pass**, 1 skipped
-(core 572, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
+Build, type-check, lint and unit tests are **all green**: **1399 unit tests pass**, 1 skipped
+(core 580, ai 153, analytics 118, react 114, checklist 88, survey 79, banner 62, devtools 54,
 vue 47, mcp 37, svelte 34, cli 33).
 **Seven** bundles, each gated independently: `@guideflow/core` **15.46 kB / 15.5 kB**, `./authoring`
 **5.35 kB / 5.5 kB**, `./targeting` **2.83 kB / 3 kB**, `./navigation` **2.19 kB / 2.5 kB**,
@@ -111,7 +111,7 @@ vue 47, mcp 37, svelte 34, cli 33).
 `@guideflow/checklist` carries no size gate by design — see ADR-011.
 If any of these regress, you broke it — do not paper over it.
 
-**The Playwright e2e suite now actually runs: 507 passed, 3 conditionally skipped, across chromium,
+**The Playwright e2e suite now actually runs: 527 passed, 3 conditionally skipped, across chromium,
 firefox, webkit and Mobile Chrome.** It never had before. Phase 2 rebuilt the harness but every spec still called
 `page.goto('/')`, and Playwright resolves that as `new URL('/', baseURL)` — the leading slash
 discards the base path, so all three specs loaded the repo root and every `beforeEach` timed out
