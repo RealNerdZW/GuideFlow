@@ -10,17 +10,17 @@
   "devDependencies": {
     "@types/react": "^18.3.0",
     "@chromatic-com/storybook": "^1.0.0",
-    "@storybook/addon-a11y": "^8.0.0",
+    "@storybook/addon-a11y": "^10.5.7",
     "@storybook/addon-essentials": "^8.0.0",
     "@storybook/addon-interactions": "^8.0.0",
-    "@storybook/addon-links": "^8.0.0",
-    "@storybook/react": "^8.0.0",
-    "@storybook/react-vite": "^8.0.0",
+    "@storybook/addon-links": "^10.5.7",
+    "@storybook/react": "^10.5.7",
+    "@storybook/react-vite": "^10.5.7",
     "@storybook/test": "^8.0.0",
     "@vitejs/plugin-react": "^4.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "storybook": "^8.0.0",
+    "storybook": "^10.5.7",
     "vite": "^5.2.0"
   },
   "dependencies": {
