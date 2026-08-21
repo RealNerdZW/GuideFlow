@@ -11,13 +11,13 @@
     "test:e2e:ext": "playwright test --project=extension"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.9.0",
+    "@axe-core/playwright": "^4.13.0",
     "@guideflow/banner": "workspace:*",
     "@guideflow/checklist": "workspace:*",
     "@guideflow/core": "workspace:*",
     "@guideflow/devtools": "workspace:*",
     "@guideflow/survey": "workspace:*",
-    "@playwright/test": "^1.44.0",
+    "@playwright/test": "^1.62.1",
     "@types/chrome": "^0.0.268",
     "@types/node": "^20.11.20",
     "typescript": "^5.3.3"
