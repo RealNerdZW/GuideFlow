@@ -20,6 +20,6 @@
     "@playwright/test": "^1.44.0",
     "@types/chrome": "^0.0.268",
     "@types/node": "^20.11.20",
-    "typescript": "^5.3.3"
+    "typescript": "^7.0.2"
   }
 }
