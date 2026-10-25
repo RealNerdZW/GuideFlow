@@ -68,7 +68,7 @@
   },
   "devDependencies": {
     "@guideflow/core": "workspace:*",
-    "@testing-library/react": "^14.2.1",
+    "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.5.2",
     "@types/react": "^18.2.60",
     "@types/react-dom": "^18.2.19",
